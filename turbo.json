@@ -1,5 +1,6 @@
 {
   "$schema": "https://turbo.build/schema.json",
+  "agentGuidance": false,
   "globalEnv": ["DATABASE_URL"],
   "tasks": {
     "build": { "dependsOn": ["^build"], "outputs": [".next/**", "!.next/cache/**"] },
