@@ -5,12 +5,14 @@ import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/ca
 import { roleCan } from "@/lib/auth/permissions";
 import { requireSession } from "@/lib/auth/session";
 import { SELLING_CURRENCY, SOURCE_LABELS, getRateBoard } from "@/lib/exchange-rates";
-import { formatDateTime, formatDay, formatRate } from "@/lib/format";
+import { formatAmount, formatDateTime, formatDay, formatRate } from "@/lib/format";
+import { listDueSoon } from "@/lib/shipments";
 
 export default async function AdminHome() {
   const { user } = await requireSession();
   const canSeeRates = roleCan(user.role, { exchangeRate: ["read"] });
   const sdg = canSeeRates ? (await getRateBoard()).find((c) => c.currency.code === SELLING_CURRENCY) : undefined;
+  const due = roleCan(user.role, { supplier: ["read"] }) ? await listDueSoon(7) : [];
 
   return (
     <div className="flex flex-col gap-8">
@@ -43,6 +45,31 @@ export default async function AdminHome() {
           <Link href="/admin/exchange-rates" className="flex items-center gap-1 text-sm font-semibold hover:underline">
             كل الأسعار والسجل <ArrowLeft aria-hidden className="size-4" />
           </Link>
+        </Card>
+      ) : null}
+
+      {due.length ? (
+        <Card className="max-w-md">
+          <CardHeader>
+            <CardTitle>دفعات للموردين خلال 7 أيام</CardTitle>
+            <CardDescription>موعد استحقاق شحنة أو دين، والرصيد ما زال علينا.</CardDescription>
+          </CardHeader>
+          <ul className="flex flex-col gap-2">
+            {due.map((d) => (
+              <li key={d.supplierId} className="flex items-center justify-between gap-2">
+                <Link href={`/admin/suppliers/${d.supplierId}`} className="font-semibold hover:underline">
+                  {d.supplierName}
+                </Link>
+                <span className="text-sm">
+                  {d.overdue ? <Badge variant="destructive">متأخر</Badge> : null}{" "}
+                  <bdi dir="ltr" className="tabular-nums">
+                    {formatAmount(d.balance)} {d.currencyCode}
+                  </bdi>{" "}
+                  · {formatDateTime(d.dueDate)}
+                </span>
+              </li>
+            ))}
+          </ul>
         </Card>
       ) : null}
 

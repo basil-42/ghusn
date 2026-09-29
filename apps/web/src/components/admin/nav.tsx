@@ -1,6 +1,15 @@
 "use client";
 
-import { ArrowLeftRight, FolderTree, LayoutDashboard, Package, Truck, Users, type LucideIcon } from "lucide-react";
+import {
+  ArrowLeftRight,
+  Container,
+  FolderTree,
+  LayoutDashboard,
+  Package,
+  Truck,
+  Users,
+  type LucideIcon,
+} from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
@@ -11,6 +20,7 @@ const ICONS = {
   products: Package,
   categories: FolderTree,
   suppliers: Truck,
+  shipments: Container,
   users: Users,
 } satisfies Record<string, LucideIcon>;
 
