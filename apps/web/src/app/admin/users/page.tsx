@@ -1,5 +1,5 @@
 import { prisma } from "@ghusn/db";
-import { Button } from "@/components/ui";
+import { Button } from "@/components/ui/button";
 import { ROLE_LABELS, ROLE_NAMES } from "@/lib/auth/permissions";
 import { requirePermission } from "@/lib/auth/session";
 import { setBanned, setRole } from "./actions";
@@ -60,7 +60,7 @@ export default async function UsersPage() {
                         </option>
                       ))}
                     </select>
-                    <Button type="submit" variant="ghost">
+                    <Button type="submit" variant="outline">
                       تغيير
                     </Button>
                   </form>
@@ -68,7 +68,7 @@ export default async function UsersPage() {
                   <form action={setBanned} className="min-w-0">
                     <input type="hidden" name="userId" value={u.id} />
                     <input type="hidden" name="banned" value={String(!u.banned)} />
-                    <Button type="submit" variant="ghost" className="w-full">
+                    <Button type="submit" variant="outline" className="w-full">
                       {u.banned ? "إعادة تفعيل" : "إيقاف الحساب"}
                     </Button>
                   </form>

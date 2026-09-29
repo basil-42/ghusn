@@ -104,6 +104,7 @@ Env lives in the **root** `.env` (copy from `.env.example`). Packages load it wi
 - Order status changes go through a single state-machine function; statuses per `docs/customer-journey.md` (D-60).
 
 ### UI
+- Components live in `apps/web/src/components/ui` (shadcn/ui style, `components.json`); semantic colors (`primary`, `muted`, `border`…) map to brand tokens in `globals.css`. Form wrappers: `components/form-field.tsx`. Formatting: `lib/format.ts` (Arabic, Latin digits, Khartoum time).
 - Arabic-first, `dir="rtl"`; use logical CSS properties (`ms-`, `me-`, `ps-`, `pe-`, `start`, `end`) so LTR works for English.
 - Brand tokens only (sage `#7D8A6E`, sand `#D1B790`, forest `#2F3B2C`, ivory `#F5F1E8`, gold `#B08D57`), plus functional UI tokens `line` and `danger` — no raw hex values in components. Fonts: IBM Plex Sans Arabic (UI), Amiri (Arabic headings), Cormorant Garamond (English headings).
 - Use the SVG logos in `public/brand/` exactly as they are. **Do not modify, redraw, recolor outside the palette, or re-typeset the logo.** Respect minimum sizes (see brand doc): the full logo below 200px width → use `logo-ar-mark-*` (Arabic UI) or `logo-en-mark-*` (English UI) instead.

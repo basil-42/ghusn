@@ -10,11 +10,31 @@
   /* ألوان وظيفية للواجهة (ليست من ألوان الشعار) */
   --color-line: #e4ded1; /* حدود البطاقات والفواصل */
   --color-danger: #a4552f; /* رسائل الخطأ */
+  --color-warning: #8a6a2f; /* تنبيهات تحتاج انتباهاً (من الذهبي، أغمق للتباين) */
+
+  /* أسماء shadcn/ui الدلالية مربوطة بألوان الهوية — المكوّنات تستخدمها */
+  --color-background: var(--color-ivory);
+  --color-foreground: var(--color-forest);
+  --color-card: #ffffff;
+  --color-card-foreground: var(--color-forest);
+  --color-primary: var(--color-forest);
+  --color-primary-foreground: var(--color-ivory);
+  --color-secondary: var(--color-ivory);
+  --color-secondary-foreground: var(--color-forest);
+  --color-muted: #efeadf;
+  --color-muted-foreground: #5f6b54; /* مريمية أغمق — تباين كافٍ للنص الصغير */
+  --color-accent: var(--color-sand);
+  --color-accent-foreground: var(--color-forest);
+  --color-destructive: var(--color-danger);
+  --color-border: var(--color-line);
+  --color-input: var(--color-line);
+  --color-ring: var(--color-sage);
+
   --font-sans: var(--font-plex), "Segoe UI", Tahoma, sans-serif;
   --font-display: var(--font-amiri), "Times New Roman", serif;
 }
 
 body {
-  background: var(--color-ivory);
-  color: var(--color-forest);
+  background: var(--color-background);
+  color: var(--color-foreground);
 }

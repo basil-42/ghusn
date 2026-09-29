@@ -1,7 +1,9 @@
 "use client";
 
 import { useActionState } from "react";
-import { Alert, Button, Field } from "@/components/ui";
+import { Button } from "@/components/ui/button";
+import { Alert } from "@/components/ui/alert";
+import { Field } from "@/components/form-field";
 import { login, type LoginState } from "./actions";
 
 export function LoginForm() {
@@ -9,7 +11,7 @@ export function LoginForm() {
 
   return (
     <form action={action} className="flex flex-col gap-5">
-      {state.error ? <Alert tone="error">{state.error}</Alert> : null}
+      {state.error ? <Alert variant="destructive">{state.error}</Alert> : null}
       <Field
         label="رقم الهاتف"
         name="phone"
