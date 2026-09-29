@@ -2,14 +2,14 @@
 
 /* ألوان هوية غصن المعتمدة */
 @theme {
-  --color-sage: #7D8A6E;
-  --color-sand: #D1B790;
-  --color-forest: #2F3B2C;
-  --color-ivory: #F5F1E8;
-  --color-gold: #B08D57;
+  --color-sage: #7d8a6e;
+  --color-sand: #d1b790;
+  --color-forest: #2f3b2c;
+  --color-ivory: #f5f1e8;
+  --color-gold: #b08d57;
   /* ألوان وظيفية للواجهة (ليست من ألوان الشعار) */
-  --color-line: #E4DED1;   /* حدود البطاقات والفواصل */
-  --color-danger: #A4552F; /* رسائل الخطأ */
+  --color-line: #e4ded1; /* حدود البطاقات والفواصل */
+  --color-danger: #a4552f; /* رسائل الخطأ */
   --font-sans: var(--font-plex), "Segoe UI", Tahoma, sans-serif;
   --font-display: var(--font-amiri), "Times New Roman", serif;
 }
