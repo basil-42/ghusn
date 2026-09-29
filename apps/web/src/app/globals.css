@@ -7,6 +7,9 @@
   --color-forest: #2F3B2C;
   --color-ivory: #F5F1E8;
   --color-gold: #B08D57;
+  /* ألوان وظيفية للواجهة (ليست من ألوان الشعار) */
+  --color-line: #E4DED1;   /* حدود البطاقات والفواصل */
+  --color-danger: #A4552F; /* رسائل الخطأ */
   --font-sans: var(--font-plex), "Segoe UI", Tahoma, sans-serif;
   --font-display: var(--font-amiri), "Times New Roman", serif;
 }

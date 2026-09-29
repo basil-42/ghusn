@@ -26,13 +26,13 @@ export default async function Home() {
         <p className="font-display text-2xl text-sage">هدايا تُصنع لتُذكر</p>
       </header>
 
-      <section className="rounded-2xl border border-[#E4DED1] bg-white p-6">
+      <section className="rounded-2xl border border-line bg-white p-6">
         <h2 className="mb-3 text-lg font-bold">حالة الاتصال بقاعدة البيانات</h2>
         {status.ok ? (
           <p className="font-semibold text-sage">✓ متصل — {status.categories.length} أقسام و {status.rates.length} أسعار صرف</p>
         ) : (
           <div className="flex flex-col gap-2">
-            <p className="font-semibold text-[#A4552F]">✗ غير متصل. تأكد أن Docker يعمل ثم شغّل: pnpm db:up</p>
+            <p className="font-semibold text-danger">✗ غير متصل. تأكد أن Docker يعمل ثم شغّل: pnpm db:up</p>
             <code dir="ltr" className="block overflow-x-auto rounded bg-ivory p-3 text-xs">{status.error.slice(0, 300)}</code>
           </div>
         )}
@@ -51,9 +51,9 @@ export default async function Home() {
 
           <section className="flex flex-col gap-3">
             <h2 className="text-lg font-bold">أسعار الصرف (كم وحدة = 1 دولار)</h2>
-            <div className="overflow-hidden rounded-2xl border border-[#E4DED1] bg-white">
+            <div className="overflow-hidden rounded-2xl border border-line bg-white">
               {status.rates.map((r) => (
-                <div key={r.id} className="flex justify-between border-b border-[#E4DED1] px-5 py-3 last:border-0">
+                <div key={r.id} className="flex justify-between border-b border-line px-5 py-3 last:border-0">
                   <span>{r.currency.nameAr}</span>
                   <span dir="ltr" className="font-semibold tabular-nums">{Number(r.unitsPerUsd).toLocaleString("en-US")} {r.currencyCode}</span>
                 </div>
