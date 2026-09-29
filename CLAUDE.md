@@ -68,6 +68,7 @@ pnpm install
 pnpm db:up          # start local Postgres (OrbStack/Docker must be running)
 pnpm db:migrate     # prisma migrate dev (root .env loaded via dotenv-cli)
 pnpm db:seed        # currencies, sample rates, wallets, 9 categories, owner user
+pnpm owner:setup    # set the owner's name, phone and password (first login / recovery)
 pnpm db:studio
 pnpm dev            # http://localhost:3000
 pnpm build
@@ -90,6 +91,11 @@ Env lives in the **root** `.env` (copy from `.env.example`). Packages load it wi
 6. Landed cost per unit is fixed per **batch** (shipment). Extra shipment costs are allocated **by purchase value** (Phase 1 default); by weight is a Phase 2 option. COGS uses **weighted average cost in USD**.
 7. Bankak orders lock their SDG price for the 24h reservation window.
 8. All money/stock mutations happen inside **DB transactions**; stock can never go negative without an explicit override that is logged.
+
+### Auth (D-62, D-64, D-65)
+- Staff sign in with **phone (E.164 via `normalizePhone`) + password**; no self sign-up; the owner creates, bans and resets accounts.
+- Check **permissions, not role names**: `requirePermission({...})` / `roleCan()` in `apps/web/src/lib/auth/`. New screens add statements to `permissions.ts`.
+- `proxy.ts` is only an optimistic cookie check; every protected page and server action must call `requireSession()` / `requirePermission()`.
 
 ### Data & API
 - Soft-delete business records (`deletedAt`), keep audit logs (who/when/what) for price, stock, money and order status changes.
