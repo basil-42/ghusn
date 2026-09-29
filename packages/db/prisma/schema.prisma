@@ -188,6 +188,7 @@ model Product {
   deletedAt     DateTime?
 
   variants ProductVariant[]
+  images   ProductImage[]
 
   @@index([categoryId])
   @@index([deletedAt])
@@ -211,4 +212,19 @@ model ProductVariant {
   deletedAt DateTime?
 
   @@index([productId])
+}
+
+// صورة منتج: ملفات WebP في التخزين (محلياً uploads، وR2 عند النشر). الأولى حسب sortOrder هي الرئيسية
+model ProductImage {
+  id        String   @id @default(cuid())
+  product   Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  productId String
+  // مفتاح التخزين الأساسي؛ الملفات: {key}-1200.webp و {key}-400.webp
+  key       String   @unique
+  width     Int
+  height    Int
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+
+  @@index([productId, sortOrder])
 }

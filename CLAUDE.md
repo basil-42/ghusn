@@ -97,6 +97,9 @@ Env lives in the **root** `.env` (copy from `.env.example`). Packages load it wi
 - Check **permissions, not role names**: `requirePermission({...})` / `roleCan()` in `apps/web/src/lib/auth/`. New screens add statements to `permissions.ts`.
 - `proxy.ts` is only an optimistic cookie check; every protected page and server action must call `requireSession()` / `requirePermission()`.
 
+### Files & images (D-73)
+- All file I/O goes through `apps/web/src/lib/storage` (local `uploads/` now, R2 driver later with the same interface). Product images: `lib/product-images.ts` (Sharp → WebP 1200/400, EXIF stripped, content-hashed keys), served by `/media/[...path]`.
+
 ### Data & API
 - Soft-delete business records (`deletedAt`), keep audit logs (who/when/what) for price, stock, money and order status changes.
 - IDs: `cuid()` (D-61). Human-readable numbers for documents: `GHS-2026-000155` (orders), `SHP-2026-014` (shipments), `INV-…` (invoices).

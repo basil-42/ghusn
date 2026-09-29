@@ -47,6 +47,7 @@ export async function listProducts({ q, categoryId, page = 1 }: { q?: string; ca
           orderBy: { sortOrder: "asc" },
           select: { id: true, sku: true, barcode: true, size: true, color: true, volume: true, isActive: true },
         },
+        images: { orderBy: { sortOrder: "asc" }, take: 1, select: { key: true } },
       },
     }),
   ]);
@@ -59,6 +60,7 @@ export async function getProduct(id: string) {
     include: {
       category: { select: { nameAr: true } },
       variants: { where: { deletedAt: null }, orderBy: { sortOrder: "asc" } },
+      images: { orderBy: { sortOrder: "asc" } },
     },
   });
 }
