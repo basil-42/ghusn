@@ -1,7 +1,7 @@
 import type { NextConfig } from "next";
 
 const nextConfig: NextConfig = {
-  transpilePackages: ["@ghusn/db"],
+  transpilePackages: ["@ghusn/db", "@ghusn/core"],
   serverExternalPackages: ["@prisma/client"],
 };
 

@@ -17,7 +17,8 @@
     "db:down": "docker compose down",
     "db:migrate": "pnpm --filter @ghusn/db migrate",
     "db:seed": "pnpm --filter @ghusn/db seed",
-    "db:studio": "pnpm --filter @ghusn/db studio"
+    "db:studio": "pnpm --filter @ghusn/db studio",
+    "owner:setup": "pnpm --filter @ghusn/web owner:setup"
   },
   "devDependencies": {
     "turbo": "2.11.5",
