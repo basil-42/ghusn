@@ -59,7 +59,7 @@ apps/web/public/brand   Approved logo/mark/pattern SVGs (never redraw the logo)
 docker-compose.yml  Local Postgres
 ```
 Planned later: `packages/ui` (shared components), `apps/mobile` (Expo).
-Money math lives in `@ghusn/core` only — apps call it, never re-implement it.
+Money math lives in `@ghusn/core` only — apps call it, never re-implement it. To show a Decimal in an input or label without trailing zeros use `plainNumber()` — never strip zeros with a regex.
 
 ## 5. Commands
 
