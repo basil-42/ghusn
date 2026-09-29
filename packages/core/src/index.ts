@@ -6,3 +6,4 @@ export * from "./costing";
 export * from "./pricing";
 export * from "./profit";
 export * from "./phone";
+export * from "./exchange-rate";
