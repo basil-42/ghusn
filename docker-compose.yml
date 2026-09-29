@@ -1,0 +1,16 @@
+# قاعدة بيانات Postgres للتطوير على جهازك فقط
+services:
+  db:
+    image: postgres:16
+    container_name: ghusn-db
+    restart: unless-stopped
+    environment:
+      POSTGRES_USER: ghusn
+      POSTGRES_PASSWORD: ghusn_dev_password
+      POSTGRES_DB: ghusn
+    ports:
+      - "5432:5432"
+    volumes:
+      - ghusn_db_data:/var/lib/postgresql/data
+volumes:
+  ghusn_db_data:

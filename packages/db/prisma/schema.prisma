@@ -1,0 +1,91 @@
+// مخطط قاعدة بيانات غصن — النسخة الأولى (المرحلة 0)
+// كل مبلغ يُحفظ بعملته الأصلية + ما يعادله بالدولار (عملة الأساس)
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ---------- المستخدمون والأدوار ----------
+enum Role {
+  OWNER    // المالك (باسل)
+  MANAGER  // المديرة
+  STAFF    // موظفة / كاشير
+}
+
+model User {
+  id        String   @id @default(cuid())
+  name      String
+  phone     String?  @unique
+  email     String?  @unique
+  role      Role     @default(STAFF)
+  isActive  Boolean  @default(true)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  ratesEntered ExchangeRate[]
+}
+
+// ---------- العملات وأسعار الصرف ----------
+model Currency {
+  code      String  @id // SDG, USD, QAR, CNY, EGP
+  nameAr    String
+  nameEn    String
+  symbol    String
+  decimals  Int     @default(2)
+  isBase    Boolean @default(false) // الدولار = true
+  isActive  Boolean @default(true)
+
+  ratesFrom ExchangeRate[] @relation("rateFrom")
+  wallets   Wallet[]
+}
+
+enum RateSource {
+  PARALLEL_MARKET // السوق الموازي
+  BANK            // سعر البنك
+  ACTUAL_TRANSFER // من تحويل فعلي
+  FIXED_PEG       // سعر ثابت (الريال القطري)
+}
+
+// سعر الصرف: كم وحدة من العملة = 1 دولار
+model ExchangeRate {
+  id          String     @id @default(cuid())
+  currency    Currency   @relation("rateFrom", fields: [currencyCode], references: [code])
+  currencyCode String
+  unitsPerUsd Decimal    @db.Decimal(18, 6) // مثال: SDG 2500.000000
+  source      RateSource @default(PARALLEL_MARKET)
+  effectiveAt DateTime   @default(now())
+  note        String?
+  enteredBy   User?      @relation(fields: [enteredById], references: [id])
+  enteredById String?
+  createdAt   DateTime   @default(now())
+
+  @@index([currencyCode, effectiveAt])
+}
+
+// ---------- المحافظ (أماكن المال) ----------
+model Wallet {
+  id           String   @id @default(cuid())
+  name         String   // صندوق المحل، بنكك، حساب باسل – قطر
+  currency     Currency @relation(fields: [currencyCode], references: [code])
+  currencyCode String
+  isActive     Boolean  @default(true)
+  createdAt    DateTime @default(now())
+}
+
+// ---------- الأقسام ----------
+model Category {
+  id        String  @id @default(cuid())
+  slug      String  @unique
+  nameAr    String
+  nameEn    String
+  sortOrder Int     @default(0)
+  isActive  Boolean @default(true)
+  // هامش الربح المستهدف والحد الأدنى للتنبيه (نسبة من سعر البيع)
+  targetMargin Decimal @default(0.40) @db.Decimal(5, 4)
+  minMargin    Decimal @default(0.35) @db.Decimal(5, 4)
+}

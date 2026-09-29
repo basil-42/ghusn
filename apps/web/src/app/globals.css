@@ -1,0 +1,17 @@
+@import "tailwindcss";
+
+/* ألوان هوية غصن المعتمدة */
+@theme {
+  --color-sage: #7D8A6E;
+  --color-sand: #D1B790;
+  --color-forest: #2F3B2C;
+  --color-ivory: #F5F1E8;
+  --color-gold: #B08D57;
+  --font-sans: var(--font-plex), "Segoe UI", Tahoma, sans-serif;
+  --font-display: var(--font-amiri), "Times New Roman", serif;
+}
+
+body {
+  background: var(--color-ivory);
+  color: var(--color-forest);
+}
