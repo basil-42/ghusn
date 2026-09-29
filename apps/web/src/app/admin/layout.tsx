@@ -34,7 +34,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
       {/* شريط جانبي على الشاشات الكبيرة */}
       <aside className="hidden border-e border-border bg-card md:flex md:flex-col md:gap-6 md:p-4">
         <Link href="/admin" aria-label="الرئيسية" className="px-2 pt-2">
-          <Image src="/brand/logo-ar-mark-forest.svg" alt="غصن" width={110} height={46} />
+          <Image src="/brand/logo-ar-mark-forest.svg" alt="غصن" width={110} height={57} loading="eager" />
         </Link>
         <AdminNav items={items} orientation="vertical" />
       </aside>
@@ -43,7 +43,7 @@ export default async function AdminLayout({ children }: { children: React.ReactN
         <header className="border-b border-border bg-card">
           <div className="flex items-center justify-between gap-3 px-4 py-2">
             <Link href="/admin" aria-label="الرئيسية" className="md:hidden">
-              <Image src="/brand/logo-ar-mark-forest.svg" alt="غصن" width={88} height={37} />
+              <Image src="/brand/logo-ar-mark-forest.svg" alt="غصن" width={88} height={45} loading="eager" />
             </Link>
             <span className="truncate text-sm md:ms-auto">
               {user.name} <span className="text-muted-foreground">· {roleLabel}</span>

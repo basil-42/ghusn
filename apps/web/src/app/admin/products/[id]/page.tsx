@@ -3,7 +3,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { roleCan } from "@/lib/auth/permissions";
 import { requirePermission } from "@/lib/auth/session";
-import { PRODUCT_TYPE_LABELS, STOCK_UNIT_LABELS, getProduct, listCategories } from "@/lib/catalog";
+import { PRODUCT_TYPE_LABELS, STOCK_UNIT_LABELS, getProduct, listCategoryOptions } from "@/lib/catalog";
 import { MAX_IMAGES_PER_PRODUCT, imageUrl } from "@/lib/product-images";
 import { formatDateTime } from "@/lib/format";
 import { archiveProductAction } from "../actions";
@@ -22,8 +22,9 @@ export default async function ProductPage({
 }) {
   const session = await requirePermission({ product: ["read"] });
   const [{ id }, { created }] = await Promise.all([params, searchParams]);
-  const [product, categories] = await Promise.all([getProduct(id), listCategories()]);
+  const product = await getProduct(id);
   if (!product) notFound();
+  const categories = await listCategoryOptions(product.categoryId);
 
   const canEdit = roleCan(session.user.role, { product: ["update"] });
   const canArchive = roleCan(session.user.role, { product: ["delete"] });
@@ -50,7 +51,7 @@ export default async function ProductPage({
 
       <ProductForm
         productId={product.id}
-        categories={categories.filter((c) => c.isActive || c.id === product.categoryId)}
+        categories={categories}
         typeLabels={PRODUCT_TYPE_LABELS}
         unitLabels={STOCK_UNIT_LABELS}
         canEdit={canEdit}
