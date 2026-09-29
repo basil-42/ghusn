@@ -10,6 +10,8 @@ export const statements = {
   exchangeRate: ["read", "update"],
   margin: ["read", "update"],
   cost: ["read"],
+  product: ["read", "create", "update", "delete"],
+  category: ["create", "update"],
 } as const;
 
 export const ac = createAccessControl(statements);
@@ -22,16 +24,21 @@ export const roles = {
     exchangeRate: ["read", "update"],
     margin: ["read", "update"],
     cost: ["read"],
+    product: ["read", "create", "update", "delete"],
+    category: ["create", "update"],
   }),
-  // المديرة: سعر الصرف والهوامش (D-29) وترى التكاليف
+  // المديرة: سعر الصرف والهوامش (D-29) وترى التكاليف، وتدير الكتالوج (D-69)
   MANAGER: ac.newRole({
     exchangeRate: ["read", "update"],
     margin: ["read", "update"],
     cost: ["read"],
+    product: ["read", "create", "update", "delete"],
+    category: ["create", "update"],
   }),
   // الموظفة: ترى سعر الصرف فقط، ولا ترى التكاليف ولا الهوامش (system-design §4.9)
   STAFF: ac.newRole({
     exchangeRate: ["read"],
+    product: ["read"],
   }),
 };
 

@@ -7,3 +7,6 @@ export * from "./pricing";
 export * from "./profit";
 export * from "./phone";
 export * from "./exchange-rate";
+export * from "./barcode";
+export * from "./search";
+export * from "./catalog";

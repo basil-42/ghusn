@@ -13,6 +13,8 @@ type Permissions = Parameters<typeof roleCan>[1];
 // كل رابط يظهر فقط لمن يملك صلاحيته (D-62)
 const NAV: (NavItem & { permission?: Permissions })[] = [
   { href: "/admin", label: "الرئيسية", icon: "dashboard" },
+  { href: "/admin/products", label: "المنتجات", icon: "products", permission: { product: ["read"] } },
+  { href: "/admin/categories", label: "الأقسام", icon: "categories", permission: { category: ["update"] } },
   { href: "/admin/exchange-rates", label: "سعر الصرف", icon: "rates", permission: { exchangeRate: ["read"] } },
   { href: "/admin/users", label: "المستخدمون", icon: "users", permission: { user: ["list"] } },
 ];

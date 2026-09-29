@@ -1,11 +1,17 @@
 "use client";
 
-import { ArrowLeftRight, LayoutDashboard, Users, type LucideIcon } from "lucide-react";
+import { ArrowLeftRight, FolderTree, LayoutDashboard, Package, Users, type LucideIcon } from "lucide-react";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
 
-const ICONS = { dashboard: LayoutDashboard, rates: ArrowLeftRight, users: Users } satisfies Record<string, LucideIcon>;
+const ICONS = {
+  dashboard: LayoutDashboard,
+  rates: ArrowLeftRight,
+  products: Package,
+  categories: FolderTree,
+  users: Users,
+} satisfies Record<string, LucideIcon>;
 
 export type NavItem = { href: string; label: string; icon: keyof typeof ICONS };
 
