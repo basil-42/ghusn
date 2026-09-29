@@ -42,6 +42,8 @@ share_i          = lineValueUsd_i / Σ lineValueUsd
 extraUsd_i       = totalExtraCostsUsd × share_i
 landedUnitUsd_i  = (lineValueUsd_i + extraUsd_i) / receivedQty_i
 ```
+> **ملاحظة تنفيذ:** التوزيع يُحسب من المبالغ الأصلية وأسعارها (`amount ÷ rateUsed`) بدقة كاملة، وليس من `amountUsd` المقرّب لخانتين؛ وإلا صار إجمالي السيناريو المرجعي 1,055.02 بدل 1,055.01. التنفيذ: `allocateLandedCost` في `packages/core`.
+
 5. **الاستلام:** الكمية المستلمة فعلاً؛ التالف/الناقص يُسجَّل وتُحمَّل تكلفته على المستلم (القسمة على `receivedQty`).
 6. كل استلام يُنشئ **دفعة** (`ProductBatch`) بتكلفة واصلة ثابتة، ويُحدَّث **متوسط التكلفة المرجّح بالدولار** للمنتج:
 ```

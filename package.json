@@ -2,11 +2,17 @@
   "name": "ghusn",
   "private": true,
   "packageManager": "pnpm@10.28.0",
-  "engines": { "node": ">=22" },
+  "engines": {
+    "node": ">=22"
+  },
   "scripts": {
     "dev": "turbo run dev",
     "build": "turbo run build",
     "lint": "turbo run lint",
+    "typecheck": "turbo run typecheck",
+    "test": "turbo run test",
+    "format": "prettier --write .",
+    "format:check": "prettier --check .",
     "db:up": "docker compose up -d",
     "db:down": "docker compose down",
     "db:migrate": "pnpm --filter @ghusn/db migrate",
@@ -15,6 +21,7 @@
   },
   "devDependencies": {
     "turbo": "2.11.5",
-    "typescript": "5.9.3"
+    "typescript": "5.9.3",
+    "prettier": "3.9.9"
   }
 }

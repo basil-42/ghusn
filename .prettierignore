@@ -1,0 +1,8 @@
+# الوثائق العربية وجداولها تُنسَّق يدوياً
+*.md
+pnpm-lock.yaml
+packages/db/prisma/migrations
+apps/web/public
+.next
+.turbo
+node_modules
