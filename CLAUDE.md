@@ -77,7 +77,7 @@ Env lives in the **root** `.env` (copy from `.env.example`). Packages load it wi
 ### Money & currency (read `docs/currency-and-costing.md`)
 1. **Base currency is USD** for cost, profit, partner capital and profit sharing. **Selling currency is SDG.** Purchases can be SDG, QAR, CNY, EGP, USD.
 2. Every monetary record stores: `amount` (original), `currencyCode`, `rateUsed` (units per 1 USD at that moment), and `amountUsd` — **computed once at write time and never recomputed** from today's rate.
-3. Money columns: `Decimal` / `NUMERIC(18,2)` (SDG may use 0 decimals for display); rates `NUMERIC(18,6)`. **Never use JS `number`/float for money math** — use a decimal library (e.g. `decimal.js`) in domain code.
+3. Money columns: `Decimal` / `NUMERIC(18,2)` for amounts and totals (SDG may use 0 decimals for display); **unit costs (`landedUnitUsd`, `avgCostUsd`) and rates `NUMERIC(18,6)`** (D-28). **Never use JS `number`/float for money math** — use a decimal library (e.g. `decimal.js`) in domain code.
 4. Pricing uses **margin on selling price**, not markup: `priceUsd = landedCostUsd / (1 - targetMargin)`; `priceSdg = ceilTo(priceUsd × sdgPerUsd, step)` — always round **up**, step 500 below 50,000, 1,000 below 100,000, 5,000 from 100,000 (see `docs/currency-and-costing.md` §5).
 5. Price changes are **suggested, never automatic**; a human approves; every change is written to `price_history`.
 6. Landed cost per unit is fixed per **batch** (shipment). Extra shipment costs are allocated **by purchase value** (Phase 1 default); by weight is a Phase 2 option. COGS uses **weighted average cost in USD**.
@@ -86,9 +86,9 @@ Env lives in the **root** `.env` (copy from `.env.example`). Packages load it wi
 
 ### Data & API
 - Soft-delete business records (`deletedAt`), keep audit logs (who/when/what) for price, stock, money and order status changes.
-- IDs: `cuid()`. Human-readable numbers for documents: `GHS-2026-000155` (orders), `SHP-2026-014` (shipments), `INV-…` (invoices).
+- IDs: `cuid()` (D-61). Human-readable numbers for documents: `GHS-2026-000155` (orders), `SHP-2026-014` (shipments), `INV-…` (invoices).
 - Validate input with Zod; return typed errors; never trust client-side totals — recompute on the server.
-- Order status changes go through a single state-machine function (see `docs/customer-journey.md`).
+- Order status changes go through a single state-machine function; statuses per `docs/customer-journey.md` (D-60).
 
 ### UI
 - Arabic-first, `dir="rtl"`; use logical CSS properties (`ms-`, `me-`, `ps-`, `pe-`, `start`, `end`) so LTR works for English.
