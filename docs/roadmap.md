@@ -32,9 +32,12 @@
 - [x] Seed: 5 عملات، أسعار تجريبية، 3 محافظ، 9 أقسام، مستخدم المالك
 - [x] صفحة رئيسية تختبر الاتصال بقاعدة البيانات، بألوان وخطوط الهوية
 - [x] ملفات الشعار في `public/brand`
-- [ ] **أول تشغيل على ماك باسل والتحقق من `db:migrate` و`db:seed` و`dev`** ← المهمة التالية
-- [ ] Git + GitHub (مستودع خاص)
-- [ ] ESLint + Prettier + Vitest + CI (GitHub Actions)
+- [x] تشغيل كامل في بيئة Claude Code (Linux + Postgres 16): install، build، migrate، seed، dev — كلها ناجحة
+- [x] أول ترحيل `init` محفوظ في `packages/db/prisma/migrations`
+- [x] Git + GitHub: `basil-42/ghusn`
+- [ ] **أول تشغيل على ماك باسل** (`pnpm db:migrate` سيطبّق ترحيل `init` الموجود ولن يطلب اسماً)
+- [ ] حسم القرارات المعلّقة الجديدة في `decisions.md` (الدقة، حالات الطلب، المعرّفات) ← **قبل** `packages/core`
+- [ ] ESLint + Prettier + Vitest + CI (GitHub Actions) ← المهمة التالية
 - [ ] `packages/core`: دوال المال (decimal.js)، التحويل، التكلفة الواصلة، التسعير — مع اختبارات السيناريو المرجعي في `currency-and-costing.md` §10
 - [ ] Better Auth + الأدوار + حماية مسارات `/admin`
 - [ ] هيكل لوحة الإدارة (RTL) + شاشة سعر الصرف

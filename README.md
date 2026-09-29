@@ -16,7 +16,7 @@ docker-compose  ← قاعدة بيانات Postgres للتطوير
 cp .env.example .env     # مرة واحدة فقط
 pnpm install             # تنزيل المكتبات
 pnpm db:up               # تشغيل قاعدة البيانات (يجب أن يكون OrbStack أو Docker يعمل)
-pnpm db:migrate          # إنشاء الجداول — اكتب اسماً للتغيير عند السؤال مثل: init
+pnpm db:migrate          # إنشاء الجداول (يطبّق الترحيلات الموجودة؛ يطلب اسماً فقط عند تعديل المخطط)
 pnpm db:seed             # إدخال العملات والأقسام
 pnpm dev                 # تشغيل الموقع على http://localhost:3000
 ```

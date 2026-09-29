@@ -78,7 +78,7 @@ Env lives in the **root** `.env` (copy from `.env.example`). Packages load it wi
 1. **Base currency is USD** for cost, profit, partner capital and profit sharing. **Selling currency is SDG.** Purchases can be SDG, QAR, CNY, EGP, USD.
 2. Every monetary record stores: `amount` (original), `currencyCode`, `rateUsed` (units per 1 USD at that moment), and `amountUsd` — **computed once at write time and never recomputed** from today's rate.
 3. Money columns: `Decimal` / `NUMERIC(18,2)` (SDG may use 0 decimals for display); rates `NUMERIC(18,6)`. **Never use JS `number`/float for money math** — use a decimal library (e.g. `decimal.js`) in domain code.
-4. Pricing uses **margin on selling price**, not markup: `priceUsd = landedCostUsd / (1 - targetMargin)`; `priceSdg = round(priceUsd × sdgPerUsd)` to the nearest 500 or 1,000.
+4. Pricing uses **margin on selling price**, not markup: `priceUsd = landedCostUsd / (1 - targetMargin)`; `priceSdg = ceilTo(priceUsd × sdgPerUsd, step)` — always round **up**, step 500 below 50,000, 1,000 below 100,000, 5,000 from 100,000 (see `docs/currency-and-costing.md` §5).
 5. Price changes are **suggested, never automatic**; a human approves; every change is written to `price_history`.
 6. Landed cost per unit is fixed per **batch** (shipment). Extra shipment costs are allocated **by purchase value** (Phase 1 default); by weight is a Phase 2 option. COGS uses **weighted average cost in USD**.
 7. Bankak orders lock their SDG price for the 24h reservation window.
@@ -92,7 +92,7 @@ Env lives in the **root** `.env` (copy from `.env.example`). Packages load it wi
 
 ### UI
 - Arabic-first, `dir="rtl"`; use logical CSS properties (`ms-`, `me-`, `ps-`, `pe-`, `start`, `end`) so LTR works for English.
-- Brand tokens only (sage `#7D8A6E`, sand `#D1B790`, forest `#2F3B2C`, ivory `#F5F1E8`, gold `#B08D57`). Fonts: IBM Plex Sans Arabic (UI), Amiri (Arabic headings), Cormorant Garamond (English headings).
+- Brand tokens only (sage `#7D8A6E`, sand `#D1B790`, forest `#2F3B2C`, ivory `#F5F1E8`, gold `#B08D57`), plus functional UI tokens `line` and `danger` — no raw hex values in components. Fonts: IBM Plex Sans Arabic (UI), Amiri (Arabic headings), Cormorant Garamond (English headings).
 - Use the SVG logos in `public/brand/` exactly as they are. **Do not modify, redraw, recolor outside the palette, or re-typeset the logo.** Respect minimum sizes (see brand doc): the full logo below 200px width → use `logo-ar-mark-*` (Arabic UI) or `logo-en-mark-*` (English UI) instead.
 - Staff screens: big touch targets (≥44px), minimal fields, clear Arabic labels, works on phones.
 - Numbers: Latin digits with thousands separators (`185,000 ج.س`), tabular numerals in tables.
