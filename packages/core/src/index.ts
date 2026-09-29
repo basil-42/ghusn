@@ -11,3 +11,4 @@ export * from "./barcode";
 export * from "./search";
 export * from "./catalog";
 export * from "./supplier-ledger";
+export * from "./shipment";

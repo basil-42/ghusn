@@ -22,3 +22,9 @@ export const roundUnitCost = (value: DecimalInput): Decimal => dec(value).toDeci
 
 export const sum = (values: readonly DecimalInput[]): Decimal =>
   values.reduce<Decimal>((acc, v) => acc.plus(v), dec(0));
+
+/**
+ * رقم بصيغته المختصرة للعرض والنماذج: «20.000» ← «20»، «0.3500» ← «0.35»، «2500» يبقى «2500».
+ * لا تستخدم تعبيرات نمطية لحذف الأصفار — تحذف أصفار الأعداد الصحيحة («20» ← «2»).
+ */
+export const plainNumber = (value: DecimalInput): string => dec(value).toFixed();

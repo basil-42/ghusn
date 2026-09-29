@@ -99,3 +99,18 @@ describe("weighted average cost", () => {
     expect(weightedAverageCost({ oldQty: -2, oldAvgUsd: 20, inQty: 10, inUnitUsd: 25 }).toString()).toBe("25");
   });
 });
+
+describe("plainNumber", () => {
+  it("drops only fractional trailing zeros", async () => {
+    const { plainNumber } = await import("../src");
+    expect(["20.000", "20", "2500.000000", "0.3500", "100", "3.640000", "12.5"].map(plainNumber)).toEqual([
+      "20",
+      "20",
+      "2500",
+      "0.35",
+      "100",
+      "3.64",
+      "12.5",
+    ]);
+  });
+});
