@@ -1,4 +1,5 @@
 import { prisma } from "@ghusn/db";
+import Link from "next/link";
 
 // هذه الصفحة تُقرأ من قاعدة البيانات في كل زيارة
 export const dynamic = "force-dynamic";
@@ -24,6 +25,9 @@ export default async function Home() {
         <span className="text-sm font-semibold tracking-wide text-sage">ghusn.store · بيئة التطوير</span>
         <h1 className="font-display text-5xl font-bold">غصن</h1>
         <p className="font-display text-2xl text-sage">هدايا تُصنع لتُذكر</p>
+        <Link href="/admin" className="w-fit rounded-xl bg-forest px-5 py-3 font-semibold text-ivory">
+          دخول لوحة الإدارة
+        </Link>
       </header>
 
       <section className="rounded-2xl border border-line bg-white p-6">
