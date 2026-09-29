@@ -53,11 +53,13 @@ If something is ambiguous or not covered, **ask Basil before inventing business 
 ```
 apps/web            Next.js: storefront + admin + API (single app for now)
 packages/db         Prisma schema, migrations, seed, exported client (@ghusn/db)
+packages/core       Pure domain logic: money, landed cost, costing, pricing, profit (@ghusn/core)
 docs/               Project knowledge (see §2)
 apps/web/public/brand   Approved logo/mark/pattern SVGs (never redraw the logo)
 docker-compose.yml  Local Postgres
 ```
-Planned later: `packages/ui` (shared components), `packages/core` (pure domain logic: money, pricing, landed cost), `apps/mobile` (Expo).
+Planned later: `packages/ui` (shared components), `apps/mobile` (Expo).
+Money math lives in `@ghusn/core` only — apps call it, never re-implement it.
 
 ## 5. Commands
 
@@ -69,7 +71,12 @@ pnpm db:seed        # currencies, sample rates, wallets, 9 categories, owner use
 pnpm db:studio
 pnpm dev            # http://localhost:3000
 pnpm build
+pnpm lint           # ESLint (all packages)
+pnpm typecheck
+pnpm test           # Vitest — includes the reference scenario (currency-and-costing §10)
+pnpm format         # Prettier (docs/*.md excluded)
 ```
+CI (`.github/workflows/ci.yml`) runs format, lint, typecheck, tests, migrations + seed on Postgres 16, and build on every PR.
 Env lives in the **root** `.env` (copy from `.env.example`). Packages load it with `dotenv -e ../../.env`.
 
 ## 6. Non-negotiable engineering rules

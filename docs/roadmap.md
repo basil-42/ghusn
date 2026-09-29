@@ -35,11 +35,11 @@
 - [x] تشغيل كامل في بيئة Claude Code (Linux + Postgres 16): install، build، migrate، seed، dev — كلها ناجحة
 - [x] أول ترحيل `init` محفوظ في `packages/db/prisma/migrations`
 - [x] Git + GitHub: `basil-42/ghusn`
-- [ ] **أول تشغيل على ماك باسل** (`pnpm db:migrate` سيطبّق ترحيل `init` الموجود ولن يطلب اسماً)
-- [ ] حسم القرارات المعلّقة الجديدة في `decisions.md` (الدقة، حالات الطلب، المعرّفات) ← **قبل** `packages/core`
-- [ ] ESLint + Prettier + Vitest + CI (GitHub Actions) ← المهمة التالية
-- [ ] `packages/core`: دوال المال (decimal.js)، التحويل، التكلفة الواصلة، التسعير — مع اختبارات السيناريو المرجعي في `currency-and-costing.md` §10
-- [ ] Better Auth + الأدوار + حماية مسارات `/admin`
+- [x] أول تشغيل على ماك باسل (Homebrew، Node، pnpm، OrbStack) — الموقع يعمل على `localhost:3000`
+- [x] حسم القرارات: D-06، D-15، D-28، D-29، D-60 إلى D-63
+- [x] ESLint + Prettier + Vitest + CI (GitHub Actions: تنسيق، فحص، أنواع، اختبارات، ترحيلات على Postgres حقيقي، بناء)
+- [x] `packages/core`: المال (decimal.js)، التحويل، التكلفة الواصلة، المتوسط المرجّح، التسعير، الربح، فروقات العملة — 24 اختباراً منها السيناريو المرجعي كاملاً بالسنت
+- [ ] Better Auth + الأدوار والصلاحيات (D-62) + حماية مسارات `/admin` ← **المهمة التالية**
 - [ ] هيكل لوحة الإدارة (RTL) + شاشة سعر الصرف
 
 ## ملاحظات بيئة
