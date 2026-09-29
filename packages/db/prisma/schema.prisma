@@ -38,9 +38,10 @@ model User {
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
 
-  sessions     Session[]
-  accounts     Account[]
-  ratesEntered ExchangeRate[]
+  sessions        Session[]
+  accounts        Account[]
+  ratesEntered    ExchangeRate[]
+  productsCreated Product[]
 }
 
 model Session {
@@ -147,4 +148,67 @@ model Category {
   // هامش الربح المستهدف والحد الأدنى للتنبيه (نسبة من سعر البيع)
   targetMargin Decimal @default(0.40) @db.Decimal(5, 4)
   minMargin    Decimal @default(0.35) @db.Decimal(5, 4)
+
+  products Product[]
+}
+
+// ---------- المنتجات ----------
+enum ProductType {
+  STOCK // بضاعة للبيع
+  MATERIAL // مادة تغليف داخلية — لا تُباع ولا تظهر في المتجر
+}
+
+enum StockUnit {
+  PIECE // حبة
+  METER // متر (شرائط)
+  SHEET // ورقة / فرخ
+}
+
+model Product {
+  id            String      @id @default(cuid())
+  nameAr        String
+  nameEn        String?
+  descriptionAr String?
+  descriptionEn String?
+  category      Category    @relation(fields: [categoryId], references: [id])
+  categoryId    String
+  type          ProductType @default(STOCK)
+  unit          StockUnit   @default(PIECE)
+  // تتبّع تاريخ الصلاحية للدفعات (عطور وتجميل — FEFO)
+  trackExpiry   Boolean     @default(false)
+  isActive      Boolean     @default(true)
+  // يظهر في المتجر الإلكتروني (البضاعة فقط)
+  isWebVisible  Boolean     @default(false)
+  // نص البحث الموحّد (normalizeArabic): الأسماء + SKU + الباركودات + القسم
+  searchText    String      @default("")
+  createdBy     User?       @relation(fields: [createdById], references: [id])
+  createdById   String?
+  createdAt     DateTime    @default(now())
+  updatedAt     DateTime    @updatedAt
+  deletedAt     DateTime?
+
+  variants ProductVariant[]
+
+  @@index([categoryId])
+  @@index([deletedAt])
+  @@index([searchText(ops: raw("gin_trgm_ops"))], type: Gin)
+}
+
+// المتغيّر = وحدة البيع والمخزون والباركود (مقاس / لون / حجم)
+model ProductVariant {
+  id        String    @id @default(cuid())
+  product   Product   @relation(fields: [productId], references: [id])
+  productId String
+  sku       String    @unique
+  barcode   String    @unique
+  size      String? // المقاس
+  color     String? // اللون
+  volume    String? // الحجم (50ml)
+  isActive  Boolean   @default(true)
+  sortOrder Int       @default(0)
+  createdAt DateTime  @default(now())
+  updatedAt DateTime  @updatedAt
+  deletedAt DateTime?
+
+  @@index([productId])
 }
