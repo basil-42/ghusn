@@ -42,6 +42,8 @@ model User {
   accounts        Account[]
   ratesEntered    ExchangeRate[]
   productsCreated Product[]
+  supplierEntries SupplierLedgerEntry[] @relation("entryCreatedBy")
+  supplierVoids   SupplierLedgerEntry[] @relation("entryVoidedBy")
 }
 
 model Session {
@@ -102,6 +104,7 @@ model Currency {
 
   ratesFrom ExchangeRate[] @relation("rateFrom")
   wallets   Wallet[]
+  suppliers Supplier[]
 }
 
 enum RateSource {
@@ -135,6 +138,8 @@ model Wallet {
   currencyCode String
   isActive     Boolean  @default(true)
   createdAt    DateTime @default(now())
+
+  supplierPayments SupplierLedgerEntry[]
 }
 
 // ---------- الأقسام ----------
@@ -227,4 +232,66 @@ model ProductImage {
   createdAt DateTime @default(now())
 
   @@index([productId, sortOrder])
+}
+
+// ---------- الموردون وحساباتهم (D-74، D-75) ----------
+model Supplier {
+  id           String    @id @default(cuid())
+  name         String
+  // رمز الدولة ISO (SD، QA، CN، EG، SA، AE…)
+  country      String
+  // عملة حساب المورد — ثابتة بعد أول حركة
+  currency     Currency  @relation(fields: [currencyCode], references: [code])
+  currencyCode String
+  phone        String?
+  notes        String?
+  isActive     Boolean   @default(true)
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  deletedAt    DateTime?
+
+  entries SupplierLedgerEntry[]
+}
+
+enum SupplierEntryKind {
+  OPENING_BALANCE // رصيد افتتاحي (دين قائم قبل النظام)
+  PURCHASE // شحنة مشتراة (تُضاف مع الشحنات)
+  PAYMENT // دفعة للمورد من محفظة
+}
+
+// حركة في حساب المورد. لا تُعدَّل ولا تُحذف — الخطأ يُلغى (voidedAt) مع السبب
+model SupplierLedgerEntry {
+  id           String            @id @default(cuid())
+  supplier     Supplier          @relation(fields: [supplierId], references: [id])
+  supplierId   String
+  kind         SupplierEntryKind
+  occurredAt   DateTime
+  // بعملة المورد وبإشارة: موجب = علينا للمورد، سالب = لنا (دفعة أو عربون)
+  amount       Decimal           @db.Decimal(18, 2)
+  currencyCode String
+  // وحدات عملة المورد لكل 1$ لحظة الحركة (للدفعة بعملة أخرى: السعر الضمني)
+  rateUsed     Decimal           @db.Decimal(18, 6)
+  // بالدولار وبنفس الإشارة — يُحسب مرة واحدة عند الكتابة (D-21)
+  amountUsd    Decimal           @db.Decimal(18, 2)
+
+  // الدفعة: ما خرج فعلاً من المحفظة (قد تكون عملتها غير عملة المورد)
+  wallet           Wallet?  @relation(fields: [walletId], references: [id])
+  walletId         String?
+  paidAmount       Decimal? @db.Decimal(18, 2)
+  paidCurrencyCode String?
+  paidRate         Decimal? @db.Decimal(18, 6)
+  reference        String? // رقم التحويل أو الإيصال
+
+  dueDate DateTime? // تاريخ استحقاق (للشراء بالأقساط)
+  note    String?
+
+  createdBy   User?     @relation("entryCreatedBy", fields: [createdById], references: [id])
+  createdById String?
+  createdAt   DateTime  @default(now())
+  voidedAt    DateTime?
+  voidedBy    User?     @relation("entryVoidedBy", fields: [voidedById], references: [id])
+  voidedById  String?
+  voidReason  String?
+
+  @@index([supplierId, occurredAt])
 }

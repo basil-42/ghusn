@@ -1,4 +1,4 @@
-import { SHOP_TIME_ZONE } from "@ghusn/core";
+import { SHOP_TIME_ZONE, dec } from "@ghusn/core";
 
 // عربي بأرقام لاتينية وفاصل آلاف: 185,000 ج.س (CLAUDE.md)
 const LOCALE = "ar-u-nu-latn";
@@ -38,3 +38,11 @@ export function formatPercent(fraction: { toString(): string }): string {
 
 export const formatDateTime = (d: Date) => dateTimeFormat.format(d);
 export const formatDay = (d: Date) => dayFormat.format(d);
+
+/** مبلغ بعملة معيّنة: تقريب نصف للأعلى بعدد خانات العملة (الجنيه بدون كسور) وفاصل آلاف. */
+export function formatAmount(value: { toString(): string }, decimals = 2): string {
+  const fixed = dec(value.toString()).toFixed(decimals);
+  const negative = fixed.startsWith("-") && /[1-9]/.test(fixed);
+  const [int = "0", frac] = fixed.replace("-", "").split(".");
+  return `${negative ? "-" : ""}${BigInt(int).toLocaleString("en-US")}${frac ? `.${frac}` : ""}`;
+}
