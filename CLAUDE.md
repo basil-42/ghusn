@@ -96,6 +96,7 @@ Env lives in the **root** `.env` (copy from `.env.example`). Packages load it wi
 - Staff sign in with **phone (E.164 via `normalizePhone`) + password**; no self sign-up; the owner creates, bans and resets accounts.
 - Check **permissions, not role names**: `requirePermission({...})` / `roleCan()` in `apps/web/src/lib/auth/`. New screens add statements to `permissions.ts`.
 - `proxy.ts` is only an optimistic cookie check; every protected page and server action must call `requireSession()` / `requirePermission()`.
+- **Never pass full DB rows to Client Components** — everything passed is sent to the browser. Map to the fields the UI needs (e.g. `listCategoryOptions()`), so costs and margins never reach staff. Prisma `Decimal` must be converted to strings first.
 
 ### Files & images (D-73)
 - All file I/O goes through `apps/web/src/lib/storage` (local `uploads/` now, R2 driver later with the same interface). Product images: `lib/product-images.ts` (Sharp → WebP 1200/400, EXIF stripped, content-hashed keys), served by `/media/[...path]`.

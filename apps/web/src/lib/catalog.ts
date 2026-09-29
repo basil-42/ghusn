@@ -25,6 +25,18 @@ export async function listCategories() {
   return prisma.category.findMany({ orderBy: { sortOrder: "asc" } });
 }
 
+/**
+ * خيارات الأقسام للنماذج في المتصفح: الاسم والمعرّف فقط.
+ * لا تُمرَّر سجلات الأقسام الكاملة لمكوّنات المتصفح — فيها الهوامش (للمالك والمديرة فقط).
+ */
+export async function listCategoryOptions(includeId?: string) {
+  return prisma.category.findMany({
+    where: { OR: [{ isActive: true }, ...(includeId ? [{ id: includeId }] : [])] },
+    orderBy: { sortOrder: "asc" },
+    select: { id: true, nameAr: true },
+  });
+}
+
 export async function listProducts({ q, categoryId, page = 1 }: { q?: string; categoryId?: string; page?: number }) {
   const terms = searchTerms(q ?? "");
   const where: Prisma.ProductWhereInput = {
