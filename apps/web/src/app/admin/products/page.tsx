@@ -1,6 +1,7 @@
 import { variantLabel } from "@ghusn/core";
 import { Plus, Search } from "lucide-react";
 import type { Metadata } from "next";
+import Image from "next/image";
 import Link from "next/link";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
@@ -9,6 +10,7 @@ import { Input, NativeSelect } from "@/components/ui/input";
 import { roleCan } from "@/lib/auth/permissions";
 import { requirePermission } from "@/lib/auth/session";
 import { listCategories, listProducts } from "@/lib/catalog";
+import { imageUrl } from "@/lib/product-images";
 
 export const metadata: Metadata = { title: "المنتجات | غصن" };
 
@@ -67,6 +69,7 @@ export default async function ProductsPage({ searchParams }: { searchParams: Sea
         <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {items.map((p) => {
             const first = p.variants[0];
+            const main = p.images[0];
             return (
               <li key={p.id}>
                 <Link
@@ -74,9 +77,23 @@ export default async function ProductsPage({ searchParams }: { searchParams: Sea
                   className="flex h-full flex-col gap-2 rounded-2xl border border-border bg-card p-4 transition-colors hover:border-sage"
                 >
                   <div className="flex items-start justify-between gap-2">
-                    <div className="min-w-0">
-                      <p className="truncate font-bold">{p.nameAr}</p>
-                      <p className="text-sm text-muted-foreground">{p.category.nameAr}</p>
+                    <div className="flex min-w-0 items-center gap-3">
+                      {main ? (
+                        <Image
+                          src={imageUrl(main.key, "thumb")}
+                          alt=""
+                          width={56}
+                          height={56}
+                          unoptimized
+                          className="size-14 shrink-0 rounded-lg border border-border object-cover"
+                        />
+                      ) : (
+                        <div className="size-14 shrink-0 rounded-lg border border-dashed border-border bg-muted" />
+                      )}
+                      <div className="min-w-0">
+                        <p className="truncate font-bold">{p.nameAr}</p>
+                        <p className="text-sm text-muted-foreground">{p.category.nameAr}</p>
+                      </div>
                     </div>
                     <div className="flex shrink-0 flex-wrap justify-end gap-1">
                       {p.type === "MATERIAL" ? <Badge>مادة تغليف</Badge> : null}

@@ -4,10 +4,12 @@ import { notFound } from "next/navigation";
 import { roleCan } from "@/lib/auth/permissions";
 import { requirePermission } from "@/lib/auth/session";
 import { PRODUCT_TYPE_LABELS, STOCK_UNIT_LABELS, getProduct, listCategories } from "@/lib/catalog";
+import { MAX_IMAGES_PER_PRODUCT, imageUrl } from "@/lib/product-images";
 import { formatDateTime } from "@/lib/format";
 import { archiveProductAction } from "../actions";
 import { ConfirmButton } from "../confirm-button";
 import { ProductForm } from "../product-form";
+import { ProductImages } from "../product-images";
 
 export const metadata: Metadata = { title: "منتج | غصن" };
 
@@ -34,6 +36,17 @@ export default async function ProductPage({
           {product.category.nameAr} · آخر تعديل {formatDateTime(product.updatedAt)}
         </p>
       </header>
+
+      <ProductImages
+        productId={product.id}
+        canEdit={canEdit}
+        max={MAX_IMAGES_PER_PRODUCT}
+        images={product.images.map((img) => ({
+          id: img.id,
+          thumbUrl: imageUrl(img.key, "thumb"),
+          fullUrl: imageUrl(img.key, "full"),
+        }))}
+      />
 
       <ProductForm
         productId={product.id}
