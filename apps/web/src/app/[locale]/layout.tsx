@@ -2,7 +2,6 @@ import type { Metadata } from "next";
 import { hasLocale, NextIntlClientProvider } from "next-intl";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { notFound } from "next/navigation";
-import { DevServiceWorkerCleanup } from "@/components/dev-sw-cleanup";
 import { StoreFooter } from "@/components/store/footer";
 import { StoreHeader } from "@/components/store/header";
 import { routing } from "@/i18n/routing";
@@ -37,7 +36,6 @@ export default async function StoreLayout({
   return (
     <html lang={locale} dir={locale === "ar" ? "rtl" : "ltr"} className={fontVariables}>
       <body className="flex min-h-screen flex-col font-sans antialiased">
-        <DevServiceWorkerCleanup />
         <NextIntlClientProvider>
           <StoreHeader />
           <main className="flex-1">{children}</main>
