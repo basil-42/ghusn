@@ -58,6 +58,10 @@ model User {
   expenses          Expense[]             @relation("expenseCreatedBy")
   expensesVoided    Expense[]             @relation("expenseVoidedBy")
   capitalEntries    CapitalContribution[]
+  transfersCreated  WalletTransfer[]      @relation("transferCreatedBy")
+  transfersVoided   WalletTransfer[]      @relation("transferVoidedBy")
+  adjustmentsMade   WalletAdjustment[]    @relation("adjustmentCreatedBy")
+  adjustmentsVoided WalletAdjustment[]    @relation("adjustmentVoidedBy")
   returnsApproved   SaleReturn[]          @relation("returnApprovedBy")
 }
 
@@ -131,16 +135,17 @@ enum RateSource {
 
 // سعر الصرف: كم وحدة من العملة = 1 دولار
 model ExchangeRate {
-  id           String     @id @default(cuid())
-  currency     Currency   @relation("rateFrom", fields: [currencyCode], references: [code])
+  id           String          @id @default(cuid())
+  currency     Currency        @relation("rateFrom", fields: [currencyCode], references: [code])
   currencyCode String
-  unitsPerUsd  Decimal    @db.Decimal(18, 6) // مثال: SDG 2500.000000
-  source       RateSource @default(PARALLEL_MARKET)
-  effectiveAt  DateTime   @default(now())
+  unitsPerUsd  Decimal         @db.Decimal(18, 6) // مثال: SDG 2500.000000
+  source       RateSource      @default(PARALLEL_MARKET)
+  effectiveAt  DateTime        @default(now())
   note         String?
-  enteredBy    User?      @relation(fields: [enteredById], references: [id])
+  enteredBy    User?           @relation(fields: [enteredById], references: [id])
   enteredById  String?
-  createdAt    DateTime   @default(now())
+  createdAt    DateTime        @default(now())
+  transfer     WalletTransfer?
 
   @@index([currencyCode, effectiveAt])
 }
@@ -160,6 +165,74 @@ model Wallet {
   returnRefunds    ReturnRefund[]
   expenses         Expense[]
   capitalEntries   CapitalContribution[]
+  transfersOut     WalletTransfer[]      @relation("transferFrom")
+  transfersIn      WalletTransfer[]      @relation("transferTo")
+  adjustments      WalletAdjustment[]
+  closedShifts     Shift[]
+}
+
+// تحويل بين محفظتين (D-86): الخارج شامل العمولة، والواصل. لكل طرف سعره وقيمته بالدولار
+// (تُحسب مرة واحدة). السعر الفعلي لعملة غير ثابتة يُسجَّل في ExchangeRate (ACTUAL_TRANSFER).
+model WalletTransfer {
+  id               String        @id @default(cuid())
+  number           String        @unique // TRF-2026-0001
+  fromWallet       Wallet        @relation("transferFrom", fields: [fromWalletId], references: [id])
+  fromWalletId     String
+  fromAmount       Decimal       @db.Decimal(18, 2)
+  fromCurrencyCode String
+  fromRate         Decimal       @db.Decimal(18, 6)
+  fromAmountUsd    Decimal       @db.Decimal(18, 2)
+  toWallet         Wallet        @relation("transferTo", fields: [toWalletId], references: [id])
+  toWalletId       String
+  toAmount         Decimal       @db.Decimal(18, 2)
+  toCurrencyCode   String
+  toRate           Decimal       @db.Decimal(18, 6)
+  toAmountUsd      Decimal       @db.Decimal(18, 2)
+  // العمولة بعملة المحفظة الخارجة — للمعلومة، وهي ضمن fromAmount
+  feeAmount        Decimal?      @db.Decimal(18, 2)
+  rate             ExchangeRate? @relation(fields: [rateId], references: [id])
+  rateId           String?       @unique
+  occurredAt       DateTime
+  reference        String?
+  note             String?
+  createdBy        User?         @relation("transferCreatedBy", fields: [createdById], references: [id])
+  createdById      String?
+  createdAt        DateTime      @default(now())
+  voidedAt         DateTime?
+  voidedBy         User?         @relation("transferVoidedBy", fields: [voidedById], references: [id])
+  voidedById       String?
+  voidReason       String?
+
+  @@index([fromWalletId, occurredAt])
+  @@index([toWalletId, occurredAt])
+}
+
+enum WalletAdjustmentKind {
+  OPENING // رصيد افتتاحي (جرد): الرصيد الفعلي في لحظته — ما قبلها لا يُحسب
+  MANUAL // تسوية يدوية بسبب مكتوب (المالك)
+}
+
+// تسوية رصيد محفظة بإشارة (D-86). لا تُعدَّل — تُلغى بسبب
+model WalletAdjustment {
+  id           String               @id @default(cuid())
+  wallet       Wallet               @relation(fields: [walletId], references: [id])
+  walletId     String
+  kind         WalletAdjustmentKind
+  amount       Decimal              @db.Decimal(18, 2)
+  currencyCode String
+  rateUsed     Decimal              @db.Decimal(18, 6)
+  amountUsd    Decimal              @db.Decimal(18, 2)
+  occurredAt   DateTime
+  reason       String
+  createdBy    User?                @relation("adjustmentCreatedBy", fields: [createdById], references: [id])
+  createdById  String?
+  createdAt    DateTime             @default(now())
+  voidedAt     DateTime?
+  voidedBy     User?                @relation("adjustmentVoidedBy", fields: [voidedById], references: [id])
+  voidedById   String?
+  voidReason   String?
+
+  @@index([walletId, occurredAt])
 }
 
 // ---------- الأقسام ----------
@@ -570,6 +643,9 @@ model Shift {
   expectedCashSdg Decimal?  @db.Decimal(18, 2)
   countedCashSdg  Decimal?  @db.Decimal(18, 2)
   closeNote       String?
+  // محفظة النقد عند الإغلاق: فرق العدّ (المعدود − المتوقع) يُسوّى في رصيدها (D-86)
+  cashWallet      Wallet?   @relation(fields: [cashWalletId], references: [id])
+  cashWalletId    String?
 
   sales    Sale[]
   returns  SaleReturn[]
