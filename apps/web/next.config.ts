@@ -1,4 +1,7 @@
 import type { NextConfig } from "next";
+import createNextIntlPlugin from "next-intl/plugin";
+
+const withNextIntl = createNextIntlPlugin("./src/i18n/request.ts");
 
 const nextConfig: NextConfig = {
   transpilePackages: ["@ghusn/db", "@ghusn/core"],
@@ -7,7 +10,9 @@ const nextConfig: NextConfig = {
     // صورة واحدة لكل طلب (تُصغَّر في المتصفح أولاً)؛ الحد الأعلى 10MB + هامش multipart
     serverActions: { bodySizeLimit: "11mb" },
     proxyClientMaxBodySize: "11mb",
+    // قالبان للجذر (التشغيل والمتجر) — صفحة 404 عامة للروابط غير الموجودة
+    globalNotFound: true,
   },
 };
 
-export default nextConfig;
+export default withNextIntl(nextConfig);

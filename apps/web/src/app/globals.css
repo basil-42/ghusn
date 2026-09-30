@@ -38,3 +38,8 @@ body {
   background: var(--color-background);
   color: var(--color-foreground);
 }
+
+/* عناوين المتجر الإنجليزي بخط Cormorant Garamond (brand-identity §3) */
+html[lang="en"] {
+  --font-display: var(--font-cormorant), "Times New Roman", serif;
+}

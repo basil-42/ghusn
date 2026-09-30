@@ -2,7 +2,7 @@ import { dec, plainNumber } from "@ghusn/core";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { PrintButton } from "@/app/print/labels/print-button";
+import { PrintButton } from "@/app/(ops)/print/labels/print-button";
 import { Button } from "@/components/ui/button";
 import { roleCan } from "@/lib/auth/permissions";
 import { requirePermission } from "@/lib/auth/session";

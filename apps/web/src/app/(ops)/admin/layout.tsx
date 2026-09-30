@@ -1,7 +1,7 @@
 import { AlertTriangle, LogOut } from "lucide-react";
 import Image from "next/image";
 import Link from "next/link";
-import { logout } from "@/app/login/actions";
+import { logout } from "@/app/(ops)/login/actions";
 import { AdminNav, type NavItem } from "@/components/admin/nav";
 import { Button } from "@/components/ui/button";
 import { ROLE_LABELS, isRoleName, roleCan } from "@/lib/auth/permissions";
