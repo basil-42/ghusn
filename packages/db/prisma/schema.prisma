@@ -53,6 +53,8 @@ model User {
   shifts            Shift[]
   sales             Sale[]                @relation("saleCashier")
   salesApproved     Sale[]                @relation("saleApprovedBy")
+  returns           SaleReturn[]          @relation("returnCashier")
+  returnsApproved   SaleReturn[]          @relation("returnApprovedBy")
 }
 
 model Session {
@@ -151,6 +153,7 @@ model Wallet {
   supplierPayments SupplierLedgerEntry[]
   shipmentCosts    ShipmentCost[]
   salePayments     SalePayment[]
+  returnRefunds    ReturnRefund[]
 }
 
 // ---------- الأقسام ----------
@@ -465,6 +468,7 @@ enum StockMovementKind {
   RECEIPT // استلام شحنة
   REVALUATION // تكلفة متأخرة أو إلغاؤها بعد الاستلام (الكمية صفر)
   SALE // بيع (كمية سالبة)
+  RETURN // مرتجع سليم يعود للمخزون
 }
 
 // دفتر حركات المخزون — لا يُعدَّل ولا يُحذف (system-design §4.3)
@@ -489,6 +493,8 @@ model StockMovement {
   shipmentCostId  String?
   sale            Sale?             @relation(fields: [saleId], references: [id])
   saleId          String?
+  saleReturn      SaleReturn?       @relation(fields: [saleReturnId], references: [id])
+  saleReturnId    String?
   // بيع تجاوز الرصيد (سالب) بموافقة — CLAUDE.md §6.8
   override        Boolean           @default(false)
   note            String?
@@ -559,7 +565,8 @@ model Shift {
   countedCashSdg  Decimal?  @db.Decimal(18, 2)
   closeNote       String?
 
-  sales Sale[]
+  sales   Sale[]
+  returns SaleReturn[]
 
   @@index([userId, closedAt])
 }
@@ -591,6 +598,7 @@ model Sale {
   createdAt          DateTime  @default(now())
 
   lines          SaleLine[]
+  returns        SaleReturn[]
   payments       SalePayment[]
   stockMovements StockMovement[]
 
@@ -600,22 +608,23 @@ model Sale {
 }
 
 model SaleLine {
-  id                 String         @id @default(cuid())
-  sale               Sale           @relation(fields: [saleId], references: [id])
+  id                 String           @id @default(cuid())
+  sale               Sale             @relation(fields: [saleId], references: [id])
   saleId             String
-  variant            ProductVariant @relation(fields: [variantId], references: [id])
+  variant            ProductVariant   @relation(fields: [variantId], references: [id])
   variantId          String
   // اسم الصنف وقت البيع (للإيصال حتى لو تغيّر الاسم لاحقاً)
   label              String
-  qty                Decimal        @db.Decimal(12, 3)
-  unitPriceSdg       Decimal        @db.Decimal(18, 2)
-  lineDiscountSdg    Decimal        @db.Decimal(18, 2)
-  invoiceDiscountSdg Decimal        @db.Decimal(18, 2)
-  netSdg             Decimal        @db.Decimal(18, 2)
+  qty                Decimal          @db.Decimal(12, 3)
+  unitPriceSdg       Decimal          @db.Decimal(18, 2)
+  lineDiscountSdg    Decimal          @db.Decimal(18, 2)
+  invoiceDiscountSdg Decimal          @db.Decimal(18, 2)
+  netSdg             Decimal          @db.Decimal(18, 2)
   // متوسط التكلفة لحظة البيع (D-26)
-  unitCostUsd        Decimal        @db.Decimal(18, 6)
-  costUsd            Decimal        @db.Decimal(18, 2)
-  sortOrder          Int            @default(0)
+  unitCostUsd        Decimal          @db.Decimal(18, 6)
+  costUsd            Decimal          @db.Decimal(18, 2)
+  sortOrder          Int              @default(0)
+  returnLines        SaleReturnLine[]
 
   @@index([saleId])
   @@index([variantId])
@@ -624,18 +633,91 @@ model SaleLine {
 enum PaymentMethod {
   CASH
   BANKAK
+  CREDIT // رصيد استبدال من مرتجع (D-81)
 }
 
 model SalePayment {
-  id        String        @id @default(cuid())
-  sale      Sale          @relation(fields: [saleId], references: [id])
-  saleId    String
-  method    PaymentMethod
-  amountSdg Decimal       @db.Decimal(18, 2)
-  wallet    Wallet        @relation(fields: [walletId], references: [id])
-  walletId  String
+  id           String        @id @default(cuid())
+  sale         Sale          @relation(fields: [saleId], references: [id])
+  saleId       String
+  method       PaymentMethod
+  amountSdg    Decimal       @db.Decimal(18, 2)
+  wallet       Wallet?       @relation(fields: [walletId], references: [id])
+  walletId     String?
   // رقم عملية بنكك (اختياري)
-  reference String?
+  reference    String?
+  // لطريقة CREDIT: المرتجع الذي جاء منه الرصيد
+  saleReturn   SaleReturn?   @relation(fields: [saleReturnId], references: [id])
+  saleReturnId String?
 
   @@index([saleId])
+}
+
+// ---------- المرتجعات والاستبدال (D-81) ----------
+// مرتجع مرتبط بفاتورة البيع — RET-2026-000001. المعرّف من الجهاز (D-61)
+model SaleReturn {
+  id             String   @id
+  number         String   @unique
+  sale           Sale     @relation(fields: [saleId], references: [id])
+  saleId         String
+  shift          Shift    @relation(fields: [shiftId], references: [id])
+  shiftId        String
+  cashier        User     @relation("returnCashier", fields: [cashierId], references: [id])
+  cashierId      String
+  // بعد مدة المرتجع يحتاج موافقة
+  approvedBy     User?    @relation("returnApprovedBy", fields: [approvedById], references: [id])
+  approvedById   String?
+  reason         String?
+  // المسترد بالسعر الفعلي بعد الخصم، وما يعادله بالدولار بسعر يوم البيع (عكس الإيراد)
+  refundSdg      Decimal  @db.Decimal(18, 2)
+  refundUsd      Decimal  @db.Decimal(18, 2)
+  // تكلفة السليم العائد للمخزون، وتكلفة التالف (خسارة)
+  restockCostUsd Decimal  @db.Decimal(18, 2)
+  damagedCostUsd Decimal  @db.Decimal(18, 2)
+  // استبدال: المبلغ رصيد يُستخدم في فاتورة جديدة
+  isExchange     Boolean  @default(false)
+  createdAt      DateTime @default(now())
+
+  lines          SaleReturnLine[]
+  refunds        ReturnRefund[]
+  creditPayments SalePayment[]
+  stockMovements StockMovement[]
+
+  @@index([saleId])
+  @@index([shiftId])
+}
+
+model SaleReturnLine {
+  id          String     @id @default(cuid())
+  saleReturn  SaleReturn @relation(fields: [returnId], references: [id])
+  returnId    String
+  saleLine    SaleLine   @relation(fields: [saleLineId], references: [id])
+  saleLineId  String
+  qty         Decimal    @db.Decimal(12, 3)
+  // من الكمية: التالف لا يعود للمخزون
+  damagedQty  Decimal    @db.Decimal(12, 3)
+  refundSdg   Decimal    @db.Decimal(18, 2)
+  unitCostUsd Decimal    @db.Decimal(18, 6)
+
+  @@index([returnId])
+  @@index([saleLineId])
+}
+
+// ما رُدّ للعميل فعلاً: نقداً من الدرج أو بنكك (والاستبدال يُرد فائضه نقداً)
+model ReturnRefund {
+  id         String        @id @default(cuid())
+  saleReturn SaleReturn    @relation(fields: [returnId], references: [id])
+  returnId   String
+  method     PaymentMethod
+  amountSdg  Decimal       @db.Decimal(18, 2)
+  wallet     Wallet        @relation(fields: [walletId], references: [id])
+  walletId   String
+  reference  String?
+  // فائض رصيد استبدال رُدّ عند البيع: في أي وردية خرج النقد، ومع أي فاتورة
+  shiftId    String?
+  saleId     String?
+  createdAt  DateTime      @default(now())
+
+  @@index([returnId])
+  @@index([shiftId])
 }
