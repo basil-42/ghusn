@@ -15,3 +15,4 @@ export * from "./shipment";
 export * from "./receiving";
 export * from "./sale";
 export * from "./report";
+export * from "./shipment-import";
