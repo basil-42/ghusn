@@ -1,4 +1,4 @@
-import { dec, roundMoney, roundUnitCost, sum, type Decimal, type DecimalInput } from "./decimal";
+import { Decimal, dec, roundMoney, roundUnitCost, sum, type DecimalInput } from "./decimal";
 import { CoreError } from "./errors";
 import { allocateLandedCost, type ShipmentCostInput } from "./landed-cost";
 import { toUsdExact } from "./money";
@@ -161,4 +161,42 @@ export function revaluedAverage(stockQty: DecimalInput, avgUsd: DecimalInput, va
 /** قيمة المخزون بالدولار (للعرض والتقارير). */
 export function stockValueUsd(qty: DecimalInput, avgUsd: DecimalInput): Decimal {
   return roundMoney(dec(qty).mul(avgUsd));
+}
+
+export interface BatchStock {
+  id: string;
+  qtyRemaining: DecimalInput;
+  /** YYYY-MM-DD أو null لما لا صلاحية له. */
+  expiresAt: string | null;
+  receivedAt: Date;
+}
+
+/**
+ * صرف كمية من الدفعات: الأقرب انتهاءً أولاً (FEFO)، ثم الأقدم استلاماً (FIFO) — system-design §4.3.
+ * `shortQty` > 0 يعني أن الدفعات لا تكفي (رصيد سالب يحتاج تجاوزاً مسجّلاً — CLAUDE.md §6.8).
+ */
+export function consumeBatches(
+  batches: readonly BatchStock[],
+  qty: DecimalInput,
+): { takes: { batchId: string; qty: Decimal }[]; shortQty: Decimal } {
+  let left = dec(qty);
+  if (left.lte(0)) throw new CoreError("INVALID_QUANTITY", "Quantity must be > 0");
+  const ordered = [...batches]
+    .filter((b) => dec(b.qtyRemaining).gt(0))
+    .sort((a, b) => {
+      if (a.expiresAt !== b.expiresAt) {
+        if (a.expiresAt === null) return 1;
+        if (b.expiresAt === null) return -1;
+        return a.expiresAt < b.expiresAt ? -1 : 1;
+      }
+      return a.receivedAt.getTime() - b.receivedAt.getTime();
+    });
+  const takes: { batchId: string; qty: Decimal }[] = [];
+  for (const b of ordered) {
+    if (left.lte(0)) break;
+    const take = Decimal.min(left, dec(b.qtyRemaining));
+    takes.push({ batchId: b.id, qty: take });
+    left = left.minus(take);
+  }
+  return { takes, shortQty: left };
 }

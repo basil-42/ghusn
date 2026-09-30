@@ -13,3 +13,4 @@ export * from "./catalog";
 export * from "./supplier-ledger";
 export * from "./shipment";
 export * from "./receiving";
+export * from "./sale";

@@ -3,6 +3,7 @@ import {
   allocateLateCost,
   canChangeShipmentCosts,
   canReceiveShipment,
+  consumeBatches,
   dec,
   planReceipt,
   revaluedAverage,
@@ -154,5 +155,27 @@ describe("shipment receiving rules", () => {
     expect(canChangeShipmentCosts("RECEIVED")).toBe(true);
     expect(canChangeShipmentCosts("DRAFT")).toBe(false);
     expect(canChangeShipmentCosts("CANCELLED")).toBe(false);
+  });
+});
+
+describe("consumeBatches (FEFO)", () => {
+  const d = (s: string) => new Date(s);
+  const batches = [
+    { id: "old-no-expiry", qtyRemaining: 5, expiresAt: null, receivedAt: d("2026-01-01") },
+    { id: "late-expiry", qtyRemaining: 3, expiresAt: "2027-12-31", receivedAt: d("2026-02-01") },
+    { id: "soon", qtyRemaining: 2, expiresAt: "2027-01-31", receivedAt: d("2026-03-01") },
+    { id: "empty", qtyRemaining: 0, expiresAt: "2026-12-01", receivedAt: d("2026-01-01") },
+  ];
+  it("takes the nearest expiry first, then the oldest without expiry", () => {
+    const r = consumeBatches(batches, 6);
+    expect(r.takes.map((t) => [t.batchId, t.qty.toString()])).toEqual([
+      ["soon", "2"],
+      ["late-expiry", "3"],
+      ["old-no-expiry", "1"],
+    ]);
+    expect(r.shortQty.isZero()).toBe(true);
+  });
+  it("reports a shortfall instead of going negative silently", () => {
+    expect(consumeBatches(batches, 12).shortQty.toString()).toBe("2");
   });
 });
