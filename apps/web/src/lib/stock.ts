@@ -270,6 +270,7 @@ export async function listStock(query: string, withCost: boolean) {
       sku: v.sku,
       unit: v.product.unit,
       qty,
+      priceSdg: v.priceSdg?.toString() ?? null,
       ...(withCost ? { avgCostUsd: avg, valueUsd: dec(qty).gt(0) ? stockValueUsd(qty, avg).toFixed(2) : "0.00" } : {}),
     };
   });

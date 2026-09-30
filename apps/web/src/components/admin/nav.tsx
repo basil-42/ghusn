@@ -2,6 +2,7 @@
 
 import {
   ArrowLeftRight,
+  BadgeDollarSign,
   Container,
   FolderTree,
   LayoutDashboard,
@@ -25,6 +26,7 @@ const ICONS = {
   shipments: Container,
   stock: Warehouse,
   labels: Tags,
+  pricing: BadgeDollarSign,
   users: Users,
 } satisfies Record<string, LucideIcon>;
 

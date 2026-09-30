@@ -6,6 +6,7 @@ import { roleCan } from "@/lib/auth/permissions";
 import { requireSession } from "@/lib/auth/session";
 import { SELLING_CURRENCY, SOURCE_LABELS, getRateBoard } from "@/lib/exchange-rates";
 import { formatAmount, formatDateTime, formatDay, formatRate } from "@/lib/format";
+import { countPriceReview } from "@/lib/pricing";
 import { listDueSoon } from "@/lib/shipments";
 
 export default async function AdminHome() {
@@ -13,6 +14,7 @@ export default async function AdminHome() {
   const canSeeRates = roleCan(user.role, { exchangeRate: ["read"] });
   const sdg = canSeeRates ? (await getRateBoard()).find((c) => c.currency.code === SELLING_CURRENCY) : undefined;
   const due = roleCan(user.role, { supplier: ["read"] }) ? await listDueSoon(7) : [];
+  const priceReview = roleCan(user.role, { price: ["approve"] }) ? await countPriceReview() : null;
 
   return (
     <div className="flex flex-col gap-8">
@@ -46,6 +48,19 @@ export default async function AdminHome() {
             كل الأسعار والسجل <ArrowLeft aria-hidden className="size-4" />
           </Link>
         </Card>
+      ) : null}
+
+      {priceReview ? (
+        <Link
+          href="/admin/pricing"
+          className="flex max-w-md items-center justify-between gap-3 rounded-2xl border border-gold/40 bg-gold/10 p-5"
+        >
+          <span>
+            <span className="block font-bold">{priceReview} صنف يحتاج مراجعة سعر</span>
+            <span className="text-sm text-muted-foreground">بلا سعر، أو هامشه تغيّر مع سعر الصرف أو التكلفة.</span>
+          </span>
+          <ArrowLeft aria-hidden className="size-5 shrink-0" />
+        </Link>
       ) : null}
 
       {due.length ? (

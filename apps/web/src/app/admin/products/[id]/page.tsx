@@ -9,6 +9,7 @@ import { formatDateTime } from "@/lib/format";
 import { archiveProductAction } from "../actions";
 import { ConfirmButton } from "../confirm-button";
 import { ProductForm } from "../product-form";
+import { PricingCard } from "../pricing-card";
 import { ProductImages } from "../product-images";
 
 export const metadata: Metadata = { title: "منتج | غصن" };
@@ -79,6 +80,8 @@ export default async function ProductPage({
           })),
         }}
       />
+
+      <PricingCard productId={product.id} role={session.user.role} />
 
       {canArchive ? (
         <form action={archiveProductAction} className="border-t border-border pt-6">
