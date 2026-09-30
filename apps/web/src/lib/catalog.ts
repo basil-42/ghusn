@@ -6,6 +6,7 @@ import {
   internalBarcode,
   searchTerms,
   validateVariants,
+  variantLabel,
   type VariantIssue,
 } from "@ghusn/core";
 import { Prisma, prisma, type ProductType, type StockUnit } from "@ghusn/db";
@@ -221,6 +222,69 @@ export async function createProduct(input: ProductInput, userId: string): Promis
   } catch (error) {
     mapDbError(error);
   }
+}
+
+export const OPTION_KINDS = ["volume", "size", "color"] as const;
+export type OptionKind = (typeof OPTION_KINDS)[number];
+
+/**
+ * إنشاء سريع من شاشة الشحنة (D-84): الاسم والقسم والنوع والوحدة، ومتغيّرات اختيارية من نوع
+ * واحد (مثل الحجم: 50ml، 100ml). يمر بنفس createProduct (SKU، الباركود، البحث)، والصور
+ * والوصف تُكمَّل لاحقاً من صفحة المنتج. يعيد المتغيّرات لإضافتها للبنود مباشرة.
+ */
+export async function quickCreateProduct(
+  input: {
+    nameAr: string;
+    categoryId: string;
+    type: "STOCK" | "MATERIAL";
+    unit: "PIECE" | "METER" | "SHEET";
+    trackExpiry: boolean;
+    optionKind: OptionKind;
+    options: string[];
+    barcode: string | null;
+  },
+  userId: string,
+) {
+  const options = [...new Set(input.options.map((o) => o.trim()).filter(Boolean))];
+  if (options.length > 1 && input.barcode) {
+    throw new CatalogError("باركود المصنع لمتغيّر واحد فقط — أضيفي باركودات المتغيرات من صفحة المنتج.");
+  }
+  const variants = (options.length ? options : [null]).map((o) => ({
+    size: input.optionKind === "size" ? o : null,
+    color: input.optionKind === "color" ? o : null,
+    volume: input.optionKind === "volume" ? o : null,
+    barcode: options.length <= 1 ? input.barcode : null,
+    isActive: true,
+  }));
+  const category = await prisma.category.findFirst({ where: { id: input.categoryId, isActive: true } });
+  if (!category) throw new CatalogError("اختاري القسم.");
+  const productId = await createProduct(
+    {
+      nameAr: input.nameAr,
+      nameEn: null,
+      descriptionAr: null,
+      descriptionEn: null,
+      categoryId: input.categoryId,
+      type: input.type,
+      unit: input.unit,
+      trackExpiry: input.trackExpiry,
+      isActive: true,
+      isWebVisible: false,
+      variants,
+    },
+    userId,
+  );
+  const created = await prisma.productVariant.findMany({
+    where: { productId },
+    orderBy: { sortOrder: "asc" },
+    select: { id: true, sku: true, size: true, color: true, volume: true },
+  });
+  return created.map((v) => ({
+    variantId: v.id,
+    label: [input.nameAr, variantLabel(v)].filter(Boolean).join(" · "),
+    sku: v.sku,
+    unit: input.unit,
+  }));
 }
 
 export async function updateProduct(id: string, input: ProductInput): Promise<void> {

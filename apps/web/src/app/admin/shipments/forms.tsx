@@ -5,10 +5,11 @@ import { useActionState, useEffect, useState, useTransition } from "react";
 import { Field, SelectField } from "@/components/form-field";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
-import { Input } from "@/components/ui/input";
+import { Input, NativeSelect } from "@/components/ui/input";
 import {
   addCostAction,
   createShipmentAction,
+  quickProductAction,
   saveLinesAction,
   searchVariantsAction,
   transitionAction,
@@ -168,11 +169,14 @@ export function LinesEditor({
   initial,
   currencySymbol,
   disabled,
+  categories,
 }: {
   id: string;
   initial: Omit<LineRow, "key">[];
   currencySymbol: string;
   disabled: boolean;
+  /** إن مُرِّرت: يمكن إنشاء منتج جديد من البحث (لمن يملك صلاحية إضافة المنتجات). */
+  categories?: Option[];
 }) {
   const [state, action] = useActionState<FormState, unknown>(saveLinesAction.bind(null, id), {});
   const [pending, startTransition] = useTransition();
@@ -195,7 +199,21 @@ export function LinesEditor({
       clearTimeout(t);
     };
   }, [query]);
-  const visibleHits = query.trim().length >= 2 && hits.query === query ? hits.items : [];
+  const searched = query.trim().length >= 2 && hits.query === query;
+  const visibleHits = searched ? hits.items : [];
+  // إنشاء منتج جديد من هنا (D-84): الاسم المبدئي من نص البحث
+  const [quick, setQuick] = useState<string | null>(null);
+
+  function addCreated(variants: Hit[]) {
+    setRows((rs) => [
+      ...rs,
+      ...variants
+        .filter((v) => !rs.some((r) => r.variantId === v.variantId))
+        .map((v, i) => ({ ...v, key: `q${Date.now()}${i}`, qty: "1", unitPrice: "" })),
+    ]);
+    setQuick(null);
+    setDirty(true);
+  }
 
   const update = (key: string, patch: Partial<LineRow>) => {
     setRows((rs) => rs.map((r) => (r.key === key ? { ...r, ...patch } : r)));
@@ -232,8 +250,22 @@ export function LinesEditor({
             aria-label="بحث عن منتج"
             className="ps-11"
           />
-          {visibleHits.length ? (
+          {visibleHits.length || (searched && categories) ? (
             <ul className="absolute inset-x-0 top-full z-10 mt-1 max-h-72 overflow-auto rounded-xl border border-border bg-card shadow-lg">
+              {categories ? (
+                <li className="border-b border-border">
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setQuick(query.trim());
+                      setQuery("");
+                    }}
+                    className="flex min-h-11 w-full items-center gap-2 px-4 text-start font-semibold text-primary hover:bg-muted"
+                  >
+                    <Plus aria-hidden /> منتج جديد «{query.trim()}»
+                  </button>
+                </li>
+              ) : null}
               {visibleHits.map((h) => (
                 <li key={h.variantId}>
                   <button
@@ -251,6 +283,15 @@ export function LinesEditor({
             </ul>
           ) : null}
         </div>
+      ) : null}
+
+      {quick !== null && categories ? (
+        <QuickProductForm
+          initialName={quick}
+          categories={categories}
+          onCreated={addCreated}
+          onCancel={() => setQuick(null)}
+        />
       ) : null}
 
       {rows.length === 0 ? (
@@ -318,6 +359,158 @@ export function LinesEditor({
           {dirty ? <span className="text-sm text-warning">تعديلات غير محفوظة</span> : null}
         </div>
       ) : null}
+    </div>
+  );
+}
+
+const OPTION_KIND_LABELS = { volume: "الحجم", size: "المقاس", color: "اللون" } as const;
+
+/**
+ * منتج جديد من شاشة الشحنة (D-84): الحقول الأساسية فقط. المتغيّرات مفصولة بفاصلة
+ * (50ml، 100ml) فتُنشأ كلها وتُضاف للبنود. الصور والوصف والعرض في المتجر من صفحة المنتج.
+ */
+function QuickProductForm({
+  initialName,
+  categories,
+  onCreated,
+  onCancel,
+}: {
+  initialName: string;
+  categories: Option[];
+  onCreated: (variants: Hit[]) => void;
+  onCancel: () => void;
+}) {
+  const [name, setName] = useState(initialName);
+  const [categoryId, setCategoryId] = useState("");
+  const [type, setType] = useState<"STOCK" | "MATERIAL">("STOCK");
+  const [unit, setUnit] = useState<"PIECE" | "METER" | "SHEET">("PIECE");
+  const [trackExpiry, setTrackExpiry] = useState(false);
+  const [optionKind, setOptionKind] = useState<keyof typeof OPTION_KIND_LABELS>("volume");
+  const [options, setOptions] = useState("");
+  const [barcode, setBarcode] = useState("");
+  const [error, setError] = useState<string | null>(null);
+  const [pending, startTransition] = useTransition();
+
+  function submit() {
+    setError(null);
+    startTransition(async () => {
+      const result = await quickProductAction({
+        nameAr: name,
+        categoryId,
+        type,
+        unit,
+        trackExpiry,
+        optionKind,
+        options,
+        barcode,
+      });
+      if ("ok" in result) onCreated(result.variants);
+      else setError(result.error);
+    });
+  }
+
+  const label = "flex min-w-0 flex-col gap-1";
+  return (
+    <div
+      className="flex flex-col gap-3 rounded-xl border border-primary bg-card p-4"
+      role="group"
+      aria-label="منتج جديد"
+    >
+      <p className="font-bold">منتج جديد — يُضاف للكتالوج ولهذه الشحنة</p>
+      {error ? <Alert variant="destructive">{error}</Alert> : null}
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <label className={label}>
+          <span className="text-sm font-semibold">الاسم بالعربي</span>
+          <Input value={name} onChange={(e) => setName(e.target.value)} maxLength={120} autoFocus />
+        </label>
+        <label className={label}>
+          <span className="text-sm font-semibold">القسم</span>
+          <NativeSelect value={categoryId} onChange={(e) => setCategoryId(e.target.value)} aria-label="القسم">
+            <option value="" disabled>
+              اختاري القسم
+            </option>
+            {categories.map((c) => (
+              <option key={c.value} value={c.value}>
+                {c.label}
+              </option>
+            ))}
+          </NativeSelect>
+        </label>
+        <label className={label}>
+          <span className="text-sm font-semibold">النوع</span>
+          <NativeSelect
+            value={type}
+            onChange={(e) => setType(e.target.value as "STOCK" | "MATERIAL")}
+            aria-label="النوع"
+          >
+            <option value="STOCK">بضاعة للبيع</option>
+            <option value="MATERIAL">مادة تغليف (لا تُباع)</option>
+          </NativeSelect>
+        </label>
+        <label className={label}>
+          <span className="text-sm font-semibold">الوحدة</span>
+          <NativeSelect
+            value={unit}
+            onChange={(e) => setUnit(e.target.value as "PIECE" | "METER" | "SHEET")}
+            aria-label="الوحدة"
+          >
+            <option value="PIECE">حبة</option>
+            <option value="METER">متر</option>
+            <option value="SHEET">ورقة</option>
+          </NativeSelect>
+        </label>
+        <label className={label}>
+          <span className="text-sm font-semibold">المتغيّرات (اختياري، مفصولة بفاصلة)</span>
+          <div className="flex gap-2">
+            <NativeSelect
+              value={optionKind}
+              onChange={(e) => setOptionKind(e.target.value as keyof typeof OPTION_KIND_LABELS)}
+              aria-label="نوع المتغيّر"
+              className="w-28"
+            >
+              {Object.entries(OPTION_KIND_LABELS).map(([k, v]) => (
+                <option key={k} value={k}>
+                  {v}
+                </option>
+              ))}
+            </NativeSelect>
+            <Input
+              value={options}
+              onChange={(e) => setOptions(e.target.value)}
+              placeholder="50ml، 100ml"
+              aria-label="المتغيّرات"
+            />
+          </div>
+        </label>
+        <label className={label}>
+          <span className="text-sm font-semibold">باركود المصنع (اختياري)</span>
+          <Input
+            value={barcode}
+            onChange={(e) => setBarcode(e.target.value)}
+            dir="ltr"
+            inputMode="numeric"
+            placeholder="فارغ = باركود داخلي تلقائي"
+            aria-label="باركود المصنع"
+          />
+        </label>
+      </div>
+      <label className="flex min-h-11 items-center gap-2">
+        <input
+          type="checkbox"
+          checked={trackExpiry}
+          onChange={(e) => setTrackExpiry(e.target.checked)}
+          className="size-5 accent-primary"
+        />
+        له تاريخ صلاحية (عطور، تجميل)
+      </label>
+      <div className="flex gap-2">
+        <Button type="button" onClick={submit} disabled={pending || name.trim().length < 2 || !categoryId}>
+          {pending ? "جارٍ الإضافة…" : "إضافة المنتج للشحنة"}
+        </Button>
+        <Button type="button" variant="ghost" onClick={onCancel}>
+          إلغاء
+        </Button>
+      </div>
     </div>
   );
 }
