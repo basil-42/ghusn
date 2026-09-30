@@ -646,12 +646,16 @@ model Shift {
   // محفظة النقد عند الإغلاق: فرق العدّ (المعدود − المتوقع) يُسوّى في رصيدها (D-86)
   cashWallet      Wallet?   @relation(fields: [cashWalletId], references: [id])
   cashWalletId    String?
+  // فرق العدّ بالدولار بسعر الجنيه لحظة الإغلاق — يدخل ربح الشهر (D-87)
+  closeSdgPerUsd  Decimal?  @db.Decimal(18, 6)
+  differenceUsd   Decimal?  @db.Decimal(18, 2)
 
   sales    Sale[]
   returns  SaleReturn[]
   expenses Expense[]
 
   @@index([userId, closedAt])
+  @@index([closedAt])
 }
 
 // فاتورة بيع في المحل — INV-2026-000001. المعرّف يُولَّد على الجهاز (D-61) فيكون الحفظ متكرراً بأمان
