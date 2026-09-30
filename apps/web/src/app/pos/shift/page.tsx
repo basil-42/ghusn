@@ -50,6 +50,7 @@ export default async function ShiftPage({ searchParams }: { searchParams: Promis
             ["المرتجعات", String(summary.returnsCount)],
             ["مردود نقداً", sdg(summary.cashRefundsSdg)],
             ["مردود بنكك", sdg(summary.bankakRefundsSdg)],
+            ["مصاريف من الدرج", sdg(summary.expensesSdg)],
             ["العهدة الافتتاحية", sdg(summary.openingCashSdg)],
             ["النقد المتوقع في الدرج", sdg(summary.expectedCashSdg)],
             ...(summary.countedCashSdg ? [["النقد المعدود", sdg(summary.countedCashSdg)]] : []),
@@ -68,7 +69,9 @@ export default async function ShiftPage({ searchParams }: { searchParams: Promis
         <Card>
           <CardHeader>
             <CardTitle>إغلاق الوردية</CardTitle>
-            <CardDescription>عدّي النقد في الدرج. المتوقع = العهدة + المقبوض نقداً − المردود نقداً.</CardDescription>
+            <CardDescription>
+              عدّي النقد في الدرج. المتوقع = العهدة + المقبوض نقداً − المردود نقداً − المصاريف من الدرج.
+            </CardDescription>
           </CardHeader>
           <CloseShiftForm shiftId={summary.id} />
         </Card>

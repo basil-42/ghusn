@@ -3,6 +3,7 @@
 import { toLatinDigits } from "@ghusn/core";
 import { revalidatePath } from "next/cache";
 import { requirePermission } from "@/lib/auth/session";
+import { ExpenseError, saveExpenseCategory } from "@/lib/expenses";
 import { posSettingsSchema, receiptSettingsSchema, savePosSettings, saveReceiptSettings } from "@/lib/settings";
 
 export type FormState = { error?: string; success?: string };
@@ -17,8 +18,11 @@ export async function savePosSettingsAction(_prev: FormState, formData: FormData
     returnDays: numberOf(formData, "returnDays"),
     cashWalletId: text(formData, "cashWalletId") || null,
     bankakWalletId: text(formData, "bankakWalletId") || null,
+    staffExpenseLimitSdg: numberOf(formData, "staffExpenseLimitSdg"),
   });
-  if (!parsed.success) return { error: "حد الخصم بين 0 و100، ومدة المرتجع بين 0 و365 يوماً." };
+  if (!parsed.success) {
+    return { error: "حد الخصم بين 0 و100، ومدة المرتجع بين 0 و365 يوماً، وحد المصروف رقم صحيح بالجنيه." };
+  }
   await savePosSettings(parsed.data);
   revalidatePath("/admin/settings");
   revalidatePath("/pos");
@@ -42,4 +46,24 @@ export async function saveReceiptSettingsAction(_prev: FormState, formData: Form
   await saveReceiptSettings(parsed.data);
   revalidatePath("/admin/settings");
   return { success: "تم حفظ الإيصال." };
+}
+
+export async function saveExpenseCategoryAction(_prev: FormState, formData: FormData): Promise<FormState> {
+  await requirePermission({ settings: ["update"] });
+  const name = text(formData, "name").slice(0, 60);
+  if (name.length < 2) return { error: "اكتبي اسم القسم." };
+  try {
+    await saveExpenseCategory({
+      id: text(formData, "id") || null,
+      name,
+      staffAllowed: formData.get("staffAllowed") === "on",
+      isActive: formData.get("isActive") !== "off",
+    });
+  } catch (e) {
+    if (e instanceof ExpenseError) return { error: e.message };
+    throw e;
+  }
+  revalidatePath("/admin/settings");
+  revalidatePath("/admin/expenses");
+  return { success: "تم الحفظ." };
 }

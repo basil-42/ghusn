@@ -45,7 +45,10 @@ export async function shiftSummary(shiftId: string) {
   const cashOut = sum(refunds.filter((r) => r.method === "CASH").map((r) => r.amountSdg.toString()));
   const bankakOut = sum(refunds.filter((r) => r.method === "BANKAK").map((r) => r.amountSdg.toString()));
   const returnsCount = await prisma.saleReturn.count({ where: { shiftId } });
-  const expected = expectedCash(shift.openingCashSdg.toString(), cashIn, cashOut);
+  // مصاريف دفعتها الموظفة من الدرج (D-83)
+  const drawerExpenses = await prisma.expense.aggregate({ where: { shiftId, voidedAt: null }, _sum: { amount: true } });
+  const expensesOut = dec(drawerExpenses._sum.amount?.toString() ?? "0");
+  const expected = expectedCash(shift.openingCashSdg.toString(), cashIn, cashOut.plus(expensesOut));
   return {
     id: shift.id,
     userId: shift.userId,
@@ -59,6 +62,7 @@ export async function shiftSummary(shiftId: string) {
     bankakSdg: bankak.toString(),
     returnsCount,
     cashRefundsSdg: cashOut.toString(),
+    expensesSdg: expensesOut.toString(),
     bankakRefundsSdg: bankakOut.toString(),
     discountsSdg: discounts.toString(),
     expectedCashSdg: shift.expectedCashSdg?.toString() ?? expected.toString(),
@@ -96,10 +100,11 @@ export async function closeShift(shiftId: string, userId: string, countedCashSdg
       _sum: { amountSdg: true },
     });
     const refunds = await tx.returnRefund.aggregate({ where: { method: "CASH", shiftId }, _sum: { amountSdg: true } });
+    const expenses = await tx.expense.aggregate({ where: { shiftId, voidedAt: null }, _sum: { amount: true } });
     const expected = expectedCash(
       shift.openingCashSdg.toString(),
       cash._sum.amountSdg?.toString() ?? "0",
-      refunds._sum.amountSdg?.toString() ?? "0",
+      dec(refunds._sum.amountSdg?.toString() ?? "0").plus(expenses._sum.amount?.toString() ?? "0"),
     );
     if (!expected.eq(countedCashSdg) && !note) {
       throw new ShiftError(

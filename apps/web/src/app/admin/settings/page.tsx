@@ -4,7 +4,8 @@ import { Receipt } from "@/components/receipt";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { requirePermission } from "@/lib/auth/session";
 import { getPosSettings, getReceiptSettings } from "@/lib/settings";
-import { PosSettingsForm, ReceiptSettingsForm } from "./forms";
+import { listExpenseCategories } from "@/lib/expenses";
+import { ExpenseCategoryForm, PosSettingsForm, ReceiptSettingsForm } from "./forms";
 
 export const metadata: Metadata = { title: "الضبط | غصن" };
 
@@ -30,10 +31,11 @@ const SAMPLE = {
 
 export default async function SettingsPage() {
   await requirePermission({ settings: ["update"] });
-  const [pos, receipt, wallets] = await Promise.all([
+  const [pos, receipt, wallets, categories] = await Promise.all([
     getPosSettings(),
     getReceiptSettings(),
     prisma.wallet.findMany({ where: { isActive: true, currencyCode: "SDG" }, orderBy: { name: "asc" } }),
+    listExpenseCategories({ includeInactive: true }),
   ]);
   return (
     <div className="flex flex-col gap-6">
@@ -44,6 +46,24 @@ export default async function SettingsPage() {
           <CardDescription>حد الخصم ومدة المرتجع والمحافظ التي يدخلها المقبوض (D-80).</CardDescription>
         </CardHeader>
         <PosSettingsForm initial={pos} wallets={wallets.map((w) => ({ value: w.id, label: w.name }))} />
+      </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle>أقسام المصاريف</CardTitle>
+          <CardDescription>
+            أضيفي أو عدّلي. القسم لا يُحذف بل يُوقف (مصاريفه السابقة تبقى في التقارير). «تسجّله الموظفة» = من درج
+            الوردية وحتى الحد أعلاه.
+          </CardDescription>
+        </CardHeader>
+        <div className="flex flex-col gap-2">
+          {categories.map((c) => (
+            <ExpenseCategoryForm
+              key={c.id}
+              category={{ id: c.id, name: c.name, staffAllowed: c.staffAllowed, isActive: c.isActive }}
+            />
+          ))}
+          <ExpenseCategoryForm />
+        </div>
       </Card>
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-[1fr_auto]">
         <Card>

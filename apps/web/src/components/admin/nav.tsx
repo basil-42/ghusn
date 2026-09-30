@@ -3,6 +3,8 @@
 import {
   ArrowLeftRight,
   BadgeDollarSign,
+  ChartColumn,
+  Wallet,
   Container,
   FolderTree,
   LayoutDashboard,
@@ -33,6 +35,8 @@ const ICONS = {
   pos: ShoppingCart,
   sales: Receipt,
   settings: Settings,
+  expenses: Wallet,
+  reports: ChartColumn,
   users: Users,
 } satisfies Record<string, LucideIcon>;
 
