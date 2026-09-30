@@ -7,6 +7,7 @@ import { Button } from "@/components/ui/button";
 import { ROLE_LABELS, isRoleName, roleCan } from "@/lib/auth/permissions";
 import { requireSession } from "@/lib/auth/session";
 import { isSellingRateStale } from "@/lib/exchange-rates";
+import { RegisterServiceWorker } from "@/lib/pos-offline/register-sw";
 
 type Permissions = Parameters<typeof roleCan>[1];
 
@@ -42,6 +43,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
 
   return (
     <div className="min-h-screen md:grid md:grid-cols-[15rem_1fr]">
+      {/* نفس عامل نقطة البيع (النطاق /) — وفي التطوير يزيل أي نسخة قديمة */}
+      <RegisterServiceWorker />
       {/* شريط جانبي على الشاشات الكبيرة */}
       <aside className="hidden border-e border-border bg-card md:flex md:flex-col md:gap-6 md:p-4">
         <Link href="/admin" aria-label="الرئيسية" className="px-2 pt-2">
