@@ -9,6 +9,11 @@ s.getRegistrations().then(function(r){return Promise.all(r.map(function(x){retur
 .then(function(k){return Promise.all(k.filter(function(n){return n.indexOf("ghusn-pos-")===0}).map(function(n){return caches.delete(n)}))})
 .then(function(){location.reload()});})();`;
 
+/**
+ * يوضع في قالب التشغيل (الإدارة ونقطة البيع) فقط: هناك سُجّل العامل وانكسر العرض، وهذا القالب لا
+ * يُعاد رسمه في المتصفح. لا يوضع في قالب المتجر: تبديل اللغة يعيد رسمه فيحذّر React من وسم <script>.
+ * (instrumentation-client لا يكفي: كوده ضمن الملفات التي يقدّمها العامل القديم من ذاكرته.)
+ */
 export function DevServiceWorkerCleanup() {
   if (process.env.NODE_ENV === "production") return null;
   return <script dangerouslySetInnerHTML={{ __html: DEV_SW_CLEANUP }} />;
