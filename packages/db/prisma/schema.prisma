@@ -54,6 +54,7 @@ model User {
   sales             Sale[]                @relation("saleCashier")
   salesApproved     Sale[]                @relation("saleApprovedBy")
   returns           SaleReturn[]          @relation("returnCashier")
+  salesReviewed     Sale[]                @relation("saleReviewedBy")
   returnsApproved   SaleReturn[]          @relation("returnApprovedBy")
 }
 
@@ -595,6 +596,14 @@ model Sale {
   approvedBy         User?     @relation("saleApprovedBy", fields: [approvedById], references: [id])
   approvedById       String?
   note               String?
+  // بيع دون اتصال (D-82): رقم الجهاز المؤقت، وملاحظات تحتاج مراجعة المديرة
+  offline            Boolean   @default(false)
+  localNumber        String?   @unique
+  syncedAt           DateTime?
+  reviewNote         String?
+  reviewedAt         DateTime?
+  reviewedBy         User?     @relation("saleReviewedBy", fields: [reviewedById], references: [id])
+  reviewedById       String?
   createdAt          DateTime  @default(now())
 
   lines          SaleLine[]

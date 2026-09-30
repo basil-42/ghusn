@@ -17,6 +17,7 @@ import {
 import { Prisma, prisma } from "@ghusn/db";
 import { ApprovalError, verifyApprover } from "./approvals";
 import { nextDocumentNumber } from "./documents";
+import { SELLING_CURRENCY, getRateAt } from "./exchange-rates";
 import { currentSellingRate } from "./pricing";
 import { getPosSettings, posWallets } from "./settings";
 
@@ -58,6 +59,16 @@ function toItem(v: Prisma.ProductVariantGetPayload<{ include: { product: true; s
   };
 }
 
+/** الكتالوج كله لجهاز نقطة البيع (دون اتصال) — مع نص البحث الموحّد. */
+export async function listPosCatalog(): Promise<(PosItem & { searchText: string })[]> {
+  const variants = await prisma.productVariant.findMany({
+    where: sellable,
+    include: { product: true, stockLevel: true },
+    orderBy: [{ product: { nameAr: "asc" } }, { sortOrder: "asc" }],
+  });
+  return variants.map((v) => ({ ...toItem(v), searchText: v.product.searchText }));
+}
+
 /** مسح الباركود أو SKU: تطابق تام أولاً، وإلا بحث بالاسم. */
 export async function findPosItems(query: string): Promise<PosItem[]> {
   const code = query.trim();
@@ -91,6 +102,11 @@ export interface SaleInput {
   approval: { phone: string; password: string } | null;
   /** استبدال: مرتجع رصيده يُستخدم في هذه الفاتورة (D-81). */
   creditReturnId: string | null;
+  /**
+   * بيع تم دون اتصال ويُزامَن الآن (D-63، D-82): يُقبل دائماً (البضاعة خرجت) بسعره ووقته على
+   * الجهاز، وما كان يحتاج موافقة يُسجَّل ملاحظة مراجعة للمديرة بدل الرفض.
+   */
+  offline?: { createdAt: Date; localNumber: string; unitPrices: Record<string, string> } | null;
 }
 
 /**
@@ -105,23 +121,40 @@ export async function createSale(input: SaleInput, cashierId: string): Promise<{
     return { id: input.id, number: existing.number };
   }
 
-  const rate = await currentSellingRate();
+  const offline = input.offline ?? null;
+  if (offline && input.creditReturnId) throw new SaleError("الاستبدال يحتاج اتصالاً.");
+  // دون اتصال: سعر الجنيه الساري وقت البيع على الجهاز
+  const rate = offline ? await getRateAt(SELLING_CURRENCY, offline.createdAt) : await currentSellingRate();
   if (!rate) throw new SaleError("لا يوجد سعر للجنيه — اطلبي من المديرة إدخاله.");
+  const review: string[] = [];
   const ids = input.lines.map((l) => l.variantId);
   if (new Set(ids).size !== ids.length) throw new SaleError("صنف مكرر في الفاتورة — اجمعي الكمية في سطر واحد.");
   const variants = await prisma.productVariant.findMany({
-    where: { ...sellable, id: { in: ids } },
+    // دون اتصال: قد يُؤرشف الصنف بعد البيع — البيع حدث فعلاً
+    where: offline ? { id: { in: ids } } : { ...sellable, id: { in: ids } },
     include: { product: true, stockLevel: true },
   });
   const byId = new Map(variants.map((v) => [v.id, v]));
   for (const l of input.lines) {
     const v = byId.get(l.variantId);
     if (!v) throw new SaleError("صنف غير موجود أو غير معروض للبيع.");
-    if (!v.priceSdg) throw new SaleError(`${v.product.nameAr}: لا سعر له بعد — اطلبي من المديرة اعتماد سعره.`);
+    if (!v.priceSdg && !offline) {
+      throw new SaleError(`${v.product.nameAr}: لا سعر له بعد — اطلبي من المديرة اعتماد سعره.`);
+    }
     if (v.product.unit === "PIECE" && !dec(l.qty).isInteger()) {
       throw new SaleError(`${v.product.nameAr}: الكمية بالحبة عدد صحيح.`);
     }
   }
+  // سعر الوحدة: من القاعدة؛ ودون اتصال السعر الذي دفعه العميل (من نسخة الجهاز) مع تنبيه إن تغيّر
+  const unitPrice = (id: string): string => {
+    const current = dec(byId.get(id)?.priceSdg?.toString() ?? "0").toFixed(0);
+    if (!offline) return current;
+    const used = offline.unitPrices[id];
+    if (!used || !/^\d{1,12}$/.test(used)) throw new SaleError("سعر الصنف مفقود في فاتورة دون اتصال.");
+    const note = `${byId.get(id)?.product.nameAr}: بيع بـ ${used} والسعر الحالي ${current}.`;
+    if (used !== current && !review.includes(note)) review.push(note);
+    return used;
+  };
 
   let totals;
   try {
@@ -129,7 +162,7 @@ export async function createSale(input: SaleInput, cashierId: string): Promise<{
       input.lines.map((l) => ({
         key: l.variantId,
         qty: l.qty,
-        unitPriceSdg: dec(byId.get(l.variantId)?.priceSdg?.toString() ?? "0").toFixed(0),
+        unitPriceSdg: unitPrice(l.variantId),
         lineDiscountSdg: l.lineDiscountSdg,
       })),
       input.invoiceDiscountSdg,
@@ -188,7 +221,10 @@ export async function createSale(input: SaleInput, cashierId: string): Promise<{
     reasons.push(`الرصيد في النظام لا يكفي: ${short.map((l) => byId.get(l.variantId)?.product.nameAr).join("، ")}.`);
   }
   let approvedById: string | null = null;
-  if (reasons.length) {
+  if (offline) {
+    // دون اتصال لا تُطلب موافقة: تُسجَّل ملاحظة للمراجعة (D-63)
+    review.push(...reasons);
+  } else if (reasons.length) {
     if (!input.approval) throw new ApprovalRequired(reasons);
     try {
       approvedById = await verifyApprover(input.approval.phone, input.approval.password);
@@ -199,14 +235,21 @@ export async function createSale(input: SaleInput, cashierId: string): Promise<{
   }
 
   const wallets = await posWallets();
-  const now = new Date();
+  const now = offline?.createdAt ?? new Date();
 
   try {
     return await prisma.$transaction(async (tx) => {
-      // قفل الوردية: لا تُغلق أثناء بيع، ولا بيع على وردية مغلقة
-      const [shift] = await tx.$queryRaw<{ id: string }[]>`
-        SELECT "id" FROM "Shift" WHERE "userId" = ${cashierId} AND "closedAt" IS NULL FOR UPDATE`;
+      // قفل الوردية: لا تُغلق أثناء بيع، ولا بيع على وردية مغلقة.
+      // دون اتصال: الوردية التي كانت مفتوحة وقت البيع
+      const [shift] = offline
+        ? await tx.$queryRaw<{ id: string; closedAt: Date | null }[]>`
+            SELECT "id", "closedAt" FROM "Shift" WHERE "userId" = ${cashierId} AND "openedAt" <= ${offline.createdAt}
+              AND ("closedAt" IS NULL OR "closedAt" >= ${offline.createdAt})
+            ORDER BY "openedAt" DESC LIMIT 1 FOR UPDATE`
+        : await tx.$queryRaw<{ id: string; closedAt: Date | null }[]>`
+            SELECT "id", "closedAt" FROM "Shift" WHERE "userId" = ${cashierId} AND "closedAt" IS NULL FOR UPDATE`;
       if (!shift) throw new SaleError("افتحي الوردية أولاً.");
+      if (shift.closedAt) review.push("أُغلقت الوردية قبل وصول هذه الفاتورة — راجعي مطابقة النقد.");
 
       if (input.creditReturnId && exchange && credit) {
         // قفل المرتجع: الرصيد لا يُستخدم مرتين
@@ -243,7 +286,9 @@ export async function createSale(input: SaleInput, cashierId: string): Promise<{
         const unitCost = dec(level?.avgCostUsd.toString() ?? "0");
         // فحص الرصيد تحت القفل: ربما باعت وردية أخرى آخر قطعة للتو
         if (stockQty.lt(qty) && !approvedById) {
-          throw new ApprovalRequired([`الرصيد في النظام لا يكفي: ${v.product.nameAr}.`]);
+          if (!offline) throw new ApprovalRequired([`الرصيد في النظام لا يكفي: ${v.product.nameAr}.`]);
+          const note = `الرصيد في النظام لا يكفي: ${v.product.nameAr}.`;
+          if (!review.includes(note)) review.push(note);
         }
 
         const batches = await tx.$queryRaw<
@@ -279,7 +324,7 @@ export async function createSale(input: SaleInput, cashierId: string): Promise<{
           variantId: l.key,
           label: [v.product.nameAr, variantLabel(v)].filter(Boolean).join(" · "),
           qty: qty.toFixed(),
-          unitPriceSdg: dec(v.priceSdg?.toString() ?? "0").toFixed(2),
+          unitPriceSdg: dec(unitPrice(l.key)).toFixed(2),
           lineDiscountSdg: l.lineDiscountSdg.toFixed(2),
           invoiceDiscountSdg: l.invoiceDiscountSdg.toFixed(2),
           netSdg: l.netSdg.toFixed(2),
@@ -321,6 +366,14 @@ export async function createSale(input: SaleInput, cashierId: string): Promise<{
           changeSdg: paid.changeSdg.toFixed(2),
           approvedById,
           createdAt: now,
+          ...(offline
+            ? {
+                offline: true,
+                localNumber: offline.localNumber,
+                syncedAt: new Date(),
+                reviewNote: review.length ? review.join(" ") : null,
+              }
+            : {}),
         },
       });
       await tx.saleLine.createMany({ data: saleLines });
@@ -453,4 +506,34 @@ export async function availableCredit(db: Db, returnId: string): Promise<Decimal
   return dec(r.refundSdg.toString())
     .minus(refunded._sum.amountSdg?.toString() ?? "0")
     .minus(used._sum.amountSdg?.toString() ?? "0");
+}
+
+/** مبيعات دون اتصال تحتاج مراجعة المديرة (D-82). */
+export async function listSalesToReview() {
+  const rows = await prisma.sale.findMany({
+    where: { reviewNote: { not: null }, reviewedAt: null },
+    orderBy: { createdAt: "desc" },
+    take: 100,
+    include: { cashier: { select: { name: true } } },
+  });
+  return rows.map((s) => ({
+    id: s.id,
+    number: s.number,
+    localNumber: s.localNumber,
+    createdAt: s.createdAt,
+    cashierName: s.cashier.name,
+    totalSdg: s.totalSdg.toString(),
+    reviewNote: s.reviewNote ?? "",
+  }));
+}
+
+export async function countSalesToReview(): Promise<number> {
+  return prisma.sale.count({ where: { reviewNote: { not: null }, reviewedAt: null } });
+}
+
+export async function markSaleReviewed(id: string, userId: string): Promise<void> {
+  await prisma.sale.updateMany({
+    where: { id, reviewNote: { not: null }, reviewedAt: null },
+    data: { reviewedAt: new Date(), reviewedById: userId },
+  });
 }

@@ -6,6 +6,7 @@ import { logout } from "@/app/login/actions";
 import { Button } from "@/components/ui/button";
 import { roleCan } from "@/lib/auth/permissions";
 import { requirePermission } from "@/lib/auth/session";
+import { RegisterServiceWorker } from "@/lib/pos-offline/register-sw";
 
 export const metadata: Metadata = { title: "نقطة البيع | غصن" };
 
@@ -14,6 +15,7 @@ export default async function PosLayout({ children }: { children: React.ReactNod
   const { user } = await requirePermission({ pos: ["sell"] });
   return (
     <div className="flex min-h-screen flex-col bg-background print:bg-white">
+      <RegisterServiceWorker />
       <header className="flex items-center justify-between gap-3 border-b border-border bg-card px-4 py-2 print:hidden">
         <Link href="/pos" aria-label="نقطة البيع">
           <Image src="/brand/logo-ar-mark-forest.svg" alt="غصن" width={88} height={45} loading="eager" />

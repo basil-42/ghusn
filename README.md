@@ -23,6 +23,7 @@ pnpm dev                 # تشغيل الموقع على http://localhost:3000
 ```
 
 لوحة الإدارة: http://localhost:3000/admin — الدخول برقم الهاتف وكلمة السر.
+نقطة البيع: http://localhost:3000/pos — تعمل دون اتصال بعد فتحها مرة مع الاتصال (تحتاج HTTPS على الأجهزة الأخرى؛ على نفس الجهاز localhost يكفي). على الجوال: «إضافة إلى الشاشة الرئيسية» لتثبيتها كتطبيق.
 
 > **بعد كل `git pull` فيه ترحيلات جديدة:** أوقف الموقع (Ctrl+C)، ثم `pnpm db:migrate`، ثم `pnpm dev` من جديد.
 > خادم التطوير يحتفظ بنسخة قديمة من Prisma؛ وإلا ستظهر أخطاء مثل `Cannot read properties of undefined (reading 'findMany')`.
