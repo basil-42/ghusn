@@ -83,3 +83,17 @@ export function shopMomentForDate(day: string, now: Date = new Date()): Date | n
   const moment = new Date(guess.getTime() - shopOffsetMinutes(guess) * 60_000);
   return shopDay(moment) === day ? moment : null;
 }
+
+/** بداية يوم بتوقيت المحل (00:00 الخرطوم) للتاريخ YYYY-MM-DD. */
+export function shopDayStart(day: string): Date {
+  const guess = new Date(`${day}T00:00:00Z`);
+  return new Date(guess.getTime() - shopOffsetMinutes(guess) * 60_000);
+}
+
+/** حدود شهر بتوقيت المحل: [البداية، البداية التالية) — للتقارير الشهرية. */
+export function shopMonthRange(month: string): { start: Date; end: Date } {
+  const [y, m] = month.split("-").map(Number);
+  if (!y || !m || m < 1 || m > 12) throw new RangeError(`Invalid month ${month}`);
+  const next = m === 12 ? `${y + 1}-01` : `${y}-${String(m + 1).padStart(2, "0")}`;
+  return { start: shopDayStart(`${month}-01`), end: shopDayStart(`${next}-01`) };
+}

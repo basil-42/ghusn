@@ -5,7 +5,7 @@ import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input, NativeSelect } from "@/components/ui/input";
 import type { PosSettings, ReceiptSettings } from "@/lib/settings";
-import { savePosSettingsAction, saveReceiptSettingsAction, type FormState } from "./actions";
+import { saveExpenseCategoryAction, savePosSettingsAction, saveReceiptSettingsAction, type FormState } from "./actions";
 
 function Messages({ state }: { state: FormState }) {
   return (
@@ -39,6 +39,16 @@ export function PosSettingsForm({
             dir="ltr"
           />
           <span className="text-xs text-muted-foreground">فوقه، أو البيع تحت التكلفة، يحتاج موافقة المديرة.</span>
+        </label>
+        <label className={field}>
+          <span className="font-semibold">حد مصروف الموظفة (ج.س)</span>
+          <Input
+            name="staffExpenseLimitSdg"
+            defaultValue={String(initial.staffExpenseLimitSdg)}
+            inputMode="numeric"
+            dir="ltr"
+          />
+          <span className="text-xs text-muted-foreground">للمصروف الواحد من درج الوردية، في الأقسام المسموحة لها.</span>
         </label>
         <label className={field}>
           <span className="font-semibold">مدة المرتجع (أيام)</span>
@@ -125,6 +135,55 @@ export function ReceiptSettingsForm({ initial }: { initial: ReceiptSettings }) {
       <Button type="submit" disabled={pending} className="self-start">
         حفظ الإيصال
       </Button>
+    </form>
+  );
+}
+
+/** قسم مصاريف: الاسم، هل تسجّله الموظفة، ونشط أم موقوف (لا حذف — المصاريف القديمة مرتبطة به). */
+export function ExpenseCategoryForm({
+  category,
+}: {
+  category?: { id: string; name: string; staffAllowed: boolean; isActive: boolean };
+}) {
+  const [state, action, pending] = useActionState<FormState, FormData>(saveExpenseCategoryAction, {});
+  return (
+    <form action={action} className="flex flex-wrap items-center gap-2 rounded-xl border border-border p-2">
+      {category ? <input type="hidden" name="id" value={category.id} /> : null}
+      <Input
+        name="name"
+        defaultValue={category?.name ?? ""}
+        placeholder="قسم جديد"
+        aria-label="اسم القسم"
+        className="w-44"
+        required
+      />
+      <label className="flex min-h-11 items-center gap-2 text-sm">
+        <input
+          type="checkbox"
+          name="staffAllowed"
+          defaultChecked={category?.staffAllowed ?? false}
+          className="size-5 accent-primary"
+        />
+        تسجّله الموظفة
+      </label>
+      {category ? (
+        <label className="flex min-h-11 items-center gap-2 text-sm">
+          <select
+            name="isActive"
+            defaultValue={category.isActive ? "on" : "off"}
+            className="min-h-11 rounded-xl border border-input bg-card px-2"
+            aria-label="الحالة"
+          >
+            <option value="on">نشط</option>
+            <option value="off">موقوف</option>
+          </select>
+        </label>
+      ) : null}
+      <Button type="submit" size="sm" variant="outline" disabled={pending}>
+        {category ? "حفظ" : "إضافة"}
+      </Button>
+      {state.error ? <span className="text-sm text-destructive">{state.error}</span> : null}
+      {state.success ? <span className="text-sm text-muted-foreground">{state.success}</span> : null}
     </form>
   );
 }

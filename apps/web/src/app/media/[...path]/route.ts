@@ -6,7 +6,10 @@ import { isSafeKey, storage } from "@/lib/storage";
  */
 export async function GET(_request: Request, { params }: { params: Promise<{ path: string[] }> }) {
   const key = (await params).path.join("/");
-  if (!isSafeKey(key) || !key.endsWith(".webp")) return new Response("Not found", { status: 404 });
+  // «private/» (صور فواتير المصاريف) لا تُقدَّم من هنا — لها مسار يفحص الصلاحية
+  if (!isSafeKey(key) || !key.endsWith(".webp") || key.startsWith("private/")) {
+    return new Response("Not found", { status: 404 });
+  }
   const body = await storage.get(key);
   if (!body) return new Response("Not found", { status: 404 });
   return new Response(new Uint8Array(body), {
