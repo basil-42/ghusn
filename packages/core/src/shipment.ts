@@ -49,3 +49,16 @@ export function shipmentGoodsTotal(lines: readonly { qty: DecimalInput; unitPric
 export function documentNumber(prefix: string, year: number, sequence: number, digits = 3): string {
   return `${prefix}-${year}-${String(sequence).padStart(digits, "0")}`;
 }
+
+/**
+ * تكاليف الشحنة تُضاف وتُلغى بعد تأكيد الشراء، وحتى بعد الاستلام (فاتورة متأخرة — D-78)،
+ * لكن ليس للمسودة ولا للملغاة.
+ */
+export function canChangeShipmentCosts(status: ShipmentStatus): boolean {
+  return status !== "DRAFT" && status !== "CANCELLED";
+}
+
+/** الاستلام من أي مرحلة بعد الشراء — قد تصل البضاعة قبل تحديث الحالة. */
+export function canReceiveShipment(status: ShipmentStatus): boolean {
+  return status === "PURCHASED" || status === "IN_TRANSIT" || status === "IN_CUSTOMS" || status === "ARRIVED";
+}

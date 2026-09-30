@@ -38,15 +38,17 @@ model User {
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
 
-  sessions        Session[]
-  accounts        Account[]
-  ratesEntered    ExchangeRate[]
-  productsCreated Product[]
-  supplierEntries SupplierLedgerEntry[] @relation("entryCreatedBy")
-  supplierVoids   SupplierLedgerEntry[] @relation("entryVoidedBy")
-  shipments       Shipment[]
-  shipmentCosts   ShipmentCost[]        @relation("costCreatedBy")
-  shipmentVoids   ShipmentCost[]        @relation("costVoidedBy")
+  sessions          Session[]
+  accounts          Account[]
+  ratesEntered      ExchangeRate[]
+  productsCreated   Product[]
+  supplierEntries   SupplierLedgerEntry[] @relation("entryCreatedBy")
+  supplierVoids     SupplierLedgerEntry[] @relation("entryVoidedBy")
+  shipments         Shipment[]            @relation("shipmentCreatedBy")
+  shipmentCosts     ShipmentCost[]        @relation("costCreatedBy")
+  shipmentVoids     ShipmentCost[]        @relation("costVoidedBy")
+  shipmentsReceived Shipment[]            @relation("shipmentReceivedBy")
+  stockMovements    StockMovement[]       @relation("stockMovementBy")
 }
 
 model Session {
@@ -220,7 +222,10 @@ model ProductVariant {
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
-  shipmentLines ShipmentLine[]
+  shipmentLines  ShipmentLine[]
+  stockLevel     StockLevel?
+  stockBatches   StockBatch[]
+  stockMovements StockMovement[]
 
   @@index([productId])
 }
@@ -334,30 +339,40 @@ model Shipment {
   rateUsed     Decimal?       @db.Decimal(18, 6)
   dueDate      DateTime?
   notes        String?
-  createdBy    User?          @relation(fields: [createdById], references: [id])
+  createdBy    User?          @relation("shipmentCreatedBy", fields: [createdById], references: [id])
   createdById  String?
   createdAt    DateTime       @default(now())
   updatedAt    DateTime       @updatedAt
+  // الاستلام (D-78): مرة واحدة ويغلق الشحنة
+  receivedAt   DateTime?
+  receivedBy   User?          @relation("shipmentReceivedBy", fields: [receivedById], references: [id])
+  receivedById String?
 
-  lines         ShipmentLine[]
-  costs         ShipmentCost[]
-  ledgerEntries SupplierLedgerEntry[]
+  lines          ShipmentLine[]
+  costs          ShipmentCost[]
+  ledgerEntries  SupplierLedgerEntry[]
+  stockMovements StockMovement[]
 
   @@index([status])
   @@index([supplierId])
 }
 
 model ShipmentLine {
-  id         String         @id @default(cuid())
-  shipment   Shipment       @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
-  shipmentId String
-  variant    ProductVariant @relation(fields: [variantId], references: [id])
-  variantId  String
+  id          String         @id @default(cuid())
+  shipment    Shipment       @relation(fields: [shipmentId], references: [id], onDelete: Cascade)
+  shipmentId  String
+  variant     ProductVariant @relation(fields: [variantId], references: [id])
+  variantId   String
   // كسور للمواد (متر شريط)؛ الحبة عدد صحيح
-  qty        Decimal        @db.Decimal(12, 3)
+  qty         Decimal        @db.Decimal(12, 3)
   // سعر الوحدة بعملة المورد
-  unitPrice  Decimal        @db.Decimal(18, 4)
-  sortOrder  Int            @default(0)
+  unitPrice   Decimal        @db.Decimal(18, 4)
+  sortOrder   Int            @default(0)
+  // عند الاستلام: السليم والتالف (الباقي = ناقص)، وخسارة البند إن لم يصل منه شيء سليم
+  receivedQty Decimal?       @db.Decimal(12, 3)
+  damagedQty  Decimal?       @db.Decimal(12, 3)
+  lossUsd     Decimal?       @db.Decimal(18, 2)
+  batch       StockBatch?
 
   @@index([shipmentId])
 }
@@ -393,6 +408,8 @@ model ShipmentCost {
   voidedById   String?
   voidReason   String?
 
+  stockMovements StockMovement[]
+
   @@index([shipmentId])
 }
 
@@ -400,4 +417,68 @@ model ShipmentCost {
 model DocumentCounter {
   key   String @id
   value Int
+}
+
+// ---------- المخزون (D-78) ----------
+// الرصيد الحالي لكل متغيّر ومتوسط تكلفته المرجّح بالدولار — يُحدَّث في نفس معاملة الحركة
+model StockLevel {
+  variant    ProductVariant @relation(fields: [variantId], references: [id])
+  variantId  String         @id
+  qty        Decimal        @default(0) @db.Decimal(12, 3)
+  avgCostUsd Decimal        @default(0) @db.Decimal(18, 6)
+  updatedAt  DateTime       @updatedAt
+}
+
+// دفعة = ما دخل المخزون من بند شحنة، بتكلفة واصلة ثابتة (تتغير فقط بفاتورة متأخرة)
+model StockBatch {
+  id             String         @id @default(cuid())
+  variant        ProductVariant @relation(fields: [variantId], references: [id])
+  variantId      String
+  shipmentLine   ShipmentLine?  @relation(fields: [shipmentLineId], references: [id])
+  shipmentLineId String?        @unique
+  qtyReceived    Decimal        @db.Decimal(12, 3)
+  // يُنقص بالبيع لاحقاً (FEFO للأصناف ذات الصلاحية)
+  qtyRemaining   Decimal        @db.Decimal(12, 3)
+  landedUnitUsd  Decimal        @db.Decimal(18, 6)
+  expiresAt      DateTime?      @db.Date
+  receivedAt     DateTime
+  createdAt      DateTime       @default(now())
+
+  movements StockMovement[]
+
+  @@index([variantId, expiresAt])
+}
+
+enum StockMovementKind {
+  RECEIPT // استلام شحنة
+  REVALUATION // تكلفة متأخرة أو إلغاؤها بعد الاستلام (الكمية صفر)
+}
+
+// دفتر حركات المخزون — لا يُعدَّل ولا يُحذف (system-design §4.3)
+model StockMovement {
+  id              String            @id @default(cuid())
+  variant         ProductVariant    @relation(fields: [variantId], references: [id])
+  variantId       String
+  batch           StockBatch?       @relation(fields: [batchId], references: [id])
+  batchId         String?
+  kind            StockMovementKind
+  qty             Decimal           @db.Decimal(12, 3)
+  unitCostUsd     Decimal?          @db.Decimal(18, 6)
+  // التغير في قيمة المخزون بالدولار
+  valueUsd        Decimal           @db.Decimal(18, 2)
+  // ما يخص وحدات خرجت أو لم تصل ← مصروف (تسوية تكلفة المبيعات)
+  expenseUsd      Decimal           @default(0) @db.Decimal(18, 2)
+  qtyAfter        Decimal           @db.Decimal(12, 3)
+  avgCostAfterUsd Decimal           @db.Decimal(18, 6)
+  shipment        Shipment?         @relation(fields: [shipmentId], references: [id])
+  shipmentId      String?
+  shipmentCost    ShipmentCost?     @relation(fields: [shipmentCostId], references: [id])
+  shipmentCostId  String?
+  note            String?
+  createdBy       User?             @relation("stockMovementBy", fields: [createdById], references: [id])
+  createdById     String?
+  createdAt       DateTime          @default(now())
+
+  @@index([variantId, createdAt])
+  @@index([shipmentId])
 }
