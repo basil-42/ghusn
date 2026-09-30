@@ -50,6 +50,9 @@ model User {
   shipmentsReceived Shipment[]            @relation("shipmentReceivedBy")
   stockMovements    StockMovement[]       @relation("stockMovementBy")
   priceHistories    PriceHistory[]
+  shifts            Shift[]
+  sales             Sale[]                @relation("saleCashier")
+  salesApproved     Sale[]                @relation("saleApprovedBy")
 }
 
 model Session {
@@ -147,6 +150,7 @@ model Wallet {
 
   supplierPayments SupplierLedgerEntry[]
   shipmentCosts    ShipmentCost[]
+  salePayments     SalePayment[]
 }
 
 // ---------- الأقسام ----------
@@ -230,6 +234,7 @@ model ProductVariant {
 
   shipmentLines  ShipmentLine[]
   priceHistory   PriceHistory[]
+  saleLines      SaleLine[]
   stockLevel     StockLevel?
   stockBatches   StockBatch[]
   stockMovements StockMovement[]
@@ -459,6 +464,7 @@ model StockBatch {
 enum StockMovementKind {
   RECEIPT // استلام شحنة
   REVALUATION // تكلفة متأخرة أو إلغاؤها بعد الاستلام (الكمية صفر)
+  SALE // بيع (كمية سالبة)
 }
 
 // دفتر حركات المخزون — لا يُعدَّل ولا يُحذف (system-design §4.3)
@@ -481,6 +487,10 @@ model StockMovement {
   shipmentId      String?
   shipmentCost    ShipmentCost?     @relation(fields: [shipmentCostId], references: [id])
   shipmentCostId  String?
+  sale            Sale?             @relation(fields: [saleId], references: [id])
+  saleId          String?
+  // بيع تجاوز الرصيد (سالب) بموافقة — CLAUDE.md §6.8
+  override        Boolean           @default(false)
   note            String?
   createdBy       User?             @relation("stockMovementBy", fields: [createdById], references: [id])
   createdById     String?
@@ -488,6 +498,7 @@ model StockMovement {
 
   @@index([variantId, createdAt])
   @@index([shipmentId])
+  @@index([saleId])
 }
 
 // ---------- التسعير (D-24، D-79) ----------
@@ -516,4 +527,115 @@ model PriceHistory {
   createdAt    DateTime          @default(now())
 
   @@index([variantId, createdAt])
+}
+
+// ---------- نقطة البيع (D-80) ----------
+// إعدادات عامة بمفتاح: pos (حد الخصم، مدة المرتجع)، receipt (نصوص الإيصال)
+model Setting {
+  key       String   @id
+  value     Json
+  updatedAt DateTime @updatedAt
+}
+
+// العميل: رقم الهاتف E.164 هو المعرّف (system-design §4.6)
+model Customer {
+  id        String   @id @default(cuid())
+  phone     String   @unique
+  name      String?
+  createdAt DateTime @default(now())
+
+  sales Sale[]
+}
+
+// وردية موظفة: عهدة نقدية افتتاحية ← إغلاق بعدّ النقد ومطابقته
+model Shift {
+  id              String    @id @default(cuid())
+  user            User      @relation(fields: [userId], references: [id])
+  userId          String
+  openedAt        DateTime  @default(now())
+  openingCashSdg  Decimal   @db.Decimal(18, 2)
+  closedAt        DateTime?
+  expectedCashSdg Decimal?  @db.Decimal(18, 2)
+  countedCashSdg  Decimal?  @db.Decimal(18, 2)
+  closeNote       String?
+
+  sales Sale[]
+
+  @@index([userId, closedAt])
+}
+
+// فاتورة بيع في المحل — INV-2026-000001. المعرّف يُولَّد على الجهاز (D-61) فيكون الحفظ متكرراً بأمان
+model Sale {
+  id                 String    @id
+  number             String    @unique
+  shift              Shift     @relation(fields: [shiftId], references: [id])
+  shiftId            String
+  cashier            User      @relation("saleCashier", fields: [cashierId], references: [id])
+  cashierId          String
+  customer           Customer? @relation(fields: [customerId], references: [id])
+  customerId         String?
+  subtotalSdg        Decimal   @db.Decimal(18, 2)
+  lineDiscountSdg    Decimal   @db.Decimal(18, 2)
+  invoiceDiscountSdg Decimal   @db.Decimal(18, 2)
+  totalSdg           Decimal   @db.Decimal(18, 2)
+  // سعر الجنيه لحظة البيع والإيراد والتكلفة بالدولار (currency-and-costing §6)
+  sdgPerUsd          Decimal   @db.Decimal(18, 6)
+  revenueUsd         Decimal   @db.Decimal(18, 2)
+  cogsUsd            Decimal   @db.Decimal(18, 2)
+  cashTenderedSdg    Decimal?  @db.Decimal(18, 2)
+  changeSdg          Decimal   @default(0) @db.Decimal(18, 2)
+  // خصم فوق الحد أو تحت التكلفة أو تجاوز رصيد: من وافق
+  approvedBy         User?     @relation("saleApprovedBy", fields: [approvedById], references: [id])
+  approvedById       String?
+  note               String?
+  createdAt          DateTime  @default(now())
+
+  lines          SaleLine[]
+  payments       SalePayment[]
+  stockMovements StockMovement[]
+
+  @@index([shiftId])
+  @@index([createdAt])
+  @@index([customerId])
+}
+
+model SaleLine {
+  id                 String         @id @default(cuid())
+  sale               Sale           @relation(fields: [saleId], references: [id])
+  saleId             String
+  variant            ProductVariant @relation(fields: [variantId], references: [id])
+  variantId          String
+  // اسم الصنف وقت البيع (للإيصال حتى لو تغيّر الاسم لاحقاً)
+  label              String
+  qty                Decimal        @db.Decimal(12, 3)
+  unitPriceSdg       Decimal        @db.Decimal(18, 2)
+  lineDiscountSdg    Decimal        @db.Decimal(18, 2)
+  invoiceDiscountSdg Decimal        @db.Decimal(18, 2)
+  netSdg             Decimal        @db.Decimal(18, 2)
+  // متوسط التكلفة لحظة البيع (D-26)
+  unitCostUsd        Decimal        @db.Decimal(18, 6)
+  costUsd            Decimal        @db.Decimal(18, 2)
+  sortOrder          Int            @default(0)
+
+  @@index([saleId])
+  @@index([variantId])
+}
+
+enum PaymentMethod {
+  CASH
+  BANKAK
+}
+
+model SalePayment {
+  id        String        @id @default(cuid())
+  sale      Sale          @relation(fields: [saleId], references: [id])
+  saleId    String
+  method    PaymentMethod
+  amountSdg Decimal       @db.Decimal(18, 2)
+  wallet    Wallet        @relation(fields: [walletId], references: [id])
+  walletId  String
+  // رقم عملية بنكك (اختياري)
+  reference String?
+
+  @@index([saleId])
 }
