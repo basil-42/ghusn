@@ -44,6 +44,9 @@ export default async function ReceiptPage({ params }: { params: Promise<{ id: st
           </Button>
         ) : null}
         <Button asChild variant="outline">
+          <Link href={`/pos/returns?invoice=${data.number}`}>مرتجع</Link>
+        </Button>
+        <Button asChild variant="outline">
           <Link href="/pos">بيع جديد</Link>
         </Button>
       </div>

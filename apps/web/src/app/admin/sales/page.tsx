@@ -5,13 +5,14 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { requirePermission } from "@/lib/auth/session";
 import { formatAmount, formatDateTime } from "@/lib/format";
 import { listSales } from "@/lib/sales";
+import { listReturns } from "@/lib/returns";
 import { listShifts } from "@/lib/shifts";
 
 export const metadata: Metadata = { title: "المبيعات | غصن" };
 
 export default async function SalesPage() {
   await requirePermission({ sale: ["read"] });
-  const [sales, shifts] = await Promise.all([listSales(), listShifts()]);
+  const [sales, shifts, returns] = await Promise.all([listSales(), listShifts(), listReturns()]);
   return (
     <div className="flex flex-col gap-6">
       <h1 className="font-display text-3xl font-bold">المبيعات</h1>
@@ -51,6 +52,52 @@ export default async function SalesPage() {
                   <TableCell className="tabular-nums">{formatAmount(s.totalSdg, 0)}</TableCell>
                   <TableCell className="tabular-nums">{formatAmount(s.discountSdg, 0)}</TableCell>
                   <TableCell className="tabular-nums">{formatAmount(s.profitUsd)}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </Card>
+
+      <Card className="p-0">
+        <CardHeader className="px-5 pt-5">
+          <CardTitle>المرتجعات</CardTitle>
+        </CardHeader>
+        {returns.length === 0 ? (
+          <p className="p-6 text-center text-muted-foreground">لا مرتجعات.</p>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>المرتجع</TableHead>
+                <TableHead>من الفاتورة</TableHead>
+                <TableHead>الوقت</TableHead>
+                <TableHead>البائعة</TableHead>
+                <TableHead>المسترد ج.س</TableHead>
+                <TableHead>تالف $</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {returns.map((r) => (
+                <TableRow key={r.id}>
+                  <TableCell>
+                    <Link href={`/pos/returns/${r.id}`} className="font-semibold hover:underline">
+                      <bdi dir="ltr">{r.number}</bdi>
+                    </Link>
+                    {r.isExchange ? <span className="text-xs text-muted-foreground"> · استبدال</span> : null}
+                  </TableCell>
+                  <TableCell>
+                    <bdi dir="ltr">{r.saleNumber}</bdi>
+                  </TableCell>
+                  <TableCell className="text-sm">{formatDateTime(r.createdAt)}</TableCell>
+                  <TableCell>
+                    {r.cashierName}
+                    {r.approvedBy ? (
+                      <span className="text-xs text-muted-foreground"> · موافقة {r.approvedBy}</span>
+                    ) : null}
+                  </TableCell>
+                  <TableCell className="tabular-nums">{formatAmount(r.refundSdg, 0)}</TableCell>
+                  <TableCell className="tabular-nums">{formatAmount(r.damagedCostUsd)}</TableCell>
                 </TableRow>
               ))}
             </TableBody>

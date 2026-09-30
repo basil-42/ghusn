@@ -6,6 +6,7 @@ import { redirect } from "next/navigation";
 import { z } from "zod";
 import { requirePermission } from "@/lib/auth/session";
 import { ApprovalRequired, SaleError, createSale, findPosItems } from "@/lib/sales";
+import { ReturnError, cashOutCredit, createReturn, findSaleForReturn } from "@/lib/returns";
 import { ShiftError, closeShift, openShift } from "@/lib/shifts";
 
 export type FormState = { error?: string; success?: string };
@@ -106,6 +107,10 @@ const saleSchema = z.object({
     .nullish()
     .transform((v) => v || null),
   approval: z.object({ phone: z.string().max(20), password: z.string().max(200) }).nullish(),
+  creditReturnId: z
+    .string()
+    .regex(/^[a-z0-9]{20,32}$/)
+    .nullish(),
 });
 
 export type SaleResult = { ok: true; id: string } | { error: string } | { approvalRequired: string[] };
@@ -115,7 +120,10 @@ export async function createSaleAction(input: unknown): Promise<SaleResult> {
   const parsed = saleSchema.safeParse(input);
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "بيانات غير صحيحة" };
   try {
-    const sale = await createSale({ ...parsed.data, approval: parsed.data.approval ?? null }, session.user.id);
+    const sale = await createSale(
+      { ...parsed.data, approval: parsed.data.approval ?? null, creditReturnId: parsed.data.creditReturnId ?? null },
+      session.user.id,
+    );
     revalidatePath("/pos/shift");
     return { ok: true, id: sale.id };
   } catch (e) {
@@ -123,4 +131,75 @@ export async function createSaleAction(input: unknown): Promise<SaleResult> {
     if (e instanceof SaleError) return { error: e.message };
     throw e;
   }
+}
+
+// ---------- المرتجعات (D-81) ----------
+
+export async function findSaleForReturnAction(number: string) {
+  await requirePermission({ pos: ["sell"] });
+  return findSaleForReturn(String(number).slice(0, 30));
+}
+
+const returnSchema = z.object({
+  id: z.string().regex(/^[a-z0-9]{20,32}$/),
+  saleId: z.string().min(1),
+  lines: z
+    .array(
+      z.object({
+        saleLineId: z.string().min(1),
+        qty: z
+          .string()
+          .transform(clean)
+          .refine((v) => /^\d{1,6}(\.\d{1,3})?$/.test(v), "الكمية غير صحيحة"),
+        damagedQty: z
+          .string()
+          .transform(clean)
+          .refine((v) => /^\d{1,6}(\.\d{1,3})?$/.test(v), "التالف غير صحيح"),
+      }),
+    )
+    .min(1)
+    .max(100),
+  mode: z.enum(["REFUND", "EXCHANGE"]),
+  refundMethod: z.enum(["CASH", "BANKAK"]),
+  reference: z
+    .string()
+    .trim()
+    .max(60)
+    .nullish()
+    .transform((v) => v || null),
+  reason: z
+    .string()
+    .trim()
+    .max(200)
+    .nullish()
+    .transform((v) => v || null),
+  approval: z.object({ phone: z.string().max(20), password: z.string().max(200) }).nullish(),
+});
+
+export async function createReturnAction(input: unknown): Promise<SaleResult> {
+  const session = await requirePermission({ pos: ["sell"] });
+  const parsed = returnSchema.safeParse(input);
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "بيانات غير صحيحة" };
+  try {
+    const r = await createReturn({ ...parsed.data, approval: parsed.data.approval ?? null }, session.user.id);
+    revalidatePath("/pos/shift");
+    return { ok: true, id: r.id };
+  } catch (e) {
+    if (e instanceof ApprovalRequired) return { approvalRequired: e.reasons };
+    if (e instanceof ReturnError || e instanceof SaleError) return { error: e.message };
+    throw e;
+  }
+}
+
+export async function cashOutCreditAction(_prev: FormState, formData: FormData): Promise<FormState> {
+  const session = await requirePermission({ pos: ["sell"] });
+  const id = String(formData.get("returnId") ?? "");
+  try {
+    await cashOutCredit(id, session.user.id);
+  } catch (e) {
+    if (e instanceof ReturnError || e instanceof SaleError) return { error: e.message };
+    throw e;
+  }
+  revalidatePath(`/pos/returns/${id}`);
+  return { success: "تم رد الرصيد نقداً." };
 }

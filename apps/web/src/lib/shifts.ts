@@ -40,7 +40,12 @@ export async function shiftSummary(shiftId: string) {
     shift.sales.map((s) => dec(s.lineDiscountSdg.toString()).plus(s.invoiceDiscountSdg.toString())),
   );
   const total = sum(shift.sales.map((s) => s.totalSdg.toString()));
-  const expected = expectedCash(shift.openingCashSdg.toString(), cashIn);
+  // المرتجعات: ما رُدّ من هذه الوردية (نقداً يخرج من الدرج)
+  const refunds = await prisma.returnRefund.findMany({ where: { shiftId } });
+  const cashOut = sum(refunds.filter((r) => r.method === "CASH").map((r) => r.amountSdg.toString()));
+  const bankakOut = sum(refunds.filter((r) => r.method === "BANKAK").map((r) => r.amountSdg.toString()));
+  const returnsCount = await prisma.saleReturn.count({ where: { shiftId } });
+  const expected = expectedCash(shift.openingCashSdg.toString(), cashIn, cashOut);
   return {
     id: shift.id,
     userId: shift.userId,
@@ -52,6 +57,9 @@ export async function shiftSummary(shiftId: string) {
     totalSdg: total.toString(),
     cashSdg: cashIn.toString(),
     bankakSdg: bankak.toString(),
+    returnsCount,
+    cashRefundsSdg: cashOut.toString(),
+    bankakRefundsSdg: bankakOut.toString(),
     discountsSdg: discounts.toString(),
     expectedCashSdg: shift.expectedCashSdg?.toString() ?? expected.toString(),
     countedCashSdg: shift.countedCashSdg?.toString() ?? null,
@@ -87,7 +95,12 @@ export async function closeShift(shiftId: string, userId: string, countedCashSdg
       where: { method: "CASH", sale: { shiftId } },
       _sum: { amountSdg: true },
     });
-    const expected = expectedCash(shift.openingCashSdg.toString(), cash._sum.amountSdg?.toString() ?? "0");
+    const refunds = await tx.returnRefund.aggregate({ where: { method: "CASH", shiftId }, _sum: { amountSdg: true } });
+    const expected = expectedCash(
+      shift.openingCashSdg.toString(),
+      cash._sum.amountSdg?.toString() ?? "0",
+      refunds._sum.amountSdg?.toString() ?? "0",
+    );
     if (!expected.eq(countedCashSdg) && !note) {
       throw new ShiftError(
         `النقد المعدود يختلف عن المتوقع (${expected.toFixed(0)}) — اكتبي ملاحظة توضح الفرق، أو أعيدي العدّ.`,
