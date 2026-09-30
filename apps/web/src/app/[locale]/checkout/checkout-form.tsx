@@ -14,7 +14,7 @@ const input = "min-h-12 w-full rounded-xl border border-input bg-card px-3";
 const field = "flex min-w-0 flex-col gap-1";
 
 /** إتمام الطلب كضيف (D-88). الخادم يعيد حساب كل شيء؛ الإجمالي المعروض يُرسل للتأكد أن السعر لم يتغيّر. */
-export function CheckoutForm() {
+export function CheckoutForm({ bankakEnabled }: { bankakEnabled: boolean }) {
   const t = useTranslations("checkout");
   const te = useTranslations("errors");
   const tc = useTranslations("cart");
@@ -26,6 +26,7 @@ export function CheckoutForm() {
   // معرّف ثابت لهذه المحاولة: الإرسال مرتين (شبكة ضعيفة) لا ينشئ طلبين
   const [orderId] = useState(() => createId());
   const [fulfillment, setFulfillment] = useState<"DELIVERY" | "PICKUP">("DELIVERY");
+  const [payment, setPayment] = useState<"ON_RECEIPT" | "BANKAK">("ON_RECEIPT");
   const [gift, setGift] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [pending, start] = useTransition();
@@ -59,6 +60,7 @@ export function CheckoutForm() {
           recipientName: gift ? s("recipientName") : null,
           recipientPhone: gift ? s("recipientPhone") : null,
           note: s("note"),
+          payment: bankakEnabled ? payment : "ON_RECEIPT",
           items,
           expectedTotalSdg: quote.totalSdg,
         });
@@ -200,10 +202,30 @@ export function CheckoutForm() {
           <span>{tc("total")}</span>
           {quote ? <Price value={quote.totalSdg} locale={locale} /> : null}
         </p>
-        <p className="text-sm">
-          <span className="font-semibold">{t("payment")}: </span>
-          {fulfillment === "DELIVERY" ? t("cod") : t("inShop")}
-        </p>
+        <fieldset className="flex flex-col gap-2">
+          <legend className="mb-1 text-sm font-semibold">{t("payment")}</legend>
+          {(bankakEnabled ? (["ON_RECEIPT", "BANKAK"] as const) : (["ON_RECEIPT"] as const)).map((m) => (
+            <label
+              key={m}
+              className={`flex cursor-pointer gap-2 rounded-xl border p-3 text-sm ${payment === m || !bankakEnabled ? "border-forest" : "border-line"}`}
+            >
+              <input
+                type="radio"
+                name="payment"
+                value={m}
+                checked={bankakEnabled ? payment === m : true}
+                onChange={() => setPayment(m)}
+                className="mt-0.5 size-5 shrink-0 accent-forest"
+              />
+              <span>
+                <span className="block font-semibold">
+                  {m === "BANKAK" ? t("bankak") : fulfillment === "DELIVERY" ? t("cod") : t("inShop")}
+                </span>
+                {m === "BANKAK" ? <span className="text-xs text-muted-foreground">{t("bankakHint")}</span> : null}
+              </span>
+            </label>
+          ))}
+        </fieldset>
         {fulfillment === "DELIVERY" ? <p className="text-xs text-muted-foreground">{tc("deliveryNote")}</p> : null}
         {error ? (
           <p role="alert" className="rounded-xl bg-destructive/10 p-3 text-sm font-semibold text-destructive">

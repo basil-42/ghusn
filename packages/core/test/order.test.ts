@@ -7,6 +7,7 @@ import {
   isStockOut,
   nextStatuses,
   orderTotals,
+  paymentDueAfterRejection,
 } from "../src";
 
 describe("order state machine", () => {
@@ -24,11 +25,30 @@ describe("order state machine", () => {
     expect(nextStatuses("CANCELLED")).toEqual([]);
   });
   it("delivery goes through the courier; pickup is handed over from READY", () => {
-    expect(() => assertTransition("READY", "OUT_FOR_DELIVERY", "DELIVERY")).not.toThrow();
-    expect(() => assertTransition("READY", "OUT_FOR_DELIVERY", "PICKUP")).toThrow();
-    expect(() => assertTransition("READY", "DELIVERED", "PICKUP")).not.toThrow();
-    expect(() => assertTransition("READY", "DELIVERED", "DELIVERY")).toThrow();
-    expect(() => assertTransition("OUT_FOR_DELIVERY", "READY", "DELIVERY")).not.toThrow();
+    expect(() => assertTransition("READY", "OUT_FOR_DELIVERY", "DELIVERY", "COD")).not.toThrow();
+    expect(() => assertTransition("READY", "OUT_FOR_DELIVERY", "PICKUP", "IN_SHOP")).toThrow();
+    expect(() => assertTransition("READY", "DELIVERED", "PICKUP", "IN_SHOP")).not.toThrow();
+    expect(() => assertTransition("READY", "DELIVERED", "DELIVERY", "COD")).toThrow();
+    expect(() => assertTransition("OUT_FOR_DELIVERY", "READY", "DELIVERY", "COD")).not.toThrow();
+  });
+  it("bankak orders are confirmed only through proof review (D-90)", () => {
+    expect(() => assertTransition("NEW", "CONFIRMED", "DELIVERY", "BANKAK")).toThrow();
+    expect(() => assertTransition("AWAITING_PAYMENT", "PAYMENT_REVIEW", "DELIVERY", "BANKAK")).not.toThrow();
+    expect(() => assertTransition("PAYMENT_REVIEW", "CONFIRMED", "PICKUP", "BANKAK")).not.toThrow();
+    expect(() => assertTransition("PAYMENT_REVIEW", "AWAITING_PAYMENT", "PICKUP", "BANKAK")).not.toThrow();
+    expect(() => assertTransition("AWAITING_PAYMENT", "CONFIRMED", "PICKUP", "BANKAK")).toThrow();
+    expect(() => assertTransition("NEW", "AWAITING_PAYMENT", "DELIVERY", "COD")).toThrow();
+    expect(() => assertTransition("NEW", "CONFIRMED", "PICKUP", "IN_SHOP")).not.toThrow();
+  });
+  it("a rejected proof leaves at least 12 hours to pay", () => {
+    const now = new Date("2026-10-01T10:00:00Z");
+    expect(paymentDueAfterRejection(new Date("2026-10-01T12:00:00Z"), now).toISOString()).toBe(
+      "2026-10-01T22:00:00.000Z",
+    );
+    expect(paymentDueAfterRejection(new Date("2026-10-02T08:00:00Z"), now).toISOString()).toBe(
+      "2026-10-02T08:00:00.000Z",
+    );
+    expect(paymentDueAfterRejection(null, now).toISOString()).toBe("2026-10-01T22:00:00.000Z");
   });
   it("reservation until preparing; stock is out from preparing to handover", () => {
     expect(isReserving("NEW")).toBe(true);

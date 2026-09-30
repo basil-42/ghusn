@@ -1,6 +1,10 @@
 import type { Metadata } from "next";
 import { getTranslations, setRequestLocale } from "next-intl/server";
+import { bankakAccount } from "@/lib/settings";
 import { CheckoutForm } from "./checkout-form";
+
+// خيار بنكك يتبع الضبط الحالي (رقم الحساب) — لا يُبنى مسبقاً
+export const dynamic = "force-dynamic";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
   const { locale } = await params;
@@ -15,7 +19,7 @@ export default async function CheckoutPage({ params }: { params: Promise<{ local
   return (
     <div className="mx-auto flex max-w-5xl flex-col gap-6 px-4 py-10">
       <h1 className="font-display text-4xl font-bold">{t("title")}</h1>
-      <CheckoutForm />
+      <CheckoutForm bankakEnabled={!!(await bankakAccount())} />
     </div>
   );
 }

@@ -64,6 +64,7 @@ model User {
   adjustmentsVoided WalletAdjustment[]    @relation("adjustmentVoidedBy")
   orderStatusBy     OrderStatusHistory[]  @relation("orderStatusBy")
   orderPaymentsBy   OrderPayment[]        @relation("orderPaymentBy")
+  proofsReviewed    PaymentProof[]        @relation("proofReviewedBy")
   returnsApproved   SaleReturn[]          @relation("returnApprovedBy")
 }
 
@@ -952,6 +953,8 @@ model Order {
   revenueUsd     Decimal?           @db.Decimal(18, 2)
   // رقم الشحنة عند شركة التوصيل
   courierRef     String?
+  // بنكك: مهلة الدفع 24 ساعة من الإنشاء (D-12)؛ بعدها يُلغى الطلب تلقائياً ويُفك الحجز
+  paymentDueAt   DateTime?
   preparedAt     DateTime?
   deliveredAt    DateTime?
   cancelledAt    DateTime?
@@ -962,9 +965,11 @@ model Order {
   lines          OrderLine[]
   history        OrderStatusHistory[]
   payments       OrderPayment[]
+  paymentProofs  PaymentProof[]
   stockMovements StockMovement[]
 
   @@index([status, createdAt])
+  @@index([status, paymentDueAt])
   @@index([deliveredAt])
   @@index([customerId])
 }
@@ -1025,4 +1030,22 @@ model OrderPayment {
   @@index([orderId])
   @@index([shiftId])
   @@index([walletId, receivedAt])
+}
+
+// إشعار دفع بنكك يرفعه العميل (صورة + رقم العملية) — تراجعه المديرة (D-10)
+model PaymentProof {
+  id           String    @id @default(cuid())
+  order        Order     @relation(fields: [orderId], references: [id])
+  orderId      String
+  // صورة خاصة (private/payments/…) — لا تُقدَّم علناً
+  imageKey     String
+  reference    String
+  createdAt    DateTime  @default(now())
+  reviewedAt   DateTime?
+  reviewedBy   User?     @relation("proofReviewedBy", fields: [reviewedById], references: [id])
+  reviewedById String?
+  accepted     Boolean?
+  reviewNote   String?
+
+  @@index([orderId, createdAt])
 }

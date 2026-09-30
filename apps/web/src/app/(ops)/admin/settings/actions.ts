@@ -84,8 +84,13 @@ export async function saveStoreSettingsAction(_prev: FormState, formData: FormDa
   const parsed = storeSettingsSchema.safeParse({
     courierWalletId: text(formData, "courierWalletId") || null,
     codMaxSdg: text(formData, "codMaxSdg") ? numberOf(formData, "codMaxSdg") : 0,
+    bankakAccountName: text(formData, "bankakAccountName"),
+    bankakAccountNumber: text(formData, "bankakAccountNumber"),
+    bankakNote: text(formData, "bankakNote"),
   });
-  if (!parsed.success) return { error: "حد الدفع عند الاستلام رقم صحيح بالجنيه (0 = بلا حد)." };
+  if (!parsed.success) {
+    return { error: "حد الدفع عند الاستلام رقم صحيح بالجنيه (0 = بلا حد)، ونصوص بنكك قصيرة." };
+  }
   await saveStoreSettings(parsed.data);
   revalidatePath("/admin/settings");
   return { success: "تم حفظ إعدادات المتجر." };

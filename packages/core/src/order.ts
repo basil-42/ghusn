@@ -59,17 +59,42 @@ export function canTransition(from: OrderStatus, to: OrderStatus): boolean {
 }
 
 export type Fulfillment = "DELIVERY" | "PICKUP";
+export type OrderPaymentMethod = "COD" | "IN_SHOP" | "BANKAK";
+
+/** مراحل الدفع المسبق — لطلبات بنكك فقط (D-90). */
+const PAYMENT_STAGES: readonly OrderStatus[] = ["AWAITING_PAYMENT", "PAYMENT_REVIEW"];
 
 /**
- * التحقق الكامل من الانتقال مع طريقة الاستلام: «مع شركة التوصيل» للتوصيل فقط، و«تم التسليم» من
- * «جاهز» مباشرة للاستلام من المحل فقط (التوصيل يمر بشركة التوصيل).
+ * التحقق الكامل من الانتقال مع طريقة الاستلام والدفع: «مع شركة التوصيل» للتوصيل فقط، و«تم التسليم»
+ * من «جاهز» مباشرة للاستلام من المحل فقط (التوصيل يمر بشركة التوصيل). طلب بنكك لا يُؤكَّد إلا بمراجعة
+ * الإشعار، والدفع عند الاستلام/في المحل لا يمر بمراحل الدفع المسبق.
  */
-export function assertTransition(from: OrderStatus, to: OrderStatus, fulfillment: Fulfillment): void {
+export function assertTransition(
+  from: OrderStatus,
+  to: OrderStatus,
+  fulfillment: Fulfillment,
+  payment: OrderPaymentMethod,
+): void {
+  const bankak = payment === "BANKAK";
   const ok =
     canTransition(from, to) &&
     !(to === "OUT_FOR_DELIVERY" && fulfillment !== "DELIVERY") &&
-    !(from === "READY" && to === "DELIVERED" && fulfillment !== "PICKUP");
-  if (!ok) throw new CoreError("INVALID_TRANSITION", `Order cannot go from ${from} to ${to} (${fulfillment})`);
+    !(from === "READY" && to === "DELIVERED" && fulfillment !== "PICKUP") &&
+    !(bankak && from === "NEW" && to === "CONFIRMED") &&
+    !(!bankak && PAYMENT_STAGES.includes(to));
+  if (!ok) {
+    throw new CoreError("INVALID_TRANSITION", `Order cannot go from ${from} to ${to} (${fulfillment}, ${payment})`);
+  }
+}
+
+/** بعد رفض إشعار بنكك: يبقى للعميل 12 ساعة على الأقل لإرسال إشعار صحيح (D-90). */
+export const PAYMENT_WINDOW_HOURS = 24;
+export const PAYMENT_RETRY_HOURS = 12;
+
+/** موعد انتهاء مهلة الدفع بعد رفض الإشعار: الأبعد من المهلة الأصلية و«الآن + 12 ساعة». */
+export function paymentDueAfterRejection(currentDue: Date | null, now: Date): Date {
+  const retry = new Date(now.getTime() + PAYMENT_RETRY_HOURS * 3_600_000);
+  return currentDue && currentDue > retry ? currentDue : retry;
 }
 
 export const isStockOut = (s: OrderStatus) => (STOCK_OUT_STATUSES as readonly OrderStatus[]).includes(s);

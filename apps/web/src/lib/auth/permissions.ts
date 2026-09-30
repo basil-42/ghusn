@@ -25,7 +25,7 @@ export const statements = {
   report: ["read"],
   capital: ["update"],
   wallet: ["update"],
-  order: ["read", "update", "cancel"],
+  order: ["read", "update", "cancel", "payment"],
 } as const;
 
 export const ac = createAccessControl(statements);
@@ -54,7 +54,7 @@ export const roles = {
     capital: ["update"],
     // المحافظ: الأرصدة والتحويلات والتسويات — للمالك فقط (D-86)
     wallet: ["update"],
-    order: ["read", "update", "cancel"],
+    order: ["read", "update", "cancel", "payment"],
   }),
   // المديرة: سعر الصرف والهوامش (D-29) وترى التكاليف، وتدير الكتالوج (D-69)
   MANAGER: ac.newRole({
@@ -74,7 +74,7 @@ export const roles = {
     expense: ["read", "create", "void"],
     report: ["read"],
     // طلبات المتجر: التجهيز والتسليم والإلغاء (D-88)
-    order: ["read", "update", "cancel"],
+    order: ["read", "update", "cancel", "payment"],
   }),
   // الموظفة: ترى سعر الصرف فقط، ولا ترى التكاليف ولا الهوامش (system-design §4.9)
   STAFF: ac.newRole({
