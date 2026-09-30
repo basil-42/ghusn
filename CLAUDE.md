@@ -52,6 +52,8 @@ If something is ambiguous or not covered, **ask Basil before inventing business 
 
 ```
 apps/web            Next.js: storefront + admin + API (single app for now)
+  src/app/(ops)     admin, pos, login, print — Arabic-only root layout (URLs unchanged)
+  src/app/[locale]  storefront root layout (next-intl: ar at /, en at /en); messages/ar.json, en.json
 packages/db         Prisma schema, migrations, seed, exported client (@ghusn/db)
 packages/core       Pure domain logic: money, landed cost, costing, pricing, profit (@ghusn/core)
 docs/               Project knowledge (see §2)
