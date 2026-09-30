@@ -18,6 +18,7 @@ import { requirePermission } from "@/lib/auth/session";
 import { formatAmount, formatDateTime } from "@/lib/format";
 import { COST_LABELS, STATUS_LABELS, getShipment } from "@/lib/shipments";
 import { COUNTRIES } from "@/lib/suppliers";
+import { listCategoryOptions } from "@/lib/catalog";
 import { CostForm, DetailsForm, LinesEditor, StatusActions, VoidCostForm } from "../forms";
 import { ImportPanel } from "../import-panel";
 import { StatusBadge } from "../page";
@@ -43,6 +44,11 @@ export default async function ShipmentPage({ params }: { params: Promise<{ id: s
   const canCost = roleCan(role, { shipmentCost: ["create"] }) && canChangeShipmentCosts(s.status);
   const canVoidCost = roleCan(role, { shipmentCost: ["void"] }) && canChangeShipmentCosts(s.status);
   const canReceive = roleCan(role, { shipment: ["receive"] }) && canReceiveShipment(s.status);
+  // منتج جديد من البحث (D-84): الأقسام بالاسم والمعرّف فقط (بلا هوامش)
+  const quickCategories =
+    canEdit && roleCan(role, { product: ["create"] })
+      ? (await listCategoryOptions()).map((c) => ({ value: c.id, label: c.nameAr }))
+      : undefined;
   const received = s.status === "RECEIVED";
   const wallets = canCost
     ? await prisma.wallet.findMany({
@@ -128,6 +134,7 @@ export default async function ShipmentPage({ params }: { params: Promise<{ id: s
           id={s.id}
           currencySymbol={cur.symbol}
           disabled={!canEdit}
+          categories={quickCategories}
           initial={s.lines.map(({ variantId, label, sku, unit, qty, unitPrice }) => ({
             variantId,
             label,
