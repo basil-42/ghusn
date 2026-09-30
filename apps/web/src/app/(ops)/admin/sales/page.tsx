@@ -6,6 +6,7 @@ import { requirePermission } from "@/lib/auth/session";
 import { formatAmount, formatDateTime } from "@/lib/format";
 import { Button } from "@/components/ui/button";
 import { roleCan } from "@/lib/auth/permissions";
+import { listDeliveredOrders } from "@/lib/orders";
 import { listSales, listSalesToReview } from "@/lib/sales";
 import { markReviewedAction } from "./actions";
 import { listReturns } from "@/lib/returns";
@@ -13,10 +14,13 @@ import { listShifts } from "@/lib/shifts";
 
 export const metadata: Metadata = { title: "المبيعات | غصن" };
 
+const PAYMENT_LABELS = { COD: "عند الاستلام", IN_SHOP: "في المحل", BANKAK: "بنكك مسبقاً" };
+
 export default async function SalesPage() {
   const session = await requirePermission({ sale: ["read"] });
-  const [sales, shifts, returns, toReview] = await Promise.all([
+  const [sales, orders, shifts, returns, toReview] = await Promise.all([
     listSales(),
+    listDeliveredOrders(),
     listShifts(),
     listReturns(),
     listSalesToReview(),
@@ -61,7 +65,7 @@ export default async function SalesPage() {
       ) : null}
       <Card className="p-0">
         <CardHeader className="px-5 pt-5">
-          <CardTitle>آخر الفواتير</CardTitle>
+          <CardTitle>فواتير المحل</CardTitle>
         </CardHeader>
         {sales.length === 0 ? (
           <p className="p-6 text-center text-muted-foreground">لا مبيعات بعد.</p>
@@ -95,6 +99,50 @@ export default async function SalesPage() {
                   <TableCell className="tabular-nums">{formatAmount(s.totalSdg, 0)}</TableCell>
                   <TableCell className="tabular-nums">{formatAmount(s.discountSdg, 0)}</TableCell>
                   <TableCell className="tabular-nums">{formatAmount(s.profitUsd)}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </Card>
+
+      <Card className="p-0">
+        <CardHeader className="px-5 pt-5">
+          <CardTitle>طلبات المتجر المسلّمة</CardTitle>
+        </CardHeader>
+        {orders.length === 0 ? (
+          <p className="p-6 text-center text-muted-foreground">لا طلبات مسلّمة بعد.</p>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>الطلب</TableHead>
+                <TableHead>التسليم</TableHead>
+                <TableHead>العميل</TableHead>
+                <TableHead>الدفع</TableHead>
+                <TableHead>الإجمالي ج.س</TableHead>
+                <TableHead>الربح $</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {orders.map((o) => (
+                <TableRow key={o.id}>
+                  <TableCell>
+                    <Link href={`/admin/orders/${o.id}`} className="font-semibold hover:underline">
+                      <bdi dir="ltr">{o.number}</bdi>
+                    </Link>
+                  </TableCell>
+                  <TableCell className="text-sm">{formatDateTime(o.deliveredAt)}</TableCell>
+                  <TableCell>
+                    {o.customerName}
+                    <span className="text-xs text-muted-foreground">
+                      {" "}
+                      · {o.fulfillment === "PICKUP" ? "من المحل" : "توصيل"}
+                    </span>
+                  </TableCell>
+                  <TableCell className="text-sm">{PAYMENT_LABELS[o.paymentMethod]}</TableCell>
+                  <TableCell className="tabular-nums">{formatAmount(o.totalSdg, 0)}</TableCell>
+                  <TableCell className="tabular-nums">{formatAmount(o.profitUsd)}</TableCell>
                 </TableRow>
               ))}
             </TableBody>
