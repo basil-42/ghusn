@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { capitalRecovery, monthProfit, totalsByCurrency } from "../src";
+import { capitalRecovery, monthProfit, shiftDifference, totalsByCurrency } from "../src";
 
 const s = (d: { toString(): string } | null) => (d === null ? null : d.toString());
 
@@ -12,6 +12,7 @@ describe("monthProfit", () => {
       restockCostUsd: 0,
       expensesUsd: 0,
       stockLossUsd: 0,
+      cashDifferenceUsd: 0,
     });
     expect(s(p.grossProfitUsd)).toBe("249.95");
     expect(p.grossMargin?.mul(100).toFixed(1)).toBe("40.1");
@@ -24,6 +25,7 @@ describe("monthProfit", () => {
       restockCostUsd: 55,
       expensesUsd: 150,
       stockLossUsd: 20,
+      cashDifferenceUsd: 0,
     });
     expect(s(p.netRevenueUsd)).toBe("900");
     expect(s(p.netCogsUsd)).toBe("545");
@@ -71,5 +73,20 @@ describe("totalsByCurrency", () => {
       { currencyCode: "SDG", amount: 15_000 },
     ]);
     expect(t.map((x) => `${x.currencyCode}:${s(x.amount)}`)).toEqual(["SDG:165000", "QAR:300"]);
+  });
+});
+
+describe("cash differences (D-87)", () => {
+  it("net shift differences change net profit by their sign", () => {
+    const base = { revenueUsd: 1000, refundUsd: 0, cogsUsd: 600, restockCostUsd: 0, expensesUsd: 100, stockLossUsd: 0 };
+    expect(s(monthProfit({ ...base, cashDifferenceUsd: 0 }).netProfitUsd)).toBe("300");
+    expect(s(monthProfit({ ...base, cashDifferenceUsd: "-12.50" }).netProfitUsd)).toBe("287.5");
+    expect(s(monthProfit({ ...base, cashDifferenceUsd: "2" }).netProfitUsd)).toBe("302");
+  });
+  it("shift difference in USD at the close rate: 10,000 SDG short @2,500 = −4.00 $", () => {
+    const d = shiftDifference({ expectedSdg: "155000", countedSdg: "145000", sdgPerUsd: "2500" });
+    expect(s(d.differenceSdg)).toBe("-10000");
+    expect(s(d.differenceUsd)).toBe("-4");
+    expect(s(shiftDifference({ expectedSdg: "1000", countedSdg: "1000", sdgPerUsd: "2500" }).differenceUsd)).toBe("0");
   });
 });

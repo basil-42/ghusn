@@ -94,6 +94,13 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
                 sub="تكلفة متأخرة لوحدات بيعت، وبنود شحنات لم تصل"
               />
             ) : null}
+            {!dec(r.cashDifferenceUsd).isZero() ? (
+              <Row
+                label={dec(r.cashDifferenceUsd).lt(0) ? "عجز الصندوق (صافي)" : "زيادة الصندوق (صافي)"}
+                value={`${dec(r.cashDifferenceUsd).lt(0) ? "−" : "+"} ${usd(dec(r.cashDifferenceUsd).abs().toFixed(2))}`}
+                sub={`فروقات عدّ الورديات ${sdg(dec(r.cashDifferenceSdg).abs().toFixed(0))}`}
+              />
+            ) : null}
             <div
               className={`flex items-baseline justify-between gap-3 py-3 text-2xl font-bold ${loss ? "text-destructive" : ""}`}
             >
@@ -133,6 +140,27 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
               </Link>
             ) : null}
           </Card>
+
+          {r.cashDifferenceByCashier.length ? (
+            <Card>
+              <CardHeader>
+                <CardTitle>فروقات الصندوق حسب الموظفة</CardTitle>
+                <CardDescription>
+                  الورديات التي اختلف فيها المعدود عن المتوقع — لمتابعة النمط المتكرر (D-87).
+                </CardDescription>
+              </CardHeader>
+              <dl className="divide-y divide-border">
+                {r.cashDifferenceByCashier.map((c) => (
+                  <Row
+                    key={c.name}
+                    label={`${c.name} (${c.shifts} وردية)`}
+                    value={usd(c.usd)}
+                    sub={`عجز ${sdg(c.shortSdg)} · زيادة ${sdg(c.overSdg)}`}
+                  />
+                ))}
+              </dl>
+            </Card>
+          ) : null}
 
           <Card>
             <CardHeader>

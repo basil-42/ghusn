@@ -8,9 +8,10 @@ export class CapitalError extends Error {}
 export async function listContributions() {
   const rows = await prisma.capitalContribution.findMany({
     orderBy: { contributedAt: "desc" },
-    include: { createdBy: { select: { name: true } } },
+    include: { createdBy: { select: { name: true } }, wallet: { select: { name: true } } },
   });
   return rows.map((c) => ({
+    wallet: c.wallet?.name ?? null,
     id: c.id,
     partnerName: c.partnerName,
     amount: c.amount.toString(),
@@ -33,9 +34,24 @@ export async function totalCapitalUsd(until?: Date): Promise<string> {
 }
 
 export async function addContribution(
-  input: { partnerName: string; amount: string; currencyCode: string; contributedAt: Date; note: string | null },
+  input: {
+    partnerName: string;
+    amount: string;
+    currencyCode: string;
+    walletId: string | null;
+    contributedAt: Date;
+    note: string | null;
+  },
   userId: string,
 ): Promise<void> {
+  // دخل محفظة (يزيد رصيدها — D-86): العملة عملة المحفظة
+  if (input.walletId) {
+    const wallet = await prisma.wallet.findFirst({ where: { id: input.walletId, isActive: true } });
+    if (!wallet) throw new CapitalError("المحفظة غير موجودة.");
+    if (wallet.currencyCode !== input.currencyCode) {
+      throw new CapitalError(`عملة المحفظة ${wallet.currencyCode} — اختر نفس العملة.`);
+    }
+  }
   const rate = await getRateAt(input.currencyCode, input.contributedAt);
   if (!rate) throw new CapitalError(`لا يوجد سعر صرف لـ ${input.currencyCode} في ذلك اليوم.`);
   await prisma.capitalContribution.create({
@@ -45,6 +61,7 @@ export async function addContribution(
       currencyCode: input.currencyCode,
       rateUsed: rate,
       amountUsd: roundMoney(toUsdExact(input.amount, rate)).toFixed(2),
+      walletId: input.walletId,
       contributedAt: input.contributedAt,
       note: input.note,
       createdById: userId,

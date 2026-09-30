@@ -6,7 +6,15 @@ import { Button } from "@/components/ui/button";
 import { Input, NativeSelect } from "@/components/ui/input";
 import { addContributionAction, type FormState } from "./actions";
 
-export function ContributionForm({ currencies, today }: { currencies: string[]; today: string }) {
+export function ContributionForm({
+  currencies,
+  wallets,
+  today,
+}: {
+  currencies: string[];
+  wallets: { id: string; name: string; currencyCode: string }[];
+  today: string;
+}) {
   const [state, action, pending] = useActionState<FormState, FormData>(addContributionAction, {});
   return (
     <form action={action} className="flex flex-col gap-3">
@@ -36,6 +44,18 @@ export function ContributionForm({ currencies, today }: { currencies: string[]; 
           </NativeSelect>
         </label>
       </div>
+      <label className="flex flex-col gap-1">
+        <span className="font-semibold">دخل إلى محفظة (اختياري)</span>
+        <NativeSelect name="walletId" defaultValue="">
+          <option value="">لا — دُفع مباشرة (لمورد أو مصروف خارج المحافظ)</option>
+          {wallets.map((w) => (
+            <option key={w.id} value={w.id}>
+              {w.name} ({w.currencyCode})
+            </option>
+          ))}
+        </NativeSelect>
+        <span className="text-xs text-muted-foreground">إن اخترت محفظة يزيد رصيدها، وتكون العملة عملتها.</span>
+      </label>
       <label className="flex flex-col gap-1">
         <span className="font-semibold">ملاحظة</span>
         <Input name="note" maxLength={200} placeholder="مثال: تحويل لشراء شحنة الصين" />

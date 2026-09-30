@@ -1,5 +1,7 @@
-import { dec, expectedCash, sum } from "@ghusn/core";
+import { dec, expectedCash, shiftDifference, sum } from "@ghusn/core";
 import { Prisma, prisma } from "@ghusn/db";
+import { getRateAt } from "./exchange-rates";
+import { getPosSettings, posWallets } from "./settings";
 
 export class ShiftError extends Error {}
 
@@ -90,6 +92,11 @@ export async function shiftSummary(shiftId: string) {
  * ويظهر في التقرير؛ الفرق غير الصفري يحتاج ملاحظة.
  */
 export async function closeShift(shiftId: string, userId: string, countedCashSdg: string, note: string | null) {
+  // فرق العدّ يُسوّى في رصيد محفظة النقد (D-86)
+  const { cash: cashWalletId } = await posWallets();
+  // والفرق بالدولار بسعر الجنيه لحظة الإغلاق يدخل ربح الشهر (D-87)
+  const closedAt = new Date();
+  const sdgPerUsd = await getRateAt("SDG", closedAt);
   await prisma.$transaction(async (tx) => {
     await tx.$queryRaw`SELECT "id" FROM "Shift" WHERE "id" = ${shiftId} FOR UPDATE`;
     const shift = await tx.shift.findUnique({ where: { id: shiftId } });
@@ -111,13 +118,19 @@ export async function closeShift(shiftId: string, userId: string, countedCashSdg
         `النقد المعدود يختلف عن المتوقع (${expected.toFixed(0)}) — اكتبي ملاحظة توضح الفرق، أو أعيدي العدّ.`,
       );
     }
+    const difference = sdgPerUsd
+      ? shiftDifference({ expectedSdg: expected, countedSdg: countedCashSdg, sdgPerUsd })
+      : null;
     await tx.shift.update({
       where: { id: shiftId },
       data: {
-        closedAt: new Date(),
+        closedAt,
         expectedCashSdg: expected.toFixed(2),
         countedCashSdg,
         closeNote: note,
+        cashWalletId,
+        closeSdgPerUsd: sdgPerUsd,
+        differenceUsd: difference?.differenceUsd.toFixed(2) ?? null,
       },
     });
   });
@@ -140,4 +153,25 @@ export async function listShifts(take = 50) {
         ? dec(s.countedCashSdg.toString()).minus(s.expectedCashSdg.toString()).toString()
         : null,
   }));
+}
+
+/** ورديات آخر أيام بعجز أكبر من حد التنبيه في الضبط (D-87) — للوحة الرئيسية. */
+export async function listLargeShortages(days = 7) {
+  const { shortageAlertSdg } = await getPosSettings();
+  const since = new Date(Date.now() - days * 24 * 60 * 60 * 1000);
+  const shifts = await prisma.shift.findMany({
+    where: { closedAt: { gte: since }, countedCashSdg: { not: null }, expectedCashSdg: { not: null } },
+    orderBy: { closedAt: "desc" },
+    include: { user: { select: { name: true } } },
+  });
+  return shifts
+    .map((s) => ({
+      id: s.id,
+      userName: s.user.name,
+      closedAt: s.closedAt,
+      shortSdg: dec(s.expectedCashSdg?.toString() ?? "0").minus(s.countedCashSdg?.toString() ?? "0"),
+      note: s.closeNote,
+    }))
+    .filter((s) => s.shortSdg.gt(shortageAlertSdg))
+    .map((s) => ({ ...s, shortSdg: s.shortSdg.toFixed(0) }));
 }

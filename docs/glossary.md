@@ -19,7 +19,8 @@
 | عملة | `Currency` | SDG, USD, QAR, CNY, EGP |
 | سعر الصرف | `ExchangeRate.unitsPerUsd` | وحدات لكل 1 دولار |
 | محفظة | `Wallet` | صندوق المحل، بنكك، حساب باسل – قطر |
-| تحويل عملة | `FxTransfer` | |
+| تحويل بين المحافظ | `WalletTransfer` | `TRF-2026-0001`: الخارج شامل العمولة والواصل، والسعر الفعلي |
+| رصيد افتتاحي (جرد) / تسوية | `WalletAdjustment` (`OPENING` / `MANUAL`) | الرصيد الفعلي في لحظة، وزيادة أو نقص بسبب |
 | الهامش المستهدف / الحد الأدنى | `targetMargin` / `minMargin` | نسبة من سعر البيع |
 | سجل الأسعار | `PriceHistory` | |
 | طلب | `Order` | `GHS-2026-000155` |

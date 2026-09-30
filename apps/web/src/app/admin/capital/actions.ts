@@ -16,6 +16,10 @@ export async function addContributionAction(_prev: FormState, formData: FormData
       partnerName: z.string().trim().min(2, "اسم الشريك").max(60),
       amount: amountField("المبلغ"),
       currencyCode: z.string().min(3).max(3),
+      walletId: z
+        .string()
+        .optional()
+        .transform((v) => v || null),
       contributedAt: z.string().transform((v, ctx) => {
         const at = shopMomentForDate(v);
         if (!at) ctx.addIssue({ code: "custom", message: "التاريخ غير صحيح أو في المستقبل." });
@@ -38,6 +42,7 @@ export async function addContributionAction(_prev: FormState, formData: FormData
   }
   revalidatePath("/admin/capital");
   revalidatePath("/admin/reports");
+  revalidatePath("/admin/wallets", "layout");
   return { success: "تم تسجيل التمويل." };
 }
 

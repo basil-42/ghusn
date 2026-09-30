@@ -106,18 +106,25 @@ export async function isSellingRateStale(now = new Date()): Promise<boolean> {
   return !latest || shopDay(latest.effectiveAt) !== shopDay(now);
 }
 
-/** سعر الصرف الساري لعملة في لحظة ما (للعمليات المالية). null إن لم يوجد سعر قبلها. */
-export async function getRateAt(currencyCode: string, at: Date): Promise<string | null> {
+/** سعر الصرف الساري لعملة في لحظة ما ومصدره. null إن لم يوجد سعر قبلها. */
+export async function getRateInfoAt(
+  currencyCode: string,
+  at: Date,
+): Promise<{ unitsPerUsd: string; source: RateSource } | null> {
   const rows = await prisma.exchangeRate.findMany({
     where: { currencyCode, effectiveAt: { lte: at } },
     orderBy: { effectiveAt: "desc" },
     take: 20,
   });
-  return (
-    effectiveRate(
-      rows.map((r) => ({ ...r, unitsPerUsd: r.unitsPerUsd.toString() })),
-      currencyCode,
-      at,
-    )?.unitsPerUsd ?? null
+  const rate = effectiveRate(
+    rows.map((r) => ({ ...r, unitsPerUsd: r.unitsPerUsd.toString() })),
+    currencyCode,
+    at,
   );
+  return rate && { unitsPerUsd: rate.unitsPerUsd, source: rate.source };
+}
+
+/** سعر الصرف الساري لعملة في لحظة ما (للعمليات المالية). null إن لم يوجد سعر قبلها. */
+export async function getRateAt(currencyCode: string, at: Date): Promise<string | null> {
+  return (await getRateInfoAt(currencyCode, at))?.unitsPerUsd ?? null;
 }
