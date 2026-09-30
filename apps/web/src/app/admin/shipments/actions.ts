@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { requirePermission } from "@/lib/auth/session";
+import { CatalogError, OPTION_KINDS, quickCreateProduct } from "@/lib/catalog";
 import {
   COST_LABELS,
   ShipmentError,
@@ -119,6 +120,44 @@ export async function saveLinesAction(id: string, _prev: FormState, lines: unkno
   }
   refresh(id);
   return { success: "تم حفظ البنود." };
+}
+
+const quickProductSchema = z.object({
+  nameAr: z.string().trim().min(2, "اكتبي اسم المنتج").max(120),
+  categoryId: z.string().min(1, "اختاري القسم"),
+  type: z.enum(["STOCK", "MATERIAL"]),
+  unit: z.enum(["PIECE", "METER", "SHEET"]),
+  trackExpiry: z.boolean(),
+  optionKind: z.enum(OPTION_KINDS),
+  // «50ml، 100ml» ← متغيّرات
+  options: z
+    .string()
+    .max(400)
+    .transform((v) => v.split(/[,،\n]/).map((o) => o.trim().slice(0, 40)))
+    .refine((v) => v.filter(Boolean).length <= 20, "حتى 20 متغيّراً"),
+  barcode: z
+    .string()
+    .trim()
+    .max(40)
+    .transform((v) => toLatinDigits(v) || null),
+});
+
+export type QuickProductResult =
+  { ok: true; variants: { variantId: string; label: string; sku: string; unit: string }[] } | { error: string };
+
+/** منتج جديد من شاشة الشحنة (D-84) — يُضاف للبنود مباشرة. */
+export async function quickProductAction(input: unknown): Promise<QuickProductResult> {
+  const session = await requirePermission({ product: ["create"], shipment: ["update"] });
+  const parsed = quickProductSchema.safeParse(input);
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "بيانات غير صحيحة" };
+  try {
+    const variants = await quickCreateProduct(parsed.data, session.user.id);
+    revalidatePath("/admin/products");
+    return { ok: true, variants };
+  } catch (e) {
+    if (e instanceof CatalogError) return { error: e.message };
+    throw e;
+  }
 }
 
 export async function searchVariantsAction(query: string) {
