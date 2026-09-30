@@ -53,6 +53,7 @@ export default async function StockPage({ searchParams }: { searchParams: Promis
                 <TableHead>المنتج</TableHead>
                 <TableHead>SKU</TableHead>
                 <TableHead>الرصيد</TableHead>
+                <TableHead>السعر</TableHead>
                 {withCost ? (
                   <>
                     <TableHead>متوسط التكلفة $</TableHead>
@@ -78,6 +79,13 @@ export default async function StockPage({ searchParams }: { searchParams: Promis
                     className={`tabular-nums ${Number(r.qty) <= 0 ? "text-muted-foreground" : "font-semibold"}`}
                   >
                     {plainNumber(r.qty)} {UNIT_LABEL[r.unit] ?? r.unit}
+                  </TableCell>
+                  <TableCell className="tabular-nums">
+                    {r.priceSdg ? (
+                      `${formatAmount(r.priceSdg, 0)} ج.س`
+                    ) : (
+                      <span className="text-muted-foreground">—</span>
+                    )}
                   </TableCell>
                   {withCost ? (
                     <>

@@ -49,6 +49,7 @@ model User {
   shipmentVoids     ShipmentCost[]        @relation("costVoidedBy")
   shipmentsReceived Shipment[]            @relation("shipmentReceivedBy")
   stockMovements    StockMovement[]       @relation("stockMovementBy")
+  priceHistories    PriceHistory[]
 }
 
 model Session {
@@ -190,6 +191,9 @@ model Product {
   isActive      Boolean     @default(true)
   // يظهر في المتجر الإلكتروني (البضاعة فقط)
   isWebVisible  Boolean     @default(false)
+  // تجاوز هوامش القسم لهذا المنتج (فارغ = هامش القسم)
+  targetMargin  Decimal?    @db.Decimal(5, 4)
+  minMargin     Decimal?    @db.Decimal(5, 4)
   // نص البحث الموحّد (normalizeArabic): الأسماء + SKU + الباركودات + القسم
   searchText    String      @default("")
   createdBy     User?       @relation(fields: [createdById], references: [id])
@@ -218,11 +222,14 @@ model ProductVariant {
   volume    String? // الحجم (50ml)
   isActive  Boolean   @default(true)
   sortOrder Int       @default(0)
+  // سعر البيع بالجنيه — يتغير فقط بموافقة ويُسجَّل في PriceHistory (D-24)
+  priceSdg  Decimal?  @db.Decimal(18, 2)
   createdAt DateTime  @default(now())
   updatedAt DateTime  @updatedAt
   deletedAt DateTime?
 
   shipmentLines  ShipmentLine[]
+  priceHistory   PriceHistory[]
   stockLevel     StockLevel?
   stockBatches   StockBatch[]
   stockMovements StockMovement[]
@@ -481,4 +488,32 @@ model StockMovement {
 
   @@index([variantId, createdAt])
   @@index([shipmentId])
+}
+
+// ---------- التسعير (D-24، D-79) ----------
+enum PriceChangeReason {
+  INITIAL // أول سعر
+  REVIEW_UP // مراجعة: هامش تحت الحد الأدنى
+  REVIEW_DOWN // مراجعة: هامش أعلى بكثير من المستهدف
+  MANUAL // تعديل يدوي
+}
+
+// سجل الأسعار — لا يُعدَّل ولا يُحذف
+model PriceHistory {
+  id           String            @id @default(cuid())
+  variant      ProductVariant    @relation(fields: [variantId], references: [id])
+  variantId    String
+  oldPriceSdg  Decimal?          @db.Decimal(18, 2)
+  newPriceSdg  Decimal           @db.Decimal(18, 2)
+  // سعر الصرف ومتوسط التكلفة والهامش لحظة الموافقة
+  sdgPerUsd    Decimal           @db.Decimal(18, 6)
+  avgCostUsd   Decimal           @db.Decimal(18, 6)
+  margin       Decimal?          @db.Decimal(9, 6)
+  reason       PriceChangeReason
+  note         String?
+  approvedBy   User              @relation(fields: [approvedById], references: [id])
+  approvedById String
+  createdAt    DateTime          @default(now())
+
+  @@index([variantId, createdAt])
 }

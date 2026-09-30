@@ -93,3 +93,79 @@ export function rateChangeExceeds(
   if (base.lte(0)) throw new CoreError("INVALID_RATE", "Reviewed rate must be > 0");
   return dec(currentRate).minus(base).abs().div(base).gt(threshold);
 }
+
+/** هامش فوق المستهدف بهذا القدر ← اقتراح تخفيض (D-79). */
+export const HIGH_MARGIN_GAP = "0.10";
+
+export interface MarginSettings {
+  targetMargin: DecimalInput;
+  minMargin: DecimalInput;
+}
+
+/** هوامش المنتج: تجاوزه الخاص إن وُجد، وإلا هوامش القسم (currency-and-costing §5). */
+export function effectiveMargins(
+  category: MarginSettings,
+  product: { targetMargin: DecimalInput | null; minMargin: DecimalInput | null },
+): { targetMargin: Decimal; minMargin: Decimal } {
+  const targetMargin = dec(product.targetMargin ?? category.targetMargin);
+  const minMargin = dec(product.minMargin ?? category.minMargin);
+  assertMargin(targetMargin);
+  assertMargin(minMargin);
+  if (minMargin.gt(targetMargin)) {
+    throw new CoreError("INVALID_MARGIN", "Minimum margin cannot exceed the target");
+  }
+  return { targetMargin, minMargin };
+}
+
+export type PriceReviewKind =
+  /** لا تكلفة بعد (لم يُستلم) — لا اقتراح. */
+  | "NO_COST"
+  /** له تكلفة ولا سعر له. */
+  | "NEEDS_PRICE"
+  /** الهامش الفعلي تحت الحد الأدنى ← رفع. */
+  | "LOW"
+  /** الهامش فوق المستهدف + HIGH_MARGIN_GAP ← تخفيض (D-79). */
+  | "HIGH"
+  | "OK";
+
+export interface PriceReviewInput extends MarginSettings {
+  priceSdg: DecimalInput | null;
+  avgCostUsd: DecimalInput;
+  sdgPerUsd: DecimalInput;
+  steps?: readonly PriceStep[];
+}
+
+export interface PriceReview {
+  kind: PriceReviewKind;
+  /** الهامش الفعلي بالسعر الحالي وسعر اليوم (null بلا سعر أو بلا تكلفة). */
+  margin: Decimal | null;
+  /** السعر المقترح المقرّب (null بلا تكلفة). */
+  suggestedSdg: Decimal | null;
+  /** هامش السعر المقترح. */
+  suggestedMargin: Decimal | null;
+}
+
+/** تصنيف متغيّر في لوحة «منتجات تحتاج مراجعة سعر». */
+export function reviewPrice(input: PriceReviewInput): PriceReview {
+  const cost = dec(input.avgCostUsd);
+  if (cost.lte(0)) {
+    return { kind: "NO_COST", margin: null, suggestedSdg: null, suggestedMargin: null };
+  }
+  const { priceSdg: suggestedSdg } = suggestedPriceSdg({
+    avgCostUsd: cost,
+    targetMargin: input.targetMargin,
+    sdgPerUsd: input.sdgPerUsd,
+    steps: input.steps,
+  });
+  const suggestedMargin = actualMargin({ priceSdg: suggestedSdg, sdgPerUsd: input.sdgPerUsd, avgCostUsd: cost });
+  if (input.priceSdg === null || dec(input.priceSdg).lte(0)) {
+    return { kind: "NEEDS_PRICE", margin: null, suggestedSdg, suggestedMargin };
+  }
+  const margin = actualMargin({ priceSdg: input.priceSdg, sdgPerUsd: input.sdgPerUsd, avgCostUsd: cost });
+  const kind: PriceReviewKind = needsPriceReview(margin, input.minMargin)
+    ? "LOW"
+    : margin.gt(dec(input.targetMargin).plus(HIGH_MARGIN_GAP)) && dec(input.priceSdg).gt(suggestedSdg)
+      ? "HIGH"
+      : "OK";
+  return { kind, margin, suggestedSdg, suggestedMargin };
+}

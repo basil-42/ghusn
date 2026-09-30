@@ -46,3 +46,8 @@ export function formatAmount(value: { toString(): string }, decimals = 2): strin
   const [int = "0", frac] = fixed.replace("-", "").split(".");
   return `${negative ? "-" : ""}${BigInt(int).toLocaleString("en-US")}${frac ? `.${frac}` : ""}`;
 }
+
+/** هامش ربح كنسبة بلا إشارة: 0.401 ← «40.1%». */
+export function formatMargin(fraction: { toString(): string }): string {
+  return `${dec(fraction.toString()).mul(100).toFixed(1)}%`;
+}
