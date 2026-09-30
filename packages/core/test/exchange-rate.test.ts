@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { effectiveRate, isSuspiciousRateChange, rateChange, shopDay, type RateEntry } from "../src";
+import { effectiveRate, isSuspiciousRateChange, rateChange, shopDay, shopMonthRange, type RateEntry } from "../src";
 
 // الخرطوم = UTC+2
 const at = (iso: string) => new Date(iso);
@@ -61,5 +61,14 @@ describe("rate change", () => {
     expect(isSuspiciousRateChange(2500, 25000)).toBe(true);
     expect(isSuspiciousRateChange(2500, 250)).toBe(true);
     expect(isSuspiciousRateChange(2500, 3000)).toBe(false); // 20% بالضبط
+  });
+});
+
+describe("shop month range", () => {
+  it("October 2026 in Khartoum (UTC+2)", () => {
+    const { start, end } = shopMonthRange("2026-10");
+    expect(start.toISOString()).toBe("2026-09-30T22:00:00.000Z");
+    expect(end.toISOString()).toBe("2026-10-31T22:00:00.000Z");
+    expect(shopMonthRange("2026-12").end.toISOString()).toBe("2026-12-31T22:00:00.000Z");
   });
 });
