@@ -16,6 +16,7 @@ import {
   updateShipmentDetails,
   voidShipmentCost,
 } from "@/lib/shipments";
+import { applyImport, previewImport, type ImportPreview } from "@/lib/shipment-import";
 import { receiveShipment } from "@/lib/stock";
 import { COUNTRIES, amountField } from "@/lib/suppliers";
 
@@ -228,4 +229,41 @@ export async function receiveAction(id: string, _prev: FormState, lines: unknown
   refresh(id);
   revalidatePath("/admin/stock");
   redirect(`/admin/shipments/${id}`);
+}
+
+// ---------- الاستيراد من Excel (D-85) ----------
+
+export type ImportResult = { preview?: ImportPreview; error?: string; imported?: number };
+
+function importFile(formData: FormData): File | null {
+  const file = formData.get("file");
+  return file instanceof File && file.size > 0 ? file : null;
+}
+
+export async function previewImportAction(id: string, formData: FormData): Promise<ImportResult> {
+  await requirePermission({ shipment: ["update"], product: ["create"] });
+  const file = importFile(formData);
+  if (!file) return { error: "اختاري ملف Excel." };
+  try {
+    return { preview: await previewImport(id, file) };
+  } catch (e) {
+    if (e instanceof ShipmentError) return { error: e.message };
+    throw e;
+  }
+}
+
+export async function applyImportAction(id: string, formData: FormData): Promise<ImportResult> {
+  const session = await requirePermission({ shipment: ["update"], product: ["create"] });
+  const file = importFile(formData);
+  if (!file) return { error: "اختاري ملف Excel." };
+  let imported: number;
+  try {
+    imported = await applyImport(id, file, session.user.id);
+  } catch (e) {
+    if (e instanceof ShipmentError) return { error: e.message };
+    throw e;
+  }
+  refresh(id);
+  revalidatePath("/admin/products");
+  return { imported };
 }
