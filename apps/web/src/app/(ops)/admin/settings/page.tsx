@@ -3,9 +3,9 @@ import type { Metadata } from "next";
 import { Receipt } from "@/components/receipt";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { requirePermission } from "@/lib/auth/session";
-import { getPosSettings, getReceiptSettings } from "@/lib/settings";
+import { getPosSettings, getReceiptSettings, getStoreSettings } from "@/lib/settings";
 import { listExpenseCategories } from "@/lib/expenses";
-import { ExpenseCategoryForm, PosSettingsForm, ReceiptSettingsForm } from "./forms";
+import { ExpenseCategoryForm, PosSettingsForm, ReceiptSettingsForm, StoreSettingsForm } from "./forms";
 
 export const metadata: Metadata = { title: "الضبط | غصن" };
 
@@ -31,9 +31,10 @@ const SAMPLE = {
 
 export default async function SettingsPage() {
   await requirePermission({ settings: ["update"] });
-  const [pos, receipt, wallets, categories] = await Promise.all([
+  const [pos, receipt, store, wallets, categories] = await Promise.all([
     getPosSettings(),
     getReceiptSettings(),
+    getStoreSettings(),
     prisma.wallet.findMany({ where: { isActive: true, currencyCode: "SDG" }, orderBy: { name: "asc" } }),
     listExpenseCategories({ includeInactive: true }),
   ]);
@@ -46,6 +47,13 @@ export default async function SettingsPage() {
           <CardDescription>حد الخصم ومدة المرتجع والمحافظ التي يدخلها المقبوض (D-80).</CardDescription>
         </CardHeader>
         <PosSettingsForm initial={pos} wallets={wallets.map((w) => ({ value: w.id, label: w.name }))} />
+      </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle>المتجر الإلكتروني</CardTitle>
+          <CardDescription>التوصيل عبر شركة توصيل، ورسومه يدفعها العميل لها (D-88).</CardDescription>
+        </CardHeader>
+        <StoreSettingsForm initial={store} wallets={wallets.map((w) => ({ value: w.id, label: w.name }))} />
       </Card>
       <Card>
         <CardHeader>

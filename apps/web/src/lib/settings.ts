@@ -57,6 +57,33 @@ async function read<T>(key: string, schema: z.ZodType<T>, defaults: T): Promise<
 }
 
 export const getPosSettings = () => read("pos", posSettingsSchema, POS_DEFAULTS);
+
+/** إعدادات المتجر (D-88): محفظة شركة التوصيل، وحد اختياري للدفع عند الاستلام (0 = بلا حد). */
+export const storeSettingsSchema = z.object({
+  courierWalletId: z.string().nullable(),
+  codMaxSdg: z.number().int().min(0).max(1_000_000_000),
+});
+export type StoreSettings = z.infer<typeof storeSettingsSchema>;
+const STORE_DEFAULTS: StoreSettings = { courierWalletId: null, codMaxSdg: 0 };
+export const getStoreSettings = () => read("store", storeSettingsSchema, STORE_DEFAULTS);
+
+export async function saveStoreSettings(value: StoreSettings): Promise<void> {
+  const data = storeSettingsSchema.parse(value);
+  await prisma.setting.upsert({
+    where: { key: "store" },
+    create: { key: "store", value: data },
+    update: { value: data },
+  });
+}
+
+/** محفظة شركة التوصيل: من الضبط، وإلا بالاسم المزروع. */
+export async function courierWallet(): Promise<string | null> {
+  const { courierWalletId } = await getStoreSettings();
+  const wallets = await prisma.wallet.findMany({ where: { isActive: true, currencyCode: "SDG" } });
+  return (
+    wallets.find((w) => w.id === courierWalletId)?.id ?? wallets.find((w) => w.name === "شركة التوصيل")?.id ?? null
+  );
+}
 export const getReceiptSettings = () => read("receipt", receiptSettingsSchema, RECEIPT_DEFAULTS);
 
 export async function savePosSettings(value: PosSettings): Promise<void> {

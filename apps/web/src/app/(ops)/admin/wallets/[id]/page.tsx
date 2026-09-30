@@ -18,6 +18,7 @@ const LINKS: Partial<Record<MovementKind, (id: string) => string>> = {
   SHIPMENT_COST: (id) => `/admin/shipments/${id}`,
   SUPPLIER_PAYMENT: (id) => `/admin/suppliers/${id}`,
   CAPITAL: () => "/admin/capital",
+  ORDER: (id) => `/admin/orders/${id}`,
 };
 
 export default async function WalletPage({ params }: { params: Promise<{ id: string }> }) {

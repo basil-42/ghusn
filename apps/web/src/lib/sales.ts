@@ -12,11 +12,13 @@ import {
   sum,
   variantLabel,
   type Decimal,
+  type DecimalInput,
   type PaymentMethod,
 } from "@ghusn/core";
 import { Prisma, prisma } from "@ghusn/db";
 import { ApprovalError, verifyApprover } from "./approvals";
 import { nextDocumentNumber } from "./documents";
+import { reservedByVariant } from "./orders";
 import { SELLING_CURRENCY, getRateAt } from "./exchange-rates";
 import { currentSellingRate } from "./pricing";
 import { getPosSettings, posWallets } from "./settings";
@@ -216,9 +218,17 @@ export async function createSale(input: SaleInput, cashierId: string): Promise<{
       `السعر بعد الخصم تحت التكلفة: ${discount.belowCost.map((id) => byId.get(id)?.product.nameAr).join("، ")}.`,
     );
   }
-  const short = input.lines.filter((l) => dec(byId.get(l.variantId)?.stockLevel?.qty.toString() ?? "0").lt(l.qty));
+  // المتاح = الرصيد − المحجوز لطلبات المتجر التي لم يبدأ تجهيزها (D-88)
+  const reserved = offline ? new Map<string, Decimal>() : await reservedByVariant(prisma, ids);
+  const freeQty = (id: string, stock: DecimalInput) => dec(stock).minus(reserved.get(id) ?? 0);
+  const short = input.lines.filter((l) =>
+    freeQty(l.variantId, byId.get(l.variantId)?.stockLevel?.qty.toString() ?? "0").lt(l.qty),
+  );
   if (short.length) {
-    reasons.push(`الرصيد في النظام لا يكفي: ${short.map((l) => byId.get(l.variantId)?.product.nameAr).join("، ")}.`);
+    const held = short.some((l) => reserved.get(l.variantId)?.gt(0));
+    reasons.push(
+      `الرصيد في النظام لا يكفي${held ? " (جزء محجوز لطلبات المتجر)" : ""}: ${short.map((l) => byId.get(l.variantId)?.product.nameAr).join("، ")}.`,
+    );
   }
   let approvedById: string | null = null;
   if (offline) {
@@ -285,7 +295,7 @@ export async function createSale(input: SaleInput, cashierId: string): Promise<{
         const stockQty = dec(level?.qty.toString() ?? "0");
         const unitCost = dec(level?.avgCostUsd.toString() ?? "0");
         // فحص الرصيد تحت القفل: ربما باعت وردية أخرى آخر قطعة للتو
-        if (stockQty.lt(qty) && !approvedById) {
+        if (freeQty(l.key, stockQty).lt(qty) && !approvedById) {
           if (!offline) throw new ApprovalRequired([`الرصيد في النظام لا يكفي: ${v.product.nameAr}.`]);
           const note = `الرصيد في النظام لا يكفي: ${v.product.nameAr}.`;
           if (!review.includes(note)) review.push(note);

@@ -15,6 +15,7 @@ import {
   Tags,
   Warehouse,
   Landmark,
+  ShoppingBag,
   Truck,
   Users,
   type LucideIcon,
@@ -38,6 +39,7 @@ const ICONS = {
   settings: Settings,
   expenses: Wallet,
   wallets: Landmark,
+  orders: ShoppingBag,
   reports: ChartColumn,
   users: Users,
 } satisfies Record<string, LucideIcon>;

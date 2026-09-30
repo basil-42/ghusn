@@ -8,6 +8,7 @@ import { SELLING_CURRENCY, SOURCE_LABELS, getRateBoard } from "@/lib/exchange-ra
 import { formatAmount, formatDateTime, formatDay, formatRate } from "@/lib/format";
 import { countPriceReview } from "@/lib/pricing";
 import { countSalesToReview } from "@/lib/sales";
+import { countNewOrders } from "@/lib/orders";
 import { listLargeShortages } from "@/lib/shifts";
 import { listDueSoon } from "@/lib/shipments";
 
@@ -19,6 +20,7 @@ export default async function AdminHome() {
   const priceReview = roleCan(user.role, { price: ["approve"] }) ? await countPriceReview() : null;
   const salesReview = roleCan(user.role, { sale: ["read"] }) ? await countSalesToReview() : 0;
   const shortages = roleCan(user.role, { report: ["read"] }) ? await listLargeShortages() : [];
+  const newOrders = roleCan(user.role, { order: ["read"] }) ? await countNewOrders() : 0;
 
   return (
     <div className="flex flex-col gap-8">
@@ -61,6 +63,19 @@ export default async function AdminHome() {
         >
           نقطة البيع
           <ArrowLeft aria-hidden className="size-5" />
+        </Link>
+      ) : null}
+
+      {newOrders ? (
+        <Link
+          href="/admin/orders"
+          className="flex max-w-md items-center justify-between gap-3 rounded-2xl border border-gold/40 bg-gold/10 p-5"
+        >
+          <span>
+            <span className="block font-bold">{newOrders} طلب جديد من المتجر</span>
+            <span className="text-sm text-muted-foreground">راجعيه وأكّديه ثم ابدئي التجهيز.</span>
+          </span>
+          <ArrowLeft aria-hidden className="size-5 shrink-0" />
         </Link>
       ) : null}
 

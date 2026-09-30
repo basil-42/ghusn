@@ -47,6 +47,7 @@ export default async function ShiftPage({ searchParams }: { searchParams: Promis
             ["الخصومات", sdg(summary.discountsSdg)],
             ["نقداً", sdg(summary.cashSdg)],
             ["بنكك", sdg(summary.bankakSdg)],
+            ...(summary.orderCashSdg !== "0" ? [["منها طلبات المتجر نقداً", sdg(summary.orderCashSdg)]] : []),
             ["المرتجعات", String(summary.returnsCount)],
             ["مردود نقداً", sdg(summary.cashRefundsSdg)],
             ["مردود بنكك", sdg(summary.bankakRefundsSdg)],

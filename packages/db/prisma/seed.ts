@@ -35,6 +35,10 @@ async function main() {
   if ((await prisma.wallet.count()) === 0) {
     await prisma.wallet.createMany({ data: wallets });
   }
+  // ما يحصّله مندوب شركة التوصيل عند الاستلام (D-88)
+  if (!(await prisma.wallet.findFirst({ where: { name: "شركة التوصيل" } }))) {
+    await prisma.wallet.create({ data: { name: "شركة التوصيل", currencyCode: "SDG" } });
+  }
 
   const categories = [
     ["flowers", "ورود", "Flowers"],

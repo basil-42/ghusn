@@ -66,7 +66,11 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
             <CardTitle>الربح والخسارة — {month}</CardTitle>
           </CardHeader>
           <dl className="divide-y divide-border">
-            <Row label={`المبيعات (${r.salesCount} فاتورة)`} value={usd(r.revenueUsd)} sub={sdg(r.salesSdg)} />
+            <Row
+              label={`المبيعات (${r.salesCount} فاتورة${r.ordersCount ? ` + ${r.ordersCount} طلب متجر` : ""})`}
+              value={usd(r.revenueUsd)}
+              sub={r.ordersCount ? `${sdg(r.salesSdg)} + المتجر ${sdg(r.ordersSdg)}` : sdg(r.salesSdg)}
+            />
             <Row label={`المرتجعات (${r.returnsCount})`} value={`− ${usd(r.refundUsd)}`} sub={sdg(r.refundSdg)} />
             <Row label="صافي المبيعات" value={usd(r.netRevenueUsd)} sub={sdg(r.netSalesSdg)} strong />
             <Row

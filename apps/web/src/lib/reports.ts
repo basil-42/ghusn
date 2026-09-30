@@ -18,7 +18,7 @@ export const currentShopMonth = () => shopDay(new Date()).slice(0, 7);
 /** الأرقام الخام لفترة (بالدولار، وبالجنيه للمعلومة). */
 async function figures(range: { start: Date; end: Date }) {
   const within = { gte: range.start, lt: range.end };
-  const [sales, returns, expenses, lateCostLoss, shipmentLoss, shifts] = await Promise.all([
+  const [sales, returns, expenses, lateCostLoss, shipmentLoss, shifts, orders] = await Promise.all([
     prisma.sale.aggregate({
       where: { createdAt: within },
       _count: true,
@@ -47,6 +47,12 @@ async function figures(range: { start: Date; end: Date }) {
         user: { select: { name: true } },
       },
     }),
+    // طلبات المتجر: الإيراد والتكلفة عند التسليم (D-88)
+    prisma.order.aggregate({
+      where: { status: "DELIVERED", deliveredAt: within },
+      _count: true,
+      _sum: { totalSdg: true, revenueUsd: true, cogsUsd: true },
+    }),
   ]);
   const s = (v: { toString(): string } | null | undefined) => v?.toString() ?? "0";
   const byCategory = new Map<string, { usd: string[]; rows: { currencyCode: string; amount: string }[] }>();
@@ -71,8 +77,11 @@ async function figures(range: { start: Date; end: Date }) {
     salesCount: sales._count,
     salesSdg: s(sales._sum.totalSdg),
     discountsSdg: dec(s(sales._sum.lineDiscountSdg)).plus(s(sales._sum.invoiceDiscountSdg)).toString(),
-    revenueUsd: s(sales._sum.revenueUsd),
-    cogsUsd: s(sales._sum.cogsUsd),
+    revenueUsd: dec(s(sales._sum.revenueUsd)).plus(s(orders._sum.revenueUsd)).toFixed(2),
+    cogsUsd: dec(s(sales._sum.cogsUsd)).plus(s(orders._sum.cogsUsd)).toFixed(2),
+    ordersCount: orders._count,
+    ordersSdg: s(orders._sum.totalSdg),
+    ordersRevenueUsd: s(orders._sum.revenueUsd),
     returnsCount: returns._count,
     refundSdg: s(returns._sum.refundSdg),
     refundUsd: s(returns._sum.refundUsd),
@@ -106,11 +115,16 @@ async function figures(range: { start: Date; end: Date }) {
 
 /** أول شهر فيه نشاط — بداية حساب الربح التراكمي لاسترداد رأس المال. */
 async function firstActivity(): Promise<Date | null> {
-  const [sale, expense] = await Promise.all([
+  const [sale, expense, order] = await Promise.all([
     prisma.sale.findFirst({ orderBy: { createdAt: "asc" }, select: { createdAt: true } }),
     prisma.expense.findFirst({ where: { voidedAt: null }, orderBy: { spentAt: "asc" }, select: { spentAt: true } }),
+    prisma.order.findFirst({
+      where: { deliveredAt: { not: null } },
+      orderBy: { deliveredAt: "asc" },
+      select: { deliveredAt: true },
+    }),
   ]);
-  const dates = [sale?.createdAt, expense?.spentAt].filter((d): d is Date => !!d);
+  const dates = [sale?.createdAt, expense?.spentAt, order?.deliveredAt].filter((d): d is Date => !!d);
   return dates.length ? new Date(Math.min(...dates.map((d) => d.getTime()))) : null;
 }
 
@@ -157,7 +171,7 @@ export async function monthlyReport(month: string) {
     grossProfitUsd: profit.grossProfitUsd.toFixed(2),
     grossMargin: profit.grossMargin?.toString() ?? null,
     netProfitUsd: profit.netProfitUsd.toFixed(2),
-    netSalesSdg: dec(f.salesSdg).minus(f.refundSdg).toFixed(0),
+    netSalesSdg: dec(f.salesSdg).plus(f.ordersSdg).minus(f.refundSdg).toFixed(0),
     capital: {
       totalUsd: capitalUsd,
       profitBeforeUsd: profitBefore.toFixed(2),

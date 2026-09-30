@@ -36,7 +36,13 @@ export async function shiftSummary(shiftId: string) {
   });
   if (!shift) return null;
   const payments = shift.sales.flatMap((s) => s.payments);
-  const cashIn = sum(payments.filter((p) => p.method === "CASH").map((p) => p.amountSdg.toString()));
+  // طلبات المتجر المستلمة من المحل نقداً في هذه الوردية تدخل الدرج (D-88)
+  const orderCash = await prisma.orderPayment.aggregate({
+    where: { shiftId, channel: "CASH" },
+    _sum: { amountSdg: true },
+  });
+  const orderCashSdg = dec(orderCash._sum.amountSdg?.toString() ?? "0");
+  const cashIn = sum(payments.filter((p) => p.method === "CASH").map((p) => p.amountSdg.toString())).plus(orderCashSdg);
   const bankak = sum(payments.filter((p) => p.method === "BANKAK").map((p) => p.amountSdg.toString()));
   const discounts = sum(
     shift.sales.map((s) => dec(s.lineDiscountSdg.toString()).plus(s.invoiceDiscountSdg.toString())),
@@ -61,6 +67,7 @@ export async function shiftSummary(shiftId: string) {
     salesCount: shift.sales.length,
     totalSdg: total.toString(),
     cashSdg: cashIn.toString(),
+    orderCashSdg: orderCashSdg.toString(),
     bankakSdg: bankak.toString(),
     returnsCount,
     cashRefundsSdg: cashOut.toString(),
@@ -106,11 +113,15 @@ export async function closeShift(shiftId: string, userId: string, countedCashSdg
       where: { method: "CASH", sale: { shiftId } },
       _sum: { amountSdg: true },
     });
+    const orderCash = await tx.orderPayment.aggregate({
+      where: { shiftId, channel: "CASH" },
+      _sum: { amountSdg: true },
+    });
     const refunds = await tx.returnRefund.aggregate({ where: { method: "CASH", shiftId }, _sum: { amountSdg: true } });
     const expenses = await tx.expense.aggregate({ where: { shiftId, voidedAt: null }, _sum: { amount: true } });
     const expected = expectedCash(
       shift.openingCashSdg.toString(),
-      cash._sum.amountSdg?.toString() ?? "0",
+      dec(cash._sum.amountSdg?.toString() ?? "0").plus(orderCash._sum.amountSdg?.toString() ?? "0"),
       dec(refunds._sum.amountSdg?.toString() ?? "0").plus(expenses._sum.amount?.toString() ?? "0"),
     );
     if (!expected.eq(countedCashSdg) && !note) {
