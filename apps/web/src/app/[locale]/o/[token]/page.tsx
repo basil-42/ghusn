@@ -4,7 +4,9 @@ import { notFound } from "next/navigation";
 import { Price } from "@/components/store/price";
 import { Link } from "@/i18n/navigation";
 import { formatDateTime } from "@/lib/format";
-import { getOrderByToken } from "@/lib/orders";
+import { expireUnpaidOrders, getOrderByToken } from "@/lib/orders";
+import { bankakAccount } from "@/lib/settings";
+import { PaymentProofForm } from "./payment-proof-form";
 
 export const dynamic = "force-dynamic";
 
@@ -28,8 +30,13 @@ const STEPS = ["NEW", "CONFIRMED", "PREPARING", "READY", "OUT_FOR_DELIVERY", "DE
 export default async function OrderStatusPage({ params }: Props) {
   const { locale, token } = await params;
   setRequestLocale(locale);
-  const o = await getOrderByToken(token, locale);
+  let o = await getOrderByToken(token, locale);
   if (!o) notFound();
+  if (o.status === "AWAITING_PAYMENT" && o.paymentDueAt && o.paymentDueAt <= new Date()) {
+    await expireUnpaidOrders();
+    o = (await getOrderByToken(token, locale)) ?? o;
+  }
+  const account = o.status === "AWAITING_PAYMENT" ? await bankakAccount() : null;
   const t = await getTranslations("order");
   const tc = await getTranslations("checkout");
   const steps = STEPS.filter((s) => o.fulfillment === "DELIVERY" || s !== "OUT_FOR_DELIVERY");
@@ -54,6 +61,8 @@ export default async function OrderStatusPage({ params }: Props) {
         <p className={`mb-4 text-xl font-bold ${o.status === "CANCELLED" ? "text-destructive" : ""}`}>
           {t(`statuses.${o.status}`)}
         </p>
+        {o.unpaidExpired ? <p className="mb-2 text-sm">{t("unpaidExpired")}</p> : null}
+        {o.status === "PAYMENT_REVIEW" ? <p className="mb-4 text-sm">{t("reviewing")}</p> : null}
         {o.status !== "CANCELLED" ? (
           <ol className="flex gap-1" aria-hidden>
             {steps.map((s, i) => (
@@ -62,6 +71,45 @@ export default async function OrderStatusPage({ params }: Props) {
           </ol>
         ) : null}
       </section>
+
+      {o.status === "AWAITING_PAYMENT" ? (
+        <section className="flex flex-col gap-4 rounded-2xl border-2 border-gold bg-card p-4">
+          <h2 className="font-display text-2xl font-bold">{t("payTitle")}</h2>
+          {o.proofRejection !== null ? (
+            <p role="alert" className="rounded-xl bg-destructive/10 p-3 text-sm font-semibold text-destructive">
+              {t("proofRejected", { reason: o.proofRejection })}
+            </p>
+          ) : null}
+          <p className="text-sm">{t("payIntro")}</p>
+          {account ? (
+            <dl className="grid gap-2 rounded-xl bg-muted p-3 sm:grid-cols-3">
+              {account.name ? (
+                <div>
+                  <dt className="text-xs text-muted-foreground">{t("accountName")}</dt>
+                  <dd className="font-semibold">{account.name}</dd>
+                </div>
+              ) : null}
+              <div>
+                <dt className="text-xs text-muted-foreground">{t("accountNumber")}</dt>
+                <dd dir="ltr" className="select-all text-start text-lg font-bold tabular-nums">
+                  {account.number}
+                </dd>
+              </div>
+              <div>
+                <dt className="text-xs text-muted-foreground">{t("amount")}</dt>
+                <dd className="text-lg font-bold">
+                  <Price value={o.totalSdg} locale={locale} />
+                </dd>
+              </div>
+            </dl>
+          ) : null}
+          {account?.note ? <p className="text-sm text-muted-foreground">{account.note}</p> : null}
+          {o.paymentDueAt ? (
+            <p className="text-sm font-semibold">{t("dueBy", { time: formatDateTime(o.paymentDueAt) })}</p>
+          ) : null}
+          <PaymentProofForm token={token} />
+        </section>
+      ) : null}
 
       <section className="flex flex-col gap-2 rounded-2xl border border-line bg-card p-4">
         <h2 className="font-semibold">{t("items")}</h2>
@@ -80,7 +128,9 @@ export default async function OrderStatusPage({ params }: Props) {
           <span>{t("total")}</span>
           <Price value={o.totalSdg} locale={locale} />
         </p>
-        <p className="text-sm text-muted-foreground">{o.paymentMethod === "COD" ? t("payCod") : t("payShop")}</p>
+        <p className="text-sm text-muted-foreground">
+          {o.paymentMethod === "COD" ? t("payCod") : o.paymentMethod === "BANKAK" ? t("payBankak") : t("payShop")}
+        </p>
       </section>
 
       <section className="rounded-2xl border border-line bg-card p-4 text-sm">

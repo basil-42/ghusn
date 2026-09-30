@@ -1,18 +1,12 @@
-import { createHash } from "node:crypto";
 import { dec, roundMoney, shopDay, toUsdExact } from "@ghusn/core";
 import { prisma } from "@ghusn/db";
-import sharp from "sharp";
 import { roleCan } from "./auth/permissions";
 import { nextDocumentNumber } from "./documents";
 import { getRateAt } from "./exchange-rates";
-import { MAX_UPLOAD_BYTES } from "./product-images";
+import { PrivateImageError, savePrivateImage } from "./private-images";
 import { getPosSettings, posWallets } from "./settings";
-import { storage } from "./storage";
 
 export class ExpenseError extends Error {}
-
-/** صور الفواتير في مسار خاص: /media يرفض «private/»، وتُقدَّم فقط لمن يملك الصلاحية. */
-export const attachmentKey = (hash: string) => `private/expenses/${hash}.webp`;
 
 export async function listExpenseCategories(options: { staffOnly?: boolean; includeInactive?: boolean } = {}) {
   return prisma.expenseCategory.findMany({
@@ -25,22 +19,18 @@ export async function listExpenseCategories(options: { staffOnly?: boolean; incl
 }
 
 async function saveAttachment(file: File): Promise<string> {
-  if (file.size > MAX_UPLOAD_BYTES) throw new ExpenseError("الصورة أكبر من 10 ميغابايت.");
-  const input = Buffer.from(await file.arrayBuffer());
-  let data: Buffer;
   try {
-    // تصحيح الاتجاه وحذف البيانات الوصفية (الموقع) — مثل صور المنتجات (D-73)
-    data = await sharp(input, { limitInputPixels: 40_000_000, failOn: "error" })
-      .rotate()
-      .resize({ width: 1600, height: 1600, fit: "inside", withoutEnlargement: true })
-      .webp({ quality: 78 })
-      .toBuffer();
-  } catch {
-    throw new ExpenseError("تعذّرت قراءة الصورة. استخدمي صورة JPG أو PNG أو WebP.");
+    return await savePrivateImage(file, "expenses");
+  } catch (e) {
+    if (e instanceof PrivateImageError) {
+      throw new ExpenseError(
+        e.code === "TOO_LARGE"
+          ? "الصورة أكبر من 10 ميغابايت."
+          : "تعذّرت قراءة الصورة. استخدمي صورة JPG أو PNG أو WebP.",
+      );
+    }
+    throw e;
   }
-  const key = attachmentKey(createHash("sha256").update(data).digest("hex").slice(0, 24));
-  await storage.put(key, data, "image/webp");
-  return key;
 }
 
 export interface ExpenseInput {

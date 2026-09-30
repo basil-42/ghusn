@@ -206,7 +206,7 @@ export function ExpenseCategoryForm({
   );
 }
 
-/** إعدادات المتجر (D-88): محفظة شركة التوصيل وحد الدفع عند الاستلام. */
+/** إعدادات المتجر (D-88، D-90): محفظة شركة التوصيل، وحد الدفع عند الاستلام، وحساب بنكك. */
 export function StoreSettingsForm({
   initial,
   wallets,
@@ -242,9 +242,20 @@ export function StoreSettingsForm({
             dir="ltr"
             placeholder="0"
           />
-          <span className="text-xs text-muted-foreground">
-            فارغ أو 0 = بلا حد. الطلب الأعلى منه يُرفض (بنكك قريباً).
-          </span>
+          <span className="text-xs text-muted-foreground">فارغ أو 0 = بلا حد. الطلب الأعلى منه يُطلب دفعه ببنكك.</span>
+        </label>
+        <label className={field}>
+          <span className="font-semibold">اسم حساب بنكك</span>
+          <Input name="bankakAccountName" defaultValue={initial.bankakAccountName} maxLength={80} />
+        </label>
+        <label className={field}>
+          <span className="font-semibold">رقم حساب بنكك</span>
+          <Input name="bankakAccountNumber" defaultValue={initial.bankakAccountNumber} maxLength={40} dir="ltr" />
+          <span className="text-xs text-muted-foreground">فارغ = لا يظهر الدفع ببنكك في المتجر.</span>
+        </label>
+        <label className={`${field} sm:col-span-2`}>
+          <span className="font-semibold">ملاحظة للعميل عند التحويل (اختياري)</span>
+          <Input name="bankakNote" defaultValue={initial.bankakNote} maxLength={200} />
         </label>
       </div>
       <Button type="submit" disabled={pending} className="self-start">

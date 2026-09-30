@@ -33,14 +33,24 @@ const schema = z.object({
     .max(60)
     .optional()
     .transform((v) => v || null),
+  proofId: z
+    .string()
+    .max(40)
+    .optional()
+    .transform((v) => v || null),
 });
 
-/** كل تغيير حالة يمر من هنا إلى transitionOrder (D-60). الإلغاء للمديرة والمالك. */
+/**
+ * كل تغيير حالة يمر من هنا إلى transitionOrder (D-60). الإلغاء للمديرة والمالك، ومراجعة إشعار
+ * بنكك (قبول/رفض) لمن يملك «order:payment» (D-90).
+ */
 export async function transitionAction(_prev: FormState, formData: FormData): Promise<FormState> {
   const parsed = schema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { error: "بيانات غير صحيحة — حدّثي الصفحة." };
   const { id, to, ...opts } = parsed.data;
-  const session = await requirePermission(to === "CANCELLED" ? { order: ["cancel"] } : { order: ["update"] });
+  const session = await requirePermission(
+    to === "CANCELLED" ? { order: ["cancel"] } : opts.proofId ? { order: ["payment"] } : { order: ["update"] },
+  );
   try {
     await transitionOrder(id, to, session.user.id, opts);
   } catch (e) {

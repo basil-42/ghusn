@@ -7,6 +7,8 @@ import {
   isStockOut,
   normalizePhone,
   orderTotals,
+  PAYMENT_WINDOW_HOURS,
+  paymentDueAfterRejection,
   RESERVING_STATUSES,
   roundMoney,
   sum,
@@ -17,8 +19,10 @@ import {
 } from "@ghusn/core";
 import { Prisma, prisma, type DeliveryCity, type Fulfillment } from "@ghusn/db";
 import { nextDocumentNumber } from "./documents";
+import { formatAmount } from "./format";
 import { currentSellingRate } from "./pricing";
-import { courierWallet, getStoreSettings, posWallets } from "./settings";
+import { PrivateImageError, savePrivateImage } from "./private-images";
+import { bankakAccount, courierWallet, getStoreSettings, posWallets } from "./settings";
 
 /**
  * طلبات المتجر (D-88، customer-journey). السعر بالجنيه يُثبَّت عند الإنشاء؛ المخزون محجوز حتى
@@ -40,7 +44,12 @@ export class OrderError extends Error {
       | "UNAVAILABLE"
       | "PRICE_CHANGED"
       | "COD_LIMIT"
-      | "CONFLICT",
+      | "CONFLICT"
+      | "BANKAK_UNAVAILABLE"
+      | "PAYMENT_CLOSED"
+      | "INVALID_REFERENCE"
+      | "IMAGE_TOO_LARGE"
+      | "IMAGE_UNREADABLE",
     readonly params: Record<string, string> = {},
   ) {
     super(code);
@@ -180,6 +189,8 @@ export interface CreateOrderInput {
   recipientName: string | null;
   recipientPhone: string | null;
   note: string | null;
+  /** عند الاستلام (نقداً للمندوب أو في المحل) أو تحويل بنكك مسبقاً. */
+  payment: "ON_RECEIPT" | "BANKAK";
   items: CartItemInput[];
   /** الإجمالي الذي رآه العميل — إن تغيّر السعر يُطلب منه التأكيد من جديد. */
   expectedTotalSdg: string;
@@ -226,13 +237,17 @@ export async function createWebOrder(input: CreateOrderInput): Promise<{ number:
   if (!totals.totalSdg.eq(input.expectedTotalSdg)) {
     throw new OrderError("PRICE_CHANGED", { total: totals.totalSdg.toFixed(0) });
   }
-  const paymentMethod = input.fulfillment === "DELIVERY" ? "COD" : "IN_SHOP";
+  const paymentMethod = input.payment === "BANKAK" ? "BANKAK" : input.fulfillment === "DELIVERY" ? "COD" : "IN_SHOP";
+  if (paymentMethod === "BANKAK" && !(await bankakAccount())) throw new OrderError("BANKAK_UNAVAILABLE");
   const { codMaxSdg } = await getStoreSettings();
   if (paymentMethod === "COD" && codMaxSdg > 0 && totals.totalSdg.gt(codMaxSdg)) {
     throw new OrderError("COD_LIMIT", { limit: String(codMaxSdg) });
   }
 
   const now = new Date();
+  // بنكك: السعر والمخزون محجوزان 24 ساعة حتى يصل الإشعار (D-12)
+  const status: OrderStatus = paymentMethod === "BANKAK" ? "AWAITING_PAYMENT" : "NEW";
+  const paymentDueAt = paymentMethod === "BANKAK" ? new Date(now.getTime() + PAYMENT_WINDOW_HOURS * 3_600_000) : null;
   try {
     return await prisma.$transaction(async (tx) => {
       // قفل أرصدة الأصناف بترتيب ثابت ثم حساب المحجوز: طلبان متزامنان على آخر قطعة لا ينجحان معاً
@@ -264,7 +279,8 @@ export async function createWebOrder(input: CreateOrderInput): Promise<{ number:
           number,
           trackingToken,
           channel: "WEB",
-          status: "NEW",
+          status,
+          paymentDueAt,
           locale: input.locale === "en" ? "en" : "ar",
           customerId: customer.id,
           customerName: input.customerName,
@@ -291,7 +307,7 @@ export async function createWebOrder(input: CreateOrderInput): Promise<{ number:
               };
             }),
           },
-          history: { create: { fromStatus: null, toStatus: "NEW", createdAt: now } },
+          history: { create: { fromStatus: null, toStatus: status, createdAt: now } },
         },
       });
       return { number, trackingToken };
@@ -311,206 +327,379 @@ export interface TransitionOptions {
   courierRef?: string | null;
   /** استلام من المحل: نقداً (درج الوردية) أو بنكك. */
   channel?: "CASH" | "BANKAK" | null;
+  /** رقم عملية بنكك (استلام في المحل) أو مرجع رد المبلغ عند إلغاء طلب مدفوع. */
   reference?: string | null;
+  /** مراجعة إشعار بنكك: الإشعار الذي رأته المديرة (قبول ← مؤكد، رفض ← بانتظار الدفع). */
+  proofId?: string | null;
+  /** إشعار جديد من العميل (صفحة المتابعة). */
+  proof?: { imageKey: string; reference: string } | null;
+}
+
+/** سبب الإلغاء التلقائي — صفحة العميل تعرضه بلغته. */
+export const UNPAID_CANCEL_REASON = "لم يُدفع خلال المهلة";
+
+interface TransitionContext {
+  rate: string | null;
+  courier: string | null;
+  shopWallets: { cash: string; bankak: string } | null;
+}
+
+async function transitionContext(to: OrderStatus, needsBankak: boolean): Promise<TransitionContext> {
+  const rate = to === "DELIVERED" ? await currentSellingRate() : null;
+  if (to === "DELIVERED" && !rate) throw new OrderActionError("لا يوجد سعر للجنيه اليوم — اطلبي من المديرة إدخاله.");
+  return {
+    rate,
+    courier: to === "DELIVERED" ? await courierWallet() : null,
+    shopWallets: to === "DELIVERED" || needsBankak ? await posWallets() : null,
+  };
 }
 
 /**
  * الانتقال الوحيد لحالة الطلب (D-60). يتحقق من الجدول، ويخصم المخزون عند التجهيز، ويعيده عند
- * الإلغاء بعد التجهيز، ويسجّل المقبوض عند التسليم، ويكتب السجل — كله في معاملة واحدة.
+ * الإلغاء بعد التجهيز، ويسجّل المقبوض عند التسليم أو قبول إشعار بنكك (D-90)، ويرد المدفوع عند
+ * الإلغاء، ويكتب السجل — كله في معاملة واحدة. actorId فارغ = العميل أو النظام (الإلغاء التلقائي).
  */
 export async function transitionOrder(
   orderId: string,
   to: OrderStatus,
-  actorId: string,
+  actorId: string | null,
   opts: TransitionOptions = {},
 ): Promise<void> {
+  const ctx = await transitionContext(to, to === "CONFIRMED" && !!opts.proofId);
+  await prisma.$transaction((tx) => applyTransition(tx, orderId, to, actorId, opts, ctx));
+}
+
+async function applyTransition(
+  tx: Prisma.TransactionClient,
+  orderId: string,
+  to: OrderStatus,
+  actorId: string | null,
+  opts: TransitionOptions,
+  ctx: TransitionContext,
+): Promise<void> {
+  const { rate, courier, shopWallets } = ctx;
   const reason = opts.reason?.trim() || null;
-  const rate = to === "DELIVERED" ? await currentSellingRate() : null;
-  if (to === "DELIVERED" && !rate) throw new OrderActionError("لا يوجد سعر للجنيه اليوم — اطلبي من المديرة إدخاله.");
-  const courier = to === "DELIVERED" ? await courierWallet() : null;
-  const shopWallets = to === "DELIVERED" ? await posWallets() : null;
+  await tx.$queryRaw`SELECT "id" FROM "Order" WHERE "id" = ${orderId} FOR UPDATE`;
+  const order = await tx.order.findUnique({
+    where: { id: orderId },
+    include: {
+      lines: { orderBy: { sortOrder: "asc" } },
+      payments: true,
+      paymentProofs: { orderBy: { createdAt: "desc" }, take: 1 },
+    },
+  });
+  if (!order) throw new OrderActionError("الطلب غير موجود.");
+  const from = order.status as OrderStatus;
+  try {
+    assertTransition(from, to, order.fulfillment, order.paymentMethod);
+  } catch {
+    throw new OrderActionError("لا يمكن نقل الطلب لهذه الحالة الآن — حدّثي الصفحة.");
+  }
+  if (to === "CANCELLED" && !reason) throw new OrderActionError("اكتبي سبب الإلغاء.");
+  if (from === "OUT_FOR_DELIVERY" && to === "READY" && !reason) {
+    throw new OrderActionError("اكتبي سبب تعذّر التسليم.");
+  }
+  const now = new Date();
+  const data: Prisma.OrderUpdateInput = { status: to };
 
-  await prisma.$transaction(async (tx) => {
-    await tx.$queryRaw`SELECT "id" FROM "Order" WHERE "id" = ${orderId} FOR UPDATE`;
-    const order = await tx.order.findUnique({
-      where: { id: orderId },
-      include: { lines: { orderBy: { sortOrder: "asc" } } },
+  if (to === "PAYMENT_REVIEW") {
+    // إشعار العميل: داخل المهلة فقط؛ بعدها يُلغى الطلب ويُفك الحجز
+    if (!opts.proof) throw new OrderActionError("الإشعار يرفعه العميل من صفحة المتابعة.");
+    if (order.paymentDueAt && order.paymentDueAt <= now) throw new OrderError("PAYMENT_CLOSED");
+    await tx.paymentProof.create({
+      data: { orderId: order.id, imageKey: opts.proof.imageKey, reference: opts.proof.reference, createdAt: now },
     });
-    if (!order) throw new OrderActionError("الطلب غير موجود.");
-    const from = order.status as OrderStatus;
-    try {
-      assertTransition(from, to, order.fulfillment);
-    } catch {
-      throw new OrderActionError("لا يمكن نقل الطلب لهذه الحالة الآن — حدّثي الصفحة.");
-    }
-    if (to === "CANCELLED" && !reason) throw new OrderActionError("اكتبي سبب الإلغاء.");
-    if (from === "OUT_FOR_DELIVERY" && to === "READY" && !reason) {
-      throw new OrderActionError("اكتبي سبب تعذّر التسليم.");
-    }
-    const now = new Date();
-    const data: Prisma.OrderUpdateInput = { status: to };
+  }
 
-    if (to === "PREPARING") {
-      // خصم المخزون فعلياً — نفس منطق نقطة البيع (الأقدم صلاحية أولاً، بمتوسط التكلفة)
-      const costs: Decimal[] = [];
-      const lines = [...order.lines].sort((a, b) => a.variantId.localeCompare(b.variantId));
-      for (const line of lines) {
+  if (from === "PAYMENT_REVIEW") {
+    const proof = order.paymentProofs[0];
+    if (to !== "CANCELLED" && (!proof || proof.id !== opts.proofId || proof.reviewedAt)) {
+      throw new OrderActionError("وصل إشعار أحدث أو رُوجع هذا الإشعار — حدّثي الصفحة.");
+    }
+    if (to === "AWAITING_PAYMENT" && !reason) throw new OrderActionError("اكتبي سبب رفض الإشعار ليراه العميل.");
+    if (proof && !proof.reviewedAt) {
+      await tx.paymentProof.update({
+        where: { id: proof.id },
+        data: { reviewedAt: now, reviewedById: actorId, accepted: to === "CONFIRMED", reviewNote: reason },
+      });
+    }
+    if (to === "AWAITING_PAYMENT") data.paymentDueAt = paymentDueAfterRejection(order.paymentDueAt, now);
+    if (to === "CONFIRMED" && proof) {
+      // المبلغ في حساب بنكك بعد المطابقة مع كشف الحساب
+      if (!shopWallets) throw new Error("wallets");
+      await tx.orderPayment.create({
+        data: {
+          orderId: order.id,
+          method: "BANKAK",
+          channel: "BANKAK",
+          amountSdg: order.totalSdg.toFixed(2),
+          walletId: shopWallets.bankak,
+          reference: proof.reference,
+          receivedById: actorId,
+          receivedAt: now,
+        },
+      });
+    }
+  }
+
+  if (to === "PREPARING") {
+    // خصم المخزون فعلياً — نفس منطق نقطة البيع (الأقدم صلاحية أولاً، بمتوسط التكلفة)
+    const costs: Decimal[] = [];
+    const lines = [...order.lines].sort((a, b) => a.variantId.localeCompare(b.variantId));
+    for (const line of lines) {
+      const qty = dec(line.qty.toString());
+      const [level] = await tx.$queryRaw<{ qty: Prisma.Decimal; avgCostUsd: Prisma.Decimal }[]>`
+        SELECT "qty", "avgCostUsd" FROM "StockLevel" WHERE "variantId" = ${line.variantId} FOR UPDATE`;
+      const stockQty = dec(level?.qty.toString() ?? "0");
+      if (stockQty.lt(qty)) {
+        throw new OrderActionError(`الرصيد لا يكفي: ${line.label} — راجعي المخزون قبل التجهيز.`);
+      }
+      const unitCost = dec(level?.avgCostUsd.toString() ?? "0");
+      const batches = await tx.$queryRaw<
+        { id: string; qtyRemaining: Prisma.Decimal; expiresAt: Date | null; receivedAt: Date }[]
+      >`SELECT "id", "qtyRemaining", "expiresAt", "receivedAt" FROM "StockBatch"
+        WHERE "variantId" = ${line.variantId} AND "qtyRemaining" > 0 FOR UPDATE`;
+      const { takes } = consumeBatches(
+        batches.map((b) => ({
+          id: b.id,
+          qtyRemaining: b.qtyRemaining.toString(),
+          expiresAt: b.expiresAt ? b.expiresAt.toISOString().slice(0, 10) : null,
+          receivedAt: b.receivedAt,
+        })),
+        qty,
+      );
+      for (const t of takes) {
+        await tx.stockBatch.update({
+          where: { id: t.batchId },
+          data: { qtyRemaining: { decrement: t.qty.toFixed() } },
+        });
+      }
+      const qtyAfter = stockQty.minus(qty);
+      await tx.stockLevel.update({ where: { variantId: line.variantId }, data: { qty: qtyAfter.toFixed() } });
+      const costUsd = roundMoney(qty.mul(unitCost));
+      costs.push(qty.mul(unitCost));
+      await tx.orderLine.update({ where: { id: line.id }, data: { unitCostUsd: unitCost.toFixed(6) } });
+      await tx.stockMovement.create({
+        data: {
+          variantId: line.variantId,
+          batchId: takes.length === 1 ? takes[0]?.batchId : null,
+          kind: "SALE",
+          qty: qty.neg().toFixed(),
+          unitCostUsd: unitCost.toFixed(6),
+          valueUsd: costUsd.neg().toFixed(2),
+          qtyAfter: qtyAfter.toFixed(),
+          avgCostAfterUsd: unitCost.toFixed(6),
+          orderId: order.id,
+          note: order.number,
+          createdById: actorId,
+        },
+      });
+    }
+    data.cogsUsd = roundMoney(sum(costs)).toFixed(2);
+    data.preparedAt = now;
+  }
+
+  if (to === "CANCELLED") {
+    data.cancelledAt = now;
+    data.cancelReason = reason;
+    // طلب مدفوع مسبقاً (بنكك): الإلغاء يسجّل رد المبلغ من نفس المحفظة
+    const paidByWallet = new Map<string, Decimal>();
+    for (const p of order.payments) {
+      paidByWallet.set(p.walletId, (paidByWallet.get(p.walletId) ?? dec(0)).plus(p.amountSdg.toString()));
+    }
+    for (const [walletId, paid] of paidByWallet) {
+      if (!paid.gt(0)) continue;
+      if (!actorId) throw new OrderActionError("طلب مدفوع — يلغيه المدير مع رد المبلغ.");
+      await tx.orderPayment.create({
+        data: {
+          orderId: order.id,
+          method: order.paymentMethod,
+          channel: "BANKAK",
+          amountSdg: paid.neg().toFixed(2),
+          walletId,
+          reference: opts.reference?.trim() || null,
+          receivedById: actorId,
+          receivedAt: now,
+        },
+      });
+    }
+    if (isStockOut(from)) {
+      // خرج المخزون عند التجهيز ← يعود بتكلفته ويُعاد حساب المتوسط المرجّح
+      for (const line of order.lines) {
         const qty = dec(line.qty.toString());
+        const unitCost = dec(line.unitCostUsd?.toString() ?? "0");
+        await tx.$executeRaw`
+          INSERT INTO "StockLevel" ("variantId", "qty", "avgCostUsd", "updatedAt")
+          VALUES (${line.variantId}, 0, 0, now()) ON CONFLICT ("variantId") DO NOTHING`;
         const [level] = await tx.$queryRaw<{ qty: Prisma.Decimal; avgCostUsd: Prisma.Decimal }[]>`
           SELECT "qty", "avgCostUsd" FROM "StockLevel" WHERE "variantId" = ${line.variantId} FOR UPDATE`;
-        const stockQty = dec(level?.qty.toString() ?? "0");
-        if (stockQty.lt(qty)) {
-          throw new OrderActionError(`الرصيد لا يكفي: ${line.label} — راجعي المخزون قبل التجهيز.`);
-        }
-        const unitCost = dec(level?.avgCostUsd.toString() ?? "0");
-        const batches = await tx.$queryRaw<
-          { id: string; qtyRemaining: Prisma.Decimal; expiresAt: Date | null; receivedAt: Date }[]
-        >`SELECT "id", "qtyRemaining", "expiresAt", "receivedAt" FROM "StockBatch"
-          WHERE "variantId" = ${line.variantId} AND "qtyRemaining" > 0 FOR UPDATE`;
-        const { takes } = consumeBatches(
-          batches.map((b) => ({
-            id: b.id,
-            qtyRemaining: b.qtyRemaining.toString(),
-            expiresAt: b.expiresAt ? b.expiresAt.toISOString().slice(0, 10) : null,
-            receivedAt: b.receivedAt,
-          })),
-          qty,
-        );
-        for (const t of takes) {
+        const oldQty = level?.qty.toString() ?? "0";
+        const avgAfter = weightedAverageCost({
+          oldQty,
+          oldAvgUsd: level?.avgCostUsd.toString() ?? "0",
+          inQty: qty,
+          inUnitUsd: unitCost,
+        });
+        const qtyAfter = dec(oldQty).plus(qty);
+        await tx.stockLevel.update({
+          where: { variantId: line.variantId },
+          data: { qty: qtyAfter.toFixed(), avgCostUsd: avgAfter.toFixed(6) },
+        });
+        const [batch] = await tx.$queryRaw<{ id: string }[]>`
+          SELECT "id" FROM "StockBatch" WHERE "variantId" = ${line.variantId}
+          ORDER BY "receivedAt" DESC LIMIT 1 FOR UPDATE`;
+        if (batch) {
           await tx.stockBatch.update({
-            where: { id: t.batchId },
-            data: { qtyRemaining: { decrement: t.qty.toFixed() } },
+            where: { id: batch.id },
+            data: { qtyRemaining: { increment: qty.toFixed() } },
           });
         }
-        const qtyAfter = stockQty.minus(qty);
-        await tx.stockLevel.update({ where: { variantId: line.variantId }, data: { qty: qtyAfter.toFixed() } });
-        const costUsd = roundMoney(qty.mul(unitCost));
-        costs.push(qty.mul(unitCost));
-        await tx.orderLine.update({ where: { id: line.id }, data: { unitCostUsd: unitCost.toFixed(6) } });
         await tx.stockMovement.create({
           data: {
             variantId: line.variantId,
-            batchId: takes.length === 1 ? takes[0]?.batchId : null,
-            kind: "SALE",
-            qty: qty.neg().toFixed(),
+            batchId: batch?.id ?? null,
+            kind: "RETURN",
+            qty: qty.toFixed(),
             unitCostUsd: unitCost.toFixed(6),
-            valueUsd: costUsd.neg().toFixed(2),
+            valueUsd: roundMoney(qty.mul(unitCost)).toFixed(2),
             qtyAfter: qtyAfter.toFixed(),
-            avgCostAfterUsd: unitCost.toFixed(6),
+            avgCostAfterUsd: avgAfter.toFixed(6),
             orderId: order.id,
-            note: order.number,
+            note: `${order.number} — إلغاء`,
             createdById: actorId,
           },
         });
       }
-      data.cogsUsd = roundMoney(sum(costs)).toFixed(2);
-      data.preparedAt = now;
     }
+  }
 
-    if (to === "CANCELLED") {
-      data.cancelledAt = now;
-      data.cancelReason = reason;
-      if (isStockOut(from)) {
-        // خرج المخزون عند التجهيز ← يعود بتكلفته ويُعاد حساب المتوسط المرجّح
-        for (const line of order.lines) {
-          const qty = dec(line.qty.toString());
-          const unitCost = dec(line.unitCostUsd?.toString() ?? "0");
-          await tx.$executeRaw`
-            INSERT INTO "StockLevel" ("variantId", "qty", "avgCostUsd", "updatedAt")
-            VALUES (${line.variantId}, 0, 0, now()) ON CONFLICT ("variantId") DO NOTHING`;
-          const [level] = await tx.$queryRaw<{ qty: Prisma.Decimal; avgCostUsd: Prisma.Decimal }[]>`
-            SELECT "qty", "avgCostUsd" FROM "StockLevel" WHERE "variantId" = ${line.variantId} FOR UPDATE`;
-          const oldQty = level?.qty.toString() ?? "0";
-          const avgAfter = weightedAverageCost({
-            oldQty,
-            oldAvgUsd: level?.avgCostUsd.toString() ?? "0",
-            inQty: qty,
-            inUnitUsd: unitCost,
-          });
-          const qtyAfter = dec(oldQty).plus(qty);
-          await tx.stockLevel.update({
-            where: { variantId: line.variantId },
-            data: { qty: qtyAfter.toFixed(), avgCostUsd: avgAfter.toFixed(6) },
-          });
-          const [batch] = await tx.$queryRaw<{ id: string }[]>`
-            SELECT "id" FROM "StockBatch" WHERE "variantId" = ${line.variantId}
-            ORDER BY "receivedAt" DESC LIMIT 1 FOR UPDATE`;
-          if (batch) {
-            await tx.stockBatch.update({
-              where: { id: batch.id },
-              data: { qtyRemaining: { increment: qty.toFixed() } },
-            });
-          }
-          await tx.stockMovement.create({
-            data: {
-              variantId: line.variantId,
-              batchId: batch?.id ?? null,
-              kind: "RETURN",
-              qty: qty.toFixed(),
-              unitCostUsd: unitCost.toFixed(6),
-              valueUsd: roundMoney(qty.mul(unitCost)).toFixed(2),
-              qtyAfter: qtyAfter.toFixed(),
-              avgCostAfterUsd: avgAfter.toFixed(6),
-              orderId: order.id,
-              note: `${order.number} — إلغاء`,
-              createdById: actorId,
-            },
-          });
-        }
+  if (to === "OUT_FOR_DELIVERY") data.courierRef = opts.courierRef?.trim() || null;
+
+  if (to === "DELIVERED" && rate) {
+    const total = dec(order.totalSdg.toString());
+    data.deliveredAt = now;
+    data.sdgPerUsd = rate;
+    data.revenueUsd = roundMoney(total.div(rate)).toFixed(2);
+    if (order.paymentMethod === "COD") {
+      if (!courier) throw new OrderActionError("حددي محفظة شركة التوصيل من الضبط.");
+      await tx.orderPayment.create({
+        data: {
+          orderId: order.id,
+          method: "COD",
+          amountSdg: total.toFixed(2),
+          walletId: courier,
+          receivedById: actorId,
+          receivedAt: now,
+        },
+      });
+    } else if (order.paymentMethod === "IN_SHOP") {
+      if (!opts.channel) throw new OrderActionError("اختاري طريقة الدفع: نقداً أو بنكك.");
+      let shiftId: string | null = null;
+      if (opts.channel === "CASH") {
+        // النقد يدخل درج وردية الموظفة (يدخل النقد المتوقع عند الإغلاق)
+        const [shift] = await tx.$queryRaw<{ id: string }[]>`
+          SELECT "id" FROM "Shift" WHERE "userId" = ${actorId} AND "closedAt" IS NULL FOR UPDATE`;
+        if (!shift) throw new OrderActionError("افتحي ورديتك أولاً لاستلام النقد.");
+        shiftId = shift.id;
       }
+      if (!shopWallets) throw new Error("wallets");
+      await tx.orderPayment.create({
+        data: {
+          orderId: order.id,
+          method: "IN_SHOP",
+          channel: opts.channel,
+          amountSdg: total.toFixed(2),
+          walletId: opts.channel === "CASH" ? shopWallets.cash : shopWallets.bankak,
+          shiftId,
+          reference: opts.channel === "BANKAK" ? opts.reference?.trim() || null : null,
+          receivedById: actorId,
+          receivedAt: now,
+        },
+      });
     }
+  }
 
-    if (to === "OUT_FOR_DELIVERY") data.courierRef = opts.courierRef?.trim() || null;
-
-    if (to === "DELIVERED" && rate) {
-      const total = dec(order.totalSdg.toString());
-      data.deliveredAt = now;
-      data.sdgPerUsd = rate;
-      data.revenueUsd = roundMoney(total.div(rate)).toFixed(2);
-      if (order.paymentMethod === "COD") {
-        if (!courier) throw new OrderActionError("حددي محفظة شركة التوصيل من الضبط.");
-        await tx.orderPayment.create({
-          data: {
-            orderId: order.id,
-            method: "COD",
-            amountSdg: total.toFixed(2),
-            walletId: courier,
-            receivedById: actorId,
-            receivedAt: now,
-          },
-        });
-      } else if (order.paymentMethod === "IN_SHOP") {
-        if (!opts.channel) throw new OrderActionError("اختاري طريقة الدفع: نقداً أو بنكك.");
-        let shiftId: string | null = null;
-        if (opts.channel === "CASH") {
-          // النقد يدخل درج وردية الموظفة (يدخل النقد المتوقع عند الإغلاق)
-          const [shift] = await tx.$queryRaw<{ id: string }[]>`
-            SELECT "id" FROM "Shift" WHERE "userId" = ${actorId} AND "closedAt" IS NULL FOR UPDATE`;
-          if (!shift) throw new OrderActionError("افتحي ورديتك أولاً لاستلام النقد.");
-          shiftId = shift.id;
-        }
-        if (!shopWallets) throw new Error("wallets");
-        await tx.orderPayment.create({
-          data: {
-            orderId: order.id,
-            method: "IN_SHOP",
-            channel: opts.channel,
-            amountSdg: total.toFixed(2),
-            walletId: opts.channel === "CASH" ? shopWallets.cash : shopWallets.bankak,
-            shiftId,
-            reference: opts.channel === "BANKAK" ? opts.reference?.trim() || null : null,
-            receivedById: actorId,
-            receivedAt: now,
-          },
-        });
-      }
-    }
-
-    await tx.order.update({ where: { id: order.id }, data });
-    await tx.orderStatusHistory.create({
-      data: { orderId: order.id, fromStatus: from, toStatus: to, actorId, reason, createdAt: now },
-    });
+  await tx.order.update({ where: { id: order.id }, data });
+  await tx.orderStatusHistory.create({
+    data: { orderId: order.id, fromStatus: from, toStatus: to, actorId, reason, createdAt: now },
   });
+}
+
+/**
+ * إشعار بنكك من صفحة المتابعة (D-90): صورة التحويل ورقم العملية. يُقبل داخل المهلة فقط والطلب
+ * «بانتظار الدفع»؛ بعد رفض إشعار سابق يمكن الإرسال من جديد.
+ */
+export async function submitPaymentProof(token: string, file: File, reference: string): Promise<void> {
+  const ref = reference.trim();
+  if (ref.length < 3 || ref.length > 60) throw new OrderError("INVALID_REFERENCE");
+  const order = await prisma.order.findUnique({
+    where: { trackingToken: token },
+    select: { id: true, status: true, paymentMethod: true, paymentDueAt: true },
+  });
+  if (!order || order.paymentMethod !== "BANKAK" || order.status !== "AWAITING_PAYMENT") {
+    throw new OrderError("PAYMENT_CLOSED");
+  }
+  if (order.paymentDueAt && order.paymentDueAt <= new Date()) {
+    await expireUnpaidOrders();
+    throw new OrderError("PAYMENT_CLOSED");
+  }
+  let imageKey: string;
+  try {
+    imageKey = await savePrivateImage(file, "payments");
+  } catch (e) {
+    if (e instanceof PrivateImageError) {
+      throw new OrderError(e.code === "TOO_LARGE" ? "IMAGE_TOO_LARGE" : "IMAGE_UNREADABLE");
+    }
+    throw e;
+  }
+  try {
+    await transitionOrder(order.id, "PAYMENT_REVIEW", null, { proof: { imageKey, reference: ref } });
+  } catch (e) {
+    // سُبق بإلغاء أو بإشعار آخر في نفس اللحظة
+    if (e instanceof OrderActionError) throw new OrderError("PAYMENT_CLOSED");
+    throw e;
+  }
+}
+
+/**
+ * الإلغاء التلقائي لطلبات بنكك التي انتهت مهلتها دون إشعار (D-12): يُفك الحجز. يعمل كل بضع دقائق
+ * (pg-boss، lib/jobs) وعند فتح لوحة الطلبات. الطلب «قيد المراجعة» لا يُلغى — ينتظر المديرة.
+ */
+export async function expireUnpaidOrders(now = new Date()): Promise<number> {
+  const due = await prisma.order.findMany({
+    where: { status: "AWAITING_PAYMENT", paymentDueAt: { lte: now } },
+    select: { id: true },
+    take: 200,
+  });
+  let n = 0;
+  for (const o of due) {
+    try {
+      await transitionOrder(o.id, "CANCELLED", null, { reason: UNPAID_CANCEL_REASON });
+      n++;
+    } catch (e) {
+      // وصل الإشعار في نفس اللحظة — لا شيء يُلغى
+      if (!(e instanceof OrderActionError || e instanceof OrderError)) throw e;
+    }
+  }
+  return n;
+}
+
+/** رابط واتساب لتذكير العميل بالدفع (قبل ربط WhatsApp API — المرحلة 3). */
+export function paymentReminderLink(o: {
+  phone: string;
+  number: string;
+  totalSdg: string;
+  trackingToken: string;
+  locale: string;
+}) {
+  const base = (process.env.APP_URL ?? "").replace(/\/$/, "");
+  const url = `${base}${o.locale === "en" ? "/en" : ""}/o/${o.trackingToken}`;
+  const total = formatAmount(o.totalSdg, 0);
+  const text =
+    o.locale === "en"
+      ? `Hello from Ghusn 🌿 Your order ${o.number} (${total} SDG) is reserved and awaiting your Bankak transfer. Please upload the receipt here: ${url}`
+      : `مرحباً من غصن 🌿 طلبك ${o.number} (${total} ج.س) محجوز بانتظار تحويل بنكك. ارفع صورة الإشعار من هنا: ${url}`;
+  return `https://wa.me/${o.phone.replace(/\D/g, "")}?text=${encodeURIComponent(text)}`;
 }
 
 export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
@@ -554,8 +743,13 @@ export async function orderTabCounts(): Promise<Record<OrderTab, number>> {
   return Object.fromEntries(ORDER_TABS.map((t) => [t.key, count(t.statuses)])) as Record<OrderTab, number>;
 }
 
-export async function countNewOrders(): Promise<number> {
-  return prisma.order.count({ where: { status: "NEW" } });
+/** ما ينتظر إجراءً من المحل: طلبات جديدة، وإشعارات بنكك للمراجعة. */
+export async function countNewOrders(): Promise<{ new: number; paymentReview: number }> {
+  const [n, review] = await Promise.all([
+    prisma.order.count({ where: { status: "NEW" } }),
+    prisma.order.count({ where: { status: "PAYMENT_REVIEW" } }),
+  ]);
+  return { new: n, paymentReview: review };
 }
 
 export async function listOrders(tab: OrderTab, take = 100) {
@@ -576,6 +770,8 @@ export async function listOrders(tab: OrderTab, take = 100) {
     city: o.city,
     totalSdg: o.totalSdg.toString(),
     lines: o._count.lines,
+    paymentMethod: o.paymentMethod,
+    paymentDueAt: o.paymentDueAt,
     createdAt: o.createdAt,
   }));
 }
@@ -588,7 +784,8 @@ export async function getOrderForStaff(id: string) {
       customer: { select: { phone: true } },
       lines: { orderBy: { sortOrder: "asc" }, include: { variant: { select: { sku: true, barcode: true } } } },
       history: { orderBy: { createdAt: "asc" }, include: { actor: { select: { name: true } } } },
-      payments: { include: { wallet: { select: { name: true } } } },
+      payments: { orderBy: { receivedAt: "asc" }, include: { wallet: { select: { name: true } } } },
+      paymentProofs: { orderBy: { createdAt: "desc" }, include: { reviewedBy: { select: { name: true } } } },
     },
   });
   if (!o) return null;
@@ -609,6 +806,20 @@ export async function getOrderForStaff(id: string) {
     totalSdg: o.totalSdg.toString(),
     createdAt: o.createdAt,
     cancelReason: o.cancelReason,
+    paymentDueAt: o.paymentDueAt,
+    reminderLink:
+      o.status === "AWAITING_PAYMENT"
+        ? paymentReminderLink({ ...o, phone: o.customer.phone, totalSdg: o.totalSdg.toFixed(0) })
+        : null,
+    proofs: o.paymentProofs.map((p) => ({
+      id: p.id,
+      reference: p.reference,
+      at: p.createdAt,
+      reviewedAt: p.reviewedAt,
+      reviewer: p.reviewedBy?.name ?? null,
+      accepted: p.accepted,
+      note: p.reviewNote,
+    })),
     lines: o.lines.map((l) => ({
       id: l.id,
       label: l.label,
@@ -631,6 +842,7 @@ export async function getOrderForStaff(id: string) {
       channel: p.channel,
       amountSdg: p.amountSdg.toString(),
       wallet: p.wallet.name,
+      reference: p.reference,
       at: p.receivedAt,
     })),
   };
@@ -646,9 +858,11 @@ export async function getOrderByToken(token: string, locale: string) {
         orderBy: { sortOrder: "asc" },
         include: { variant: { include: { product: { select: { nameAr: true, nameEn: true } } } } },
       },
+      paymentProofs: { orderBy: { createdAt: "desc" }, take: 1 },
     },
   });
   if (!o) return null;
+  const proof = o.paymentProofs[0];
   return {
     number: o.number,
     status: o.status as OrderStatus,
@@ -660,6 +874,10 @@ export async function getOrderByToken(token: string, locale: string) {
     recipientName: o.recipientName,
     totalSdg: o.totalSdg.toFixed(0),
     createdAt: o.createdAt,
+    paymentDueAt: o.paymentDueAt,
+    /** سبب رفض آخر إشعار (يكتبه المحل للعميل) — يظهر ما دام الطلب بانتظار الدفع. */
+    proofRejection: o.status === "AWAITING_PAYMENT" && proof?.accepted === false ? (proof.reviewNote ?? "") : null,
+    unpaidExpired: o.status === "CANCELLED" && o.cancelReason === UNPAID_CANCEL_REASON,
     lines: o.lines.map((l) => ({
       id: l.id,
       name: locale === "en" && l.variant.product.nameEn ? l.variant.product.nameEn : l.variant.product.nameAr,

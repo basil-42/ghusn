@@ -1,9 +1,10 @@
 "use server";
 
+import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { z } from "zod";
 import { formatAmount } from "@/lib/format";
-import { MAX_LINE_QTY, MAX_ORDER_LINES, OrderError, createWebOrder, quoteCart } from "@/lib/orders";
+import { MAX_LINE_QTY, MAX_ORDER_LINES, OrderError, createWebOrder, quoteCart, submitPaymentProof } from "@/lib/orders";
 import { imageUrl } from "@/lib/product-images";
 import { SlidingWindowLimiter, clientIp } from "@/lib/rate-limit";
 
@@ -34,6 +35,7 @@ const orderSchema = z
     recipientName: z.string().trim().max(80).nullable(),
     recipientPhone: z.string().trim().max(20).nullable(),
     note: z.string().trim().max(300).nullable(),
+    payment: z.enum(["ON_RECEIPT", "BANKAK"]),
     items,
     expectedTotalSdg: z.string().regex(/^\d{1,12}$/),
   })
@@ -74,4 +76,28 @@ export async function createOrderAction(input: unknown): Promise<OrderResult> {
     }
     throw e;
   }
+}
+
+export type ProofResult = { ok: true } | { ok: false; code: string };
+
+const proofLimiter = new SlidingWindowLimiter(10, 10 * 60 * 1000);
+
+/** إشعار بنكك من صفحة المتابعة (D-90): الرابط السرّي يكفي للتعريف، وحد للإغراق لكل عنوان. */
+export async function submitProofAction(_prev: ProofResult | null, formData: FormData): Promise<ProofResult> {
+  const token = String(formData.get("token") ?? "");
+  const reference = String(formData.get("reference") ?? "");
+  const image = formData.get("image");
+  if (!/^[A-Za-z0-9_-]{20,40}$/.test(token)) return { ok: false, code: "PAYMENT_CLOSED" };
+  if (!(image instanceof File) || image.size === 0) return { ok: false, code: "IMAGE_REQUIRED" };
+  const ip = clientIp(await headers());
+  if (proofLimiter.isLimited(ip)) return { ok: false, code: "RATE_LIMIT" };
+  proofLimiter.hit(ip);
+  try {
+    await submitPaymentProof(token, image, reference);
+  } catch (e) {
+    if (e instanceof OrderError) return { ok: false, code: e.code };
+    throw e;
+  }
+  revalidatePath("/[locale]/o/[token]", "page");
+  return { ok: true };
 }

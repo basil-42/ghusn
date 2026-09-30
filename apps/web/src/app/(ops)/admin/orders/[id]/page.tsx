@@ -19,6 +19,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
   const o = await getOrderForStaff(id);
   if (!o) notFound();
   const role = session.user.role;
+  const canSeeProofs = roleCan(role, { order: ["payment"] });
   const sdg = (v: string) => `${formatAmount(v, 0)} ج.س`;
 
   return (
@@ -135,6 +136,77 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
             </dl>
           </Card>
 
+          {o.paymentMethod === "BANKAK" ? (
+            <Card>
+              <CardHeader>
+                <CardTitle>دفع بنكك</CardTitle>
+              </CardHeader>
+              {o.status === "AWAITING_PAYMENT" && o.paymentDueAt ? (
+                <p className="text-sm">
+                  مهلة الدفع حتى <span className="font-semibold">{formatDateTime(o.paymentDueAt)}</span> — بعدها يُلغى
+                  الطلب تلقائياً ويُفك الحجز.
+                </p>
+              ) : null}
+              {o.reminderLink ? (
+                <a
+                  href={o.reminderLink}
+                  target="_blank"
+                  rel="noreferrer"
+                  className="mt-3 inline-flex min-h-11 items-center rounded-xl border border-primary px-4 font-semibold text-primary hover:bg-muted"
+                >
+                  تذكير العميل على واتساب
+                </a>
+              ) : null}
+              {o.proofs.length === 0 ? (
+                <p className="mt-3 text-sm text-muted-foreground">لم يرفع العميل إشعاراً بعد.</p>
+              ) : (
+                <ul className="mt-3 flex flex-col gap-3">
+                  {o.proofs.map((p) => (
+                    <li key={p.id} className="flex flex-col gap-2 rounded-xl border border-border p-3 text-sm">
+                      <span className="flex flex-wrap justify-between gap-2">
+                        <span>
+                          رقم العملية:{" "}
+                          <bdi dir="ltr" className="font-semibold">
+                            {p.reference}
+                          </bdi>
+                        </span>
+                        <span className="text-muted-foreground">{formatDateTime(p.at)}</span>
+                      </span>
+                      {canSeeProofs ? (
+                        <a
+                          href={`/admin/orders/${o.id}/proof/${p.id}`}
+                          target="_blank"
+                          rel="noreferrer"
+                          className="self-start"
+                        >
+                          {/* eslint-disable-next-line @next/next/no-img-element -- صورة خاصة من مسار بصلاحية */}
+                          <img
+                            src={`/admin/orders/${o.id}/proof/${p.id}`}
+                            alt={`إشعار بنكك ${p.reference}`}
+                            className="max-h-80 rounded-lg border border-border"
+                          />
+                        </a>
+                      ) : null}
+                      <span
+                        className={
+                          p.accepted === true
+                            ? "font-semibold text-primary"
+                            : p.accepted === false
+                              ? "font-semibold text-destructive"
+                              : "font-semibold"
+                        }
+                      >
+                        {p.accepted === true ? "مقبول" : p.accepted === false ? "مرفوض" : "بانتظار المراجعة"}
+                        {p.reviewer ? ` · ${p.reviewer}` : ""}
+                        {p.note ? ` · ${p.note}` : ""}
+                      </span>
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </Card>
+          ) : null}
+
           <Card>
             <CardHeader>
               <CardTitle>السجل</CardTitle>
@@ -150,7 +222,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
                     {h.reason ? <span className="text-muted-foreground"> · {h.reason}</span> : null}
                   </span>
                   <span className="text-muted-foreground">
-                    {formatDateTime(h.at)} · {h.actor ?? "العميل"}
+                    {formatDateTime(h.at)} · {h.actor ?? (h.to === "CANCELLED" ? "النظام" : "العميل")}
                   </span>
                 </li>
               ))}
@@ -160,7 +232,14 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
                 {o.payments.map((p) => (
                   <li key={p.id} className="flex justify-between">
                     <span>
-                      المقبوض إلى «{p.wallet}» · {formatDateTime(p.at)}
+                      {p.amountSdg.startsWith("-") ? "رُد للعميل من" : "المقبوض إلى"} «{p.wallet}» ·{" "}
+                      {formatDateTime(p.at)}
+                      {p.reference ? (
+                        <>
+                          {" "}
+                          · <bdi dir="ltr">{p.reference}</bdi>
+                        </>
+                      ) : null}
                     </span>
                     <span className="font-semibold tabular-nums">{sdg(p.amountSdg)}</span>
                   </li>
@@ -178,6 +257,9 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
               status={o.status}
               fulfillment={o.fulfillment}
               canCancel={roleCan(role, { order: ["cancel"] })}
+              canReviewPayment={canSeeProofs}
+              pendingProofId={o.proofs.find((p) => !p.reviewedAt)?.id ?? null}
+              paid={o.payments.some((p) => !p.amountSdg.startsWith("-"))}
             />
           </aside>
         ) : null}

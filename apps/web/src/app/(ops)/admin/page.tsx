@@ -20,7 +20,8 @@ export default async function AdminHome() {
   const priceReview = roleCan(user.role, { price: ["approve"] }) ? await countPriceReview() : null;
   const salesReview = roleCan(user.role, { sale: ["read"] }) ? await countSalesToReview() : 0;
   const shortages = roleCan(user.role, { report: ["read"] }) ? await listLargeShortages() : [];
-  const newOrders = roleCan(user.role, { order: ["read"] }) ? await countNewOrders() : 0;
+  const orders = roleCan(user.role, { order: ["read"] }) ? await countNewOrders() : { new: 0, paymentReview: 0 };
+  const paymentReview = roleCan(user.role, { order: ["payment"] }) ? orders.paymentReview : 0;
 
   return (
     <div className="flex flex-col gap-8">
@@ -66,13 +67,26 @@ export default async function AdminHome() {
         </Link>
       ) : null}
 
-      {newOrders ? (
+      {paymentReview ? (
         <Link
           href="/admin/orders"
           className="flex max-w-md items-center justify-between gap-3 rounded-2xl border border-gold/40 bg-gold/10 p-5"
         >
           <span>
-            <span className="block font-bold">{newOrders} طلب جديد من المتجر</span>
+            <span className="block font-bold">{paymentReview} إشعار بنكك بانتظار المراجعة</span>
+            <span className="text-sm text-muted-foreground">طابقيه مع كشف حساب بنكك ثم أكّدي الطلب أو ارفضيه.</span>
+          </span>
+          <ArrowLeft aria-hidden className="size-5 shrink-0" />
+        </Link>
+      ) : null}
+
+      {orders.new ? (
+        <Link
+          href="/admin/orders"
+          className="flex max-w-md items-center justify-between gap-3 rounded-2xl border border-gold/40 bg-gold/10 p-5"
+        >
+          <span>
+            <span className="block font-bold">{orders.new} طلب جديد من المتجر</span>
             <span className="text-sm text-muted-foreground">راجعيه وأكّديه ثم ابدئي التجهيز.</span>
           </span>
           <ArrowLeft aria-hidden className="size-5 shrink-0" />

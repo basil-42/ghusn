@@ -99,7 +99,9 @@
       "KHARTOUM": "Khartoum",
       "BAHRI": "Bahri",
       "OMDURMAN": "Omdurman"
-    }
+    },
+    "bankak": "Pay now with Bankak",
+    "bankakHint": "We hold your order and its price for 24 hours; transfer the amount and upload the receipt from the order page."
   },
   "errors": {
     "NAME": "Please enter your name.",
@@ -108,14 +110,20 @@
     "ADDRESS": "Choose the city and enter the full address.",
     "UNAVAILABLE": "Some items are no longer available in that quantity — please review your cart.",
     "PRICE_CHANGED": "The price changed — the total is now SDG {total}. Review the summary, then place the order.",
-    "COD_LIMIT": "Cash on delivery is available up to SDG {limit}. Split the order or contact us.",
+    "COD_LIMIT": "Cash on delivery is available up to {limit} SDG. Choose Bankak or contact us.",
     "RATE_LIMIT": "Too many orders from this device — please try again shortly.",
     "EMPTY": "Your cart is empty.",
     "TOO_MANY": "Too many items in one order.",
     "INVALID_QTY": "Invalid quantity.",
     "CONFLICT": "Something conflicted — refresh and try again.",
     "INVALID": "Please review your details and try again.",
-    "NETWORK": "Couldn't connect — check your internet and try again."
+    "NETWORK": "Couldn't connect — check your internet and try again.",
+    "BANKAK_UNAVAILABLE": "Bankak payment isn't available right now. Please choose pay on receipt.",
+    "PAYMENT_CLOSED": "This order is no longer awaiting payment. Please refresh the page.",
+    "INVALID_REFERENCE": "Enter the transaction number exactly as shown on the Bankak receipt.",
+    "IMAGE_REQUIRED": "Please attach the receipt image.",
+    "IMAGE_TOO_LARGE": "The image is larger than 10 MB.",
+    "IMAGE_UNREADABLE": "We couldn't read the image. Please use a JPG or PNG."
   },
   "order": {
     "title": "Order {number}",
@@ -140,6 +148,21 @@
       "DELIVERED": "Delivered — thank you for choosing GHUSN",
       "CANCELLED": "Order cancelled"
     },
-    "continue": "Continue shopping"
+    "continue": "Continue shopping",
+    "payBankak": "Paid by Bankak transfer.",
+    "payTitle": "Pay with Bankak",
+    "payIntro": "Transfer the amount to the account below, then upload the receipt and the transaction number.",
+    "accountName": "Account name",
+    "accountNumber": "Account number",
+    "amount": "Amount",
+    "dueBy": "Your order is held until {time} and is cancelled automatically if no receipt arrives.",
+    "proofImage": "Receipt image",
+    "reference": "Transaction number",
+    "sendProof": "Send receipt",
+    "sending": "Sending…",
+    "proofSent": "Receipt received — we'll review it and confirm your order shortly.",
+    "proofRejected": "We couldn't confirm the previous receipt: {reason}. Please send a correct one.",
+    "reviewing": "We received your payment receipt and are checking it against our statement.",
+    "unpaidExpired": "This order was cancelled because payment didn't arrive in time. You're welcome to order again."
   }
 }

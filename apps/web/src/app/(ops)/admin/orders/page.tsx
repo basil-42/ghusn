@@ -6,6 +6,7 @@ import { formatAmount, formatDateTime } from "@/lib/format";
 import {
   CITY_LABELS,
   ORDER_STATUS_LABELS,
+  expireUnpaidOrders,
   ORDER_TABS,
   listOrders,
   orderTabCounts,
@@ -19,6 +20,8 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
   await requirePermission({ order: ["read"] });
   const { tab: t } = await searchParams;
   const tab = (ORDER_TABS.find((x) => x.key === t)?.key ?? "new") as OrderTab;
+  // احتياط إن تأخر العامل الدوري: طلبات بنكك المنتهية مهلتها تُلغى قبل العرض
+  await expireUnpaidOrders();
   const [orders, counts] = await Promise.all([listOrders(tab), orderTabCounts()]);
 
   return (
@@ -63,7 +66,13 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
                     {o.fulfillment === "PICKUP"
                       ? "استلام من المحل"
                       : `توصيل${o.city ? ` — ${CITY_LABELS[o.city]}` : ""}`}
+                    {o.paymentMethod === "BANKAK" ? " · بنكك" : ""}
                   </span>
+                  {o.status === "AWAITING_PAYMENT" && o.paymentDueAt ? (
+                    <span className="text-sm text-muted-foreground">
+                      مهلة الدفع حتى {formatDateTime(o.paymentDueAt)}
+                    </span>
+                  ) : null}
                 </span>
                 <span className="flex items-center gap-2">
                   <Badge variant={statusVariant(o.status)}>{ORDER_STATUS_LABELS[o.status]}</Badge>

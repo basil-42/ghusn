@@ -58,13 +58,32 @@ async function read<T>(key: string, schema: z.ZodType<T>, defaults: T): Promise<
 
 export const getPosSettings = () => read("pos", posSettingsSchema, POS_DEFAULTS);
 
-/** إعدادات المتجر (D-88): محفظة شركة التوصيل، وحد اختياري للدفع عند الاستلام (0 = بلا حد). */
+/**
+ * إعدادات المتجر (D-88): محفظة شركة التوصيل، وحد اختياري للدفع عند الاستلام (0 = بلا حد)،
+ * وحساب بنكك الذي يحوّل إليه العميل (D-90) — بلا رقم حساب لا يظهر خيار بنكك في المتجر.
+ */
 export const storeSettingsSchema = z.object({
   courierWalletId: z.string().nullable(),
   codMaxSdg: z.number().int().min(0).max(1_000_000_000),
+  bankakAccountName: z.string().max(80),
+  bankakAccountNumber: z.string().max(40),
+  bankakNote: z.string().max(200),
 });
 export type StoreSettings = z.infer<typeof storeSettingsSchema>;
-const STORE_DEFAULTS: StoreSettings = { courierWalletId: null, codMaxSdg: 0 };
+const STORE_DEFAULTS: StoreSettings = {
+  courierWalletId: null,
+  codMaxSdg: 0,
+  bankakAccountName: "",
+  bankakAccountNumber: "",
+  bankakNote: "",
+};
+
+/** حساب بنكك للعرض على العميل، أو null إن لم يُضبط (فيُخفى الخيار). */
+export async function bankakAccount(): Promise<{ name: string; number: string; note: string } | null> {
+  const s = await getStoreSettings();
+  const number = s.bankakAccountNumber.trim();
+  return number ? { name: s.bankakAccountName.trim(), number, note: s.bankakNote.trim() } : null;
+}
 export const getStoreSettings = () => read("store", storeSettingsSchema, STORE_DEFAULTS);
 
 export async function saveStoreSettings(value: StoreSettings): Promise<void> {

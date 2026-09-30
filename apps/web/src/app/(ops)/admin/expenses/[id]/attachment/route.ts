@@ -1,7 +1,7 @@
 import { roleCan } from "@/lib/auth/permissions";
 import { getSession } from "@/lib/auth/session";
 import { getExpenseAttachment } from "@/lib/expenses";
-import { storage } from "@/lib/storage";
+import { privateImageResponse } from "@/lib/private-images";
 
 /** صورة فاتورة مصروف: للمالك والمديرة، أو لمن سجّلته — لا تُخزَّن مؤقتاً خارج المتصفح. */
 export async function GET(_request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -12,13 +12,5 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
     !!expense?.attachmentKey &&
     (roleCan(session.user.role, { expense: ["read"] }) || expense.createdById === session.user.id);
   if (!allowed || !expense.attachmentKey) return new Response("Not found", { status: 404 });
-  const body = await storage.get(expense.attachmentKey);
-  if (!body) return new Response("Not found", { status: 404 });
-  return new Response(new Uint8Array(body), {
-    headers: {
-      "Content-Type": "image/webp",
-      "Cache-Control": "private, no-store",
-      "X-Content-Type-Options": "nosniff",
-    },
-  });
+  return privateImageResponse(expense.attachmentKey);
 }
