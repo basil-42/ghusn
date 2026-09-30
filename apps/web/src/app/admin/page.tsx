@@ -8,6 +8,7 @@ import { SELLING_CURRENCY, SOURCE_LABELS, getRateBoard } from "@/lib/exchange-ra
 import { formatAmount, formatDateTime, formatDay, formatRate } from "@/lib/format";
 import { countPriceReview } from "@/lib/pricing";
 import { countSalesToReview } from "@/lib/sales";
+import { listLargeShortages } from "@/lib/shifts";
 import { listDueSoon } from "@/lib/shipments";
 
 export default async function AdminHome() {
@@ -17,6 +18,7 @@ export default async function AdminHome() {
   const due = roleCan(user.role, { supplier: ["read"] }) ? await listDueSoon(7) : [];
   const priceReview = roleCan(user.role, { price: ["approve"] }) ? await countPriceReview() : null;
   const salesReview = roleCan(user.role, { sale: ["read"] }) ? await countSalesToReview() : 0;
+  const shortages = roleCan(user.role, { report: ["read"] }) ? await listLargeShortages() : [];
 
   return (
     <div className="flex flex-col gap-8">
@@ -72,6 +74,25 @@ export default async function AdminHome() {
             <span className="text-sm text-muted-foreground">
               رصيد لم يكفِ، أو سعر تغيّر، أو وردية أُغلقت قبل وصولها.
             </span>
+          </span>
+          <ArrowLeft aria-hidden className="size-5 shrink-0" />
+        </Link>
+      ) : null}
+
+      {shortages.length ? (
+        <Link
+          href="/admin/sales"
+          className="flex max-w-md items-center justify-between gap-3 rounded-2xl border border-destructive/40 bg-destructive/10 p-5"
+        >
+          <span>
+            <span className="block font-bold">عجز كبير في {shortages.length} وردية خلال 7 أيام</span>
+            {shortages.slice(0, 3).map((s) => (
+              <span key={s.id} className="block text-sm text-muted-foreground">
+                {s.userName} · <bdi dir="ltr">{formatAmount(s.shortSdg, 0)}</bdi> ج.س
+                {s.closedAt ? ` · ${formatDateTime(s.closedAt)}` : ""}
+                {s.note ? ` · ${s.note}` : ""}
+              </span>
+            ))}
           </span>
           <ArrowLeft aria-hidden className="size-5 shrink-0" />
         </Link>

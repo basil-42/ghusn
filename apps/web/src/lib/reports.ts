@@ -1,4 +1,14 @@
-import { capitalRecovery, dec, monthProfit, shopDay, shopMonthRange, sumUsd, totalsByCurrency } from "@ghusn/core";
+import {
+  capitalRecovery,
+  dec,
+  monthProfit,
+  shopDay,
+  shopMonthRange,
+  sum,
+  sumUsd,
+  totalsByCurrency,
+  type Decimal,
+} from "@ghusn/core";
 import { prisma } from "@ghusn/db";
 import { totalCapitalUsd } from "./capital";
 
@@ -8,7 +18,7 @@ export const currentShopMonth = () => shopDay(new Date()).slice(0, 7);
 /** الأرقام الخام لفترة (بالدولار، وبالجنيه للمعلومة). */
 async function figures(range: { start: Date; end: Date }) {
   const within = { gte: range.start, lt: range.end };
-  const [sales, returns, expenses, lateCostLoss, shipmentLoss] = await Promise.all([
+  const [sales, returns, expenses, lateCostLoss, shipmentLoss, shifts] = await Promise.all([
     prisma.sale.aggregate({
       where: { createdAt: within },
       _count: true,
@@ -27,6 +37,16 @@ async function figures(range: { start: Date; end: Date }) {
     prisma.stockMovement.aggregate({ where: { createdAt: within }, _sum: { expenseUsd: true } }),
     // بنود شحنات لم يصل منها شيء سليم (D-78) — بتاريخ الاستلام
     prisma.shipmentLine.aggregate({ where: { shipment: { receivedAt: within } }, _sum: { lossUsd: true } }),
+    // فروقات عدّ الورديات (D-87) — بتاريخ الإغلاق
+    prisma.shift.findMany({
+      where: { closedAt: within, differenceUsd: { not: null } },
+      select: {
+        differenceUsd: true,
+        countedCashSdg: true,
+        expectedCashSdg: true,
+        user: { select: { name: true } },
+      },
+    }),
   ]);
   const s = (v: { toString(): string } | null | undefined) => v?.toString() ?? "0";
   const byCategory = new Map<string, { usd: string[]; rows: { currencyCode: string; amount: string }[] }>();
@@ -35,6 +55,17 @@ async function figures(range: { start: Date; end: Date }) {
     c.usd.push(e.amountUsd.toString());
     c.rows.push({ currencyCode: e.currencyCode, amount: e.amount.toString() });
     byCategory.set(e.category.name, c);
+  }
+  const byCashier = new Map<string, { shifts: number; shortSdg: Decimal; overSdg: Decimal; usd: string[] }>();
+  for (const sh of shifts) {
+    const diff = dec(s(sh.countedCashSdg)).minus(s(sh.expectedCashSdg));
+    if (diff.isZero()) continue;
+    const c = byCashier.get(sh.user.name) ?? { shifts: 0, shortSdg: dec(0), overSdg: dec(0), usd: [] };
+    c.shifts += 1;
+    if (diff.lt(0)) c.shortSdg = c.shortSdg.plus(diff.neg());
+    else c.overSdg = c.overSdg.plus(diff);
+    c.usd.push(s(sh.differenceUsd));
+    byCashier.set(sh.user.name, c);
   }
   return {
     salesCount: sales._count,
@@ -59,6 +90,17 @@ async function figures(range: { start: Date; end: Date }) {
       }))
       .sort((a, b) => dec(b.usd).comparedTo(a.usd)),
     stockLossUsd: dec(s(lateCostLoss._sum.expenseUsd)).plus(s(shipmentLoss._sum.lossUsd)).toFixed(2),
+    cashDifferenceUsd: sumUsd(shifts.map((sh) => s(sh.differenceUsd))).toFixed(2),
+    cashDifferenceSdg: sum(shifts.map((sh) => dec(s(sh.countedCashSdg)).minus(s(sh.expectedCashSdg)))).toFixed(0),
+    cashDifferenceByCashier: [...byCashier.entries()]
+      .map(([name, c]) => ({
+        name,
+        shifts: c.shifts,
+        shortSdg: c.shortSdg.toFixed(0),
+        overSdg: c.overSdg.toFixed(0),
+        usd: sumUsd(c.usd).toFixed(2),
+      }))
+      .sort((a, b) => dec(a.usd).comparedTo(b.usd)),
   };
 }
 
@@ -86,6 +128,7 @@ export async function monthlyReport(month: string) {
     restockCostUsd: f.restockCostUsd,
     expensesUsd: f.expensesUsd,
     stockLossUsd: f.stockLossUsd,
+    cashDifferenceUsd: f.cashDifferenceUsd,
   });
 
   // الربح التراكمي قبل هذا الشهر
@@ -100,6 +143,7 @@ export async function monthlyReport(month: string) {
       restockCostUsd: before.restockCostUsd,
       expensesUsd: before.expensesUsd,
       stockLossUsd: before.stockLossUsd,
+      cashDifferenceUsd: before.cashDifferenceUsd,
     }).netProfitUsd;
   }
   const capitalUsd = await totalCapitalUsd(range.end);

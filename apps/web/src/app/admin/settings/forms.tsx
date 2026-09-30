@@ -51,6 +51,18 @@ export function PosSettingsForm({
           <span className="text-xs text-muted-foreground">للمصروف الواحد من درج الوردية، في الأقسام المسموحة لها.</span>
         </label>
         <label className={field}>
+          <span className="font-semibold">تنبيه عجز الوردية (ج.س)</span>
+          <Input
+            name="shortageAlertSdg"
+            defaultValue={String(initial.shortageAlertSdg)}
+            inputMode="numeric"
+            dir="ltr"
+          />
+          <span className="text-xs text-muted-foreground">
+            عجز وردية واحدة أكبر منه يظهر تنبيهاً في اللوحة الرئيسية لمدة 7 أيام.
+          </span>
+        </label>
+        <label className={field}>
           <span className="font-semibold">مدة المرتجع (أيام)</span>
           <Input name="returnDays" defaultValue={String(initial.returnDays)} inputMode="numeric" dir="ltr" />
         </label>

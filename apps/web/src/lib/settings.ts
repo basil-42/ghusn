@@ -9,6 +9,8 @@ export const posSettingsSchema = z.object({
   bankakWalletId: z.string().nullable(),
   /** حد المصروف الواحد الذي تسجّله الموظفة من الدرج (D-83). */
   staffExpenseLimitSdg: z.number().int().min(0).max(100_000_000),
+  /** عجز وردية واحدة فوقه يظهر تنبيهاً في اللوحة الرئيسية (D-87). */
+  shortageAlertSdg: z.number().int().min(0).max(100_000_000),
 });
 export type PosSettings = z.infer<typeof posSettingsSchema>;
 
@@ -18,6 +20,7 @@ const POS_DEFAULTS: PosSettings = {
   cashWalletId: null,
   bankakWalletId: null,
   staffExpenseLimitSdg: 50_000,
+  shortageAlertSdg: 10_000,
 };
 
 /** نصوص الإيصال — قابلة للتخصيص من «الضبط» (D-80). */

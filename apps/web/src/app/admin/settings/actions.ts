@@ -9,7 +9,7 @@ import { posSettingsSchema, receiptSettingsSchema, savePosSettings, saveReceiptS
 export type FormState = { error?: string; success?: string };
 
 const text = (f: FormData, k: string) => String(f.get(k) ?? "").trim();
-const numberOf = (f: FormData, k: string) => Number(toLatinDigits(text(f, k)).replace(/[%٪\s]/g, ""));
+const numberOf = (f: FormData, k: string) => Number(toLatinDigits(text(f, k)).replace(/[%٪\s,٬]/g, ""));
 
 export async function savePosSettingsAction(_prev: FormState, formData: FormData): Promise<FormState> {
   await requirePermission({ settings: ["update"] });
@@ -19,13 +19,17 @@ export async function savePosSettingsAction(_prev: FormState, formData: FormData
     cashWalletId: text(formData, "cashWalletId") || null,
     bankakWalletId: text(formData, "bankakWalletId") || null,
     staffExpenseLimitSdg: numberOf(formData, "staffExpenseLimitSdg"),
+    shortageAlertSdg: numberOf(formData, "shortageAlertSdg"),
   });
   if (!parsed.success) {
-    return { error: "حد الخصم بين 0 و100، ومدة المرتجع بين 0 و365 يوماً، وحد المصروف رقم صحيح بالجنيه." };
+    return {
+      error: "حد الخصم بين 0 و100، ومدة المرتجع بين 0 و365 يوماً، وحد المصروف وحد تنبيه العجز أرقام صحيحة بالجنيه.",
+    };
   }
   await savePosSettings(parsed.data);
   revalidatePath("/admin/settings");
   revalidatePath("/pos");
+  revalidatePath("/admin");
   return { success: "تم حفظ إعدادات نقطة البيع." };
 }
 
