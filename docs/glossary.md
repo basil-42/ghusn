@@ -34,6 +34,8 @@
 | فاتورة دون اتصال | `Sale.offline` + `localNumber` | `OFF-XXXX-0001` على الجهاز ← `INV-…` عند المزامنة |
 | مرتجع / استبدال | `SaleReturn` | `RET-2026-000001`؛ الاستبدال رصيد (`CREDIT`) لفاتورة جديدة |
 | عميل | `Customer` | المعرّف رقم الهاتف E.164 |
+| مصروف | `Expense` | `EXP-2026-0001`، قسمه `ExpenseCategory` |
+| تمويل / رأس المال | `CapitalContribution` | يُسترد من الربح أولاً (D-83) |
 | الضبط | `Setting` | `pos` (حد الخصم، المرتجع، المحافظ)، `receipt` (نصوص الإيصال) |
 | مندوب | `Courier` | |
 | منطقة توصيل | `DeliveryZone` | برسوم |
