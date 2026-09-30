@@ -1,4 +1,4 @@
-import { dec, sum, type Decimal, type DecimalInput } from "./decimal";
+import { Decimal, dec, sum, type DecimalInput } from "./decimal";
 import { CoreError } from "./errors";
 
 /**
@@ -193,4 +193,41 @@ export function settlePayments(input: {
 /** النقد المتوقع في الدرج عند إغلاق الوردية = الافتتاحي + المقبوض نقداً − المردود نقداً. */
 export function expectedCash(openingSdg: DecimalInput, cashInSdg: DecimalInput, cashOutSdg: DecimalInput = 0): Decimal {
   return dec(openingSdg).plus(cashInSdg).minus(cashOutSdg);
+}
+
+/**
+ * المبلغ المسترد لجزء من سطر بيع بالسعر الفعلي بعد كل الخصومات (D-81). إرجاع الباقي كله
+ * يُرجع باقي المبلغ بالضبط، فمجموع المرتجعات لا يتجاوز صافي السطر أبداً.
+ */
+export function refundForLine(input: {
+  qty: DecimalInput;
+  netSdg: DecimalInput;
+  returnedQty: DecimalInput;
+  refundedSdg: DecimalInput;
+  returnQty: DecimalInput;
+}): Decimal {
+  const qty = dec(input.qty);
+  const returnQty = dec(input.returnQty);
+  const remaining = qty.minus(input.returnedQty);
+  if (returnQty.lte(0) || returnQty.gt(remaining)) {
+    throw new CoreError("INVALID_QUANTITY", "Return quantity exceeds what is left on the line");
+  }
+  const net = dec(input.netSdg);
+  if (returnQty.eq(remaining)) return net.minus(input.refundedSdg);
+  return net.mul(returnQty).div(qty).toDecimalPlaces(0);
+}
+
+/** عدد أيام التقويم (بتوقيت المحل) بين يومين بصيغة YYYY-MM-DD. */
+export function daysBetweenShopDays(from: string, to: string): number {
+  const a = Date.UTC(Number(from.slice(0, 4)), Number(from.slice(5, 7)) - 1, Number(from.slice(8, 10)));
+  const b = Date.UTC(Number(to.slice(0, 4)), Number(to.slice(5, 7)) - 1, Number(to.slice(8, 10)));
+  return Math.round((b - a) / 86_400_000);
+}
+
+/** رصيد الاستبدال (D-81): يُستهلك أولاً من الفاتورة الجديدة، والفائض يُرد نقداً. */
+export function applyExchangeCredit(creditSdg: DecimalInput, totalSdg: DecimalInput) {
+  const credit = dec(creditSdg);
+  const total = dec(totalSdg);
+  const used = Decimal.min(credit, total);
+  return { usedSdg: used, dueSdg: total.minus(used), cashBackSdg: credit.minus(used) };
 }

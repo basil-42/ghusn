@@ -21,6 +21,9 @@ export default async function PosLayout({ children }: { children: React.ReactNod
         <div className="flex items-center gap-2">
           <span className="hidden truncate text-sm sm:inline">{user.name}</span>
           <Button asChild variant="outline" size="sm">
+            <Link href="/pos/returns">مرتجع</Link>
+          </Button>
+          <Button asChild variant="outline" size="sm">
             <Link href="/pos/shift">الوردية</Link>
           </Button>
           {roleCan(user.role, { product: ["read"] }) ? (

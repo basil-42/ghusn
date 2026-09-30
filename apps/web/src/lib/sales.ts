@@ -7,6 +7,7 @@ import {
   normalizePhone,
   roundMoney,
   searchTerms,
+  applyExchangeCredit,
   settlePayments,
   sum,
   variantLabel,
@@ -88,6 +89,8 @@ export interface SaleInput {
   customerPhone: string | null;
   customerName: string | null;
   approval: { phone: string; password: string } | null;
+  /** استبدال: مرتجع رصيده يُستخدم في هذه الفاتورة (D-81). */
+  creditReturnId: string | null;
 }
 
 /**
@@ -136,10 +139,14 @@ export async function createSale(input: SaleInput, cashierId: string): Promise<{
     throw e;
   }
 
+  // رصيد الاستبدال يُستهلك أولاً، والباقي يُدفع نقداً/بنكك، والفائض يُرد نقداً
+  const credit = input.creditReturnId ? await availableCredit(prisma, input.creditReturnId) : null;
+  const exchange = credit ? applyExchangeCredit(credit, totals.totalSdg) : null;
+
   let paid;
   try {
     paid = settlePayments({
-      totalSdg: totals.totalSdg,
+      totalSdg: exchange ? exchange.dueSdg : totals.totalSdg,
       payments: input.payments,
       cashTenderedSdg: input.cashTenderedSdg,
     });
@@ -200,6 +207,13 @@ export async function createSale(input: SaleInput, cashierId: string): Promise<{
       const [shift] = await tx.$queryRaw<{ id: string }[]>`
         SELECT "id" FROM "Shift" WHERE "userId" = ${cashierId} AND "closedAt" IS NULL FOR UPDATE`;
       if (!shift) throw new SaleError("افتحي الوردية أولاً.");
+
+      if (input.creditReturnId && exchange && credit) {
+        // قفل المرتجع: الرصيد لا يُستخدم مرتين
+        await tx.$queryRaw`SELECT "id" FROM "SaleReturn" WHERE "id" = ${input.creditReturnId} FOR UPDATE`;
+        const now = await availableCredit(tx, input.creditReturnId);
+        if (!now.eq(credit)) throw new SaleError("رصيد الاستبدال تغيّر — حدّثي الصفحة.");
+      }
 
       const customerId = customerPhone
         ? (
@@ -322,6 +336,30 @@ export async function createSale(input: SaleInput, cashierId: string): Promise<{
             reference: p.method === "BANKAK" ? p.reference : null,
           })),
       });
+      if (input.creditReturnId && exchange) {
+        if (exchange.usedSdg.gt(0)) {
+          await tx.salePayment.create({
+            data: {
+              saleId: input.id,
+              method: "CREDIT",
+              amountSdg: exchange.usedSdg.toFixed(2),
+              saleReturnId: input.creditReturnId,
+            },
+          });
+        }
+        if (exchange.cashBackSdg.gt(0)) {
+          await tx.returnRefund.create({
+            data: {
+              returnId: input.creditReturnId,
+              method: "CASH",
+              amountSdg: exchange.cashBackSdg.toFixed(2),
+              walletId: wallets.cash,
+              shiftId: shift.id,
+              saleId: input.id,
+            },
+          });
+        }
+      }
       return { id: input.id, number };
     });
   } catch (e) {
@@ -346,9 +384,11 @@ export async function getReceipt(id: string) {
     },
   });
   if (!s) return null;
+  const cashBack = await prisma.returnRefund.aggregate({ where: { saleId: s.id }, _sum: { amountSdg: true } });
   return {
     id: s.id,
     number: s.number,
+    creditCashBackSdg: cashBack._sum.amountSdg?.toString() ?? "0",
     createdAt: s.createdAt,
     shiftId: s.shiftId,
     cashierId: s.cashierId,
@@ -395,4 +435,22 @@ export async function listSales(take = 100) {
     revenueUsd: s.revenueUsd.toString(),
     profitUsd: dec(s.revenueUsd.toString()).minus(s.cogsUsd.toString()).toString(),
   }));
+}
+
+type Db = Prisma.TransactionClient | typeof prisma;
+
+/** رصيد استبدال متاح = المسترد − ما رُدّ نقداً/بنكك − ما استُخدم في فواتير. */
+export async function availableCredit(db: Db, returnId: string): Promise<Decimal> {
+  const r = await db.saleReturn.findUnique({
+    where: { id: returnId },
+    select: { isExchange: true, refundSdg: true },
+  });
+  if (!r?.isExchange) throw new SaleError("مرتجع الاستبدال غير موجود.");
+  const [refunded, used] = await Promise.all([
+    db.returnRefund.aggregate({ where: { returnId }, _sum: { amountSdg: true } }),
+    db.salePayment.aggregate({ where: { saleReturnId: returnId }, _sum: { amountSdg: true } }),
+  ]);
+  return dec(r.refundSdg.toString())
+    .minus(refunded._sum.amountSdg?.toString() ?? "0")
+    .minus(used._sum.amountSdg?.toString() ?? "0");
 }

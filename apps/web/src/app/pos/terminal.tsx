@@ -1,6 +1,14 @@
 "use client";
 
-import { computeSale, dec, percentOf, plainNumber, toLatinDigits, type SaleTotals } from "@ghusn/core";
+import {
+  applyExchangeCredit,
+  computeSale,
+  dec,
+  percentOf,
+  plainNumber,
+  toLatinDigits,
+  type SaleTotals,
+} from "@ghusn/core";
 import { createId } from "@paralleldrive/cuid2";
 import { Minus, Plus, ScanBarcode, Trash2 } from "lucide-react";
 import { useRouter } from "next/navigation";
@@ -11,6 +19,7 @@ import { Input } from "@/components/ui/input";
 import { formatAmount } from "@/lib/format";
 import type { PosItem } from "@/lib/sales";
 import { createSaleAction, findItemsAction } from "./actions";
+import { ApprovalDialog } from "./approval-dialog";
 
 type Mode = "amount" | "percent";
 type CartLine = PosItem & { qty: string; discountMode: Mode; discount: string };
@@ -33,7 +42,16 @@ function discountAmount(base: { toString(): string }, mode: Mode, value: string)
  * شاشة البيع: المسح (قارئ الباركود يكتب ثم Enter) أو البحث، السلة، الخصم على الصنف أو الفاتورة،
  * العميل، والدفع المقسوم. الإجماليات هنا للعرض بنفس دالة الخادم؛ الخادم يعيد حسابها من القاعدة.
  */
-export function PosTerminal({ maxDiscountPercent, hasRate }: { maxDiscountPercent: number; hasRate: boolean }) {
+export function PosTerminal({
+  maxDiscountPercent,
+  hasRate,
+  credit,
+}: {
+  maxDiscountPercent: number;
+  hasRate: boolean;
+  /** استبدال: رصيد مرتجع يُستخدم أولاً في هذه الفاتورة (D-81). */
+  credit?: { returnId: string; number: string; amountSdg: string } | null;
+}) {
   const router = useRouter();
   const scanRef = useRef<HTMLInputElement>(null);
   const [saleId, setSaleId] = useState(() => createId());
@@ -49,7 +67,7 @@ export function PosTerminal({ maxDiscountPercent, hasRate }: { maxDiscountPercen
   const [bankak, setBankak] = useState("");
   const [bankakRef, setBankakRef] = useState("");
   const [tendered, setTendered] = useState("");
-  const [approval, setApproval] = useState<{ reasons: string[]; phone: string; password: string } | null>(null);
+  const [approval, setApproval] = useState<{ reasons: string[] } | null>(null);
   const [pending, startTransition] = useTransition();
 
   function add(item: PosItem) {
@@ -108,7 +126,10 @@ export function PosTerminal({ maxDiscountPercent, hasRate }: { maxDiscountPercen
     }
   }
   const total = totals?.totalSdg.toFixed(0) ?? "0";
-  const cashDue = cash ?? dec(total).minus(num(bankak)).toFixed(0);
+  const exchange = credit ? applyExchangeCredit(credit.amountSdg, total) : null;
+  // المطلوب دفعه بعد رصيد الاستبدال
+  const due = exchange ? exchange.dueSdg.toFixed(0) : total;
+  const cashDue = cash ?? dec(due).minus(num(bankak)).toFixed(0);
   const paidSum = dec(num(cashDue)).plus(num(bankak));
   const change = tendered ? dec(num(tendered)).minus(num(cashDue)) : dec(0);
   const discountPct = totals && totals.subtotalSdg.gt(0) ? totals.discountSdg.div(totals.subtotalSdg).mul(100) : dec(0);
@@ -146,19 +167,20 @@ export function PosTerminal({ maxDiscountPercent, hasRate }: { maxDiscountPercen
         customerPhone,
         customerName,
         approval: withApproval ?? null,
+        creditReturnId: credit?.returnId ?? null,
       });
       if ("ok" in result) {
         reset();
         router.push(`/pos/receipt/${result.id}`);
       } else if ("approvalRequired" in result) {
-        setApproval({ reasons: result.approvalRequired, phone: "", password: "" });
+        setApproval({ reasons: result.approvalRequired });
       } else {
         setMessage({ kind: "error", text: result.error });
       }
     });
   }
 
-  const canPay = !!totals && cart.length > 0 && paidSum.eq(total) && !change.lt(0) && !pending && hasRate;
+  const canPay = !!totals && cart.length > 0 && paidSum.eq(due) && !change.lt(0) && !pending && hasRate;
 
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_22rem]">
@@ -311,6 +333,23 @@ export function PosTerminal({ maxDiscountPercent, hasRate }: { maxDiscountPercen
             <dt>الإجمالي</dt>
             <dd>{sdg(total)}</dd>
           </div>
+          {exchange && credit ? (
+            <>
+              <div className="flex justify-between text-primary">
+                <dt>
+                  رصيد استبدال <bdi dir="ltr">{credit.number}</bdi>
+                </dt>
+                <dd>−{sdg(exchange.usedSdg)}</dd>
+              </div>
+              <div className="flex justify-between font-bold">
+                <dt>المطلوب</dt>
+                <dd>{sdg(due)}</dd>
+              </div>
+              {exchange.cashBackSdg.gt(0) ? (
+                <p className="text-sm font-bold text-warning">يُرد للعميل نقداً: {sdg(exchange.cashBackSdg)}</p>
+              ) : null}
+            </>
+          ) : null}
         </dl>
         {totalsError ? <p className="text-sm text-destructive">{totalsError}</p> : null}
 
@@ -336,7 +375,7 @@ export function PosTerminal({ maxDiscountPercent, hasRate }: { maxDiscountPercen
           <Button type="button" variant="outline" size="sm" onClick={() => (setBankak(""), setCash(null))}>
             الكل نقداً
           </Button>
-          <Button type="button" variant="outline" size="sm" onClick={() => (setBankak(total), setCash("0"))}>
+          <Button type="button" variant="outline" size="sm" onClick={() => (setBankak(due), setCash("0"))}>
             الكل بنكك
           </Button>
         </div>
@@ -357,8 +396,10 @@ export function PosTerminal({ maxDiscountPercent, hasRate }: { maxDiscountPercen
             ) : null}
           </label>
         ) : null}
-        {!paidSum.eq(total) && cart.length ? (
-          <p className="text-sm text-destructive">المدفوع {sdg(paidSum)} لا يساوي الإجمالي.</p>
+        {!paidSum.eq(due) && cart.length ? (
+          <p className="text-sm text-destructive">
+            المدفوع {sdg(paidSum)} لا يساوي المطلوب ({sdg(due)}).
+          </p>
         ) : null}
 
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-1">
@@ -394,48 +435,12 @@ export function PosTerminal({ maxDiscountPercent, hasRate }: { maxDiscountPercen
       </aside>
 
       {approval ? (
-        <div role="dialog" aria-modal className="fixed inset-0 z-50 flex items-center justify-center bg-forest/40 p-4">
-          <form
-            className="flex w-full max-w-sm flex-col gap-3 rounded-2xl bg-card p-5 shadow-xl"
-            onSubmit={(e) => {
-              e.preventDefault();
-              submit({ phone: approval.phone, password: approval.password });
-            }}
-          >
-            <h2 className="text-lg font-bold">موافقة المديرة أو المالك</h2>
-            <ul className="list-disc ps-5 text-sm text-destructive">
-              {approval.reasons.map((r) => (
-                <li key={r}>{r}</li>
-              ))}
-            </ul>
-            <Input
-              value={approval.phone}
-              onChange={(e) => setApproval({ ...approval, phone: e.target.value })}
-              placeholder="رقم هاتف الموافِق"
-              aria-label="رقم هاتف الموافِق"
-              inputMode="tel"
-              dir="ltr"
-              autoFocus
-              required
-            />
-            <Input
-              type="password"
-              value={approval.password}
-              onChange={(e) => setApproval({ ...approval, password: e.target.value })}
-              placeholder="كلمة السر"
-              aria-label="كلمة سر الموافِق"
-              required
-            />
-            <div className="flex gap-2">
-              <Button type="submit" disabled={pending}>
-                موافقة وإتمام
-              </Button>
-              <Button type="button" variant="ghost" onClick={() => setApproval(null)}>
-                رجوع
-              </Button>
-            </div>
-          </form>
-        </div>
+        <ApprovalDialog
+          reasons={approval.reasons}
+          pending={pending}
+          onApprove={(credentials) => submit(credentials)}
+          onCancel={() => setApproval(null)}
+        />
       ) : null}
     </div>
   );

@@ -14,7 +14,9 @@ export interface ReceiptData {
   cashTenderedSdg: string | null;
   changeSdg: string;
   lines: { id: string; label: string; qty: string; unitPriceSdg: string; lineDiscountSdg: string; amountSdg: string }[];
-  payments: { method: "CASH" | "BANKAK"; amountSdg: string; reference: string | null }[];
+  payments: { method: "CASH" | "BANKAK" | "CREDIT"; amountSdg: string; reference: string | null }[];
+  /** استبدال: فائض رصيد المرتجع رُدّ للعميل نقداً. */
+  creditCashBackSdg?: string;
 }
 
 const n = (v: string) => formatAmount(v, 0);
@@ -113,10 +115,22 @@ export function Receipt({ data, settings }: { data: ReceiptData; settings: Recei
         </div>
         {data.payments.map((p) => (
           <div key={p.method} className="flex justify-between">
-            <dt>{p.method === "CASH" ? "نقداً" : `بنكك${p.reference ? ` (${p.reference})` : ""}`}</dt>
+            <dt>
+              {p.method === "CASH"
+                ? "نقداً"
+                : p.method === "CREDIT"
+                  ? "رصيد استبدال"
+                  : `بنكك${p.reference ? ` (${p.reference})` : ""}`}
+            </dt>
             <dd>{n(p.amountSdg)}</dd>
           </div>
         ))}
+        {data.creditCashBackSdg && dec(data.creditCashBackSdg).gt(0) ? (
+          <div className="flex justify-between font-bold">
+            <dt>فائض الاستبدال للعميل نقداً</dt>
+            <dd>{n(data.creditCashBackSdg)}</dd>
+          </div>
+        ) : null}
         {data.cashTenderedSdg ? (
           <>
             <div className="flex justify-between">
