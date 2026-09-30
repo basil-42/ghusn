@@ -1,0 +1,96 @@
+import type { Metadata } from "next";
+import Link from "next/link";
+import { Card, CardHeader, CardTitle } from "@/components/ui/card";
+import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
+import { requirePermission } from "@/lib/auth/session";
+import { formatAmount, formatDateTime } from "@/lib/format";
+import { listSales } from "@/lib/sales";
+import { listShifts } from "@/lib/shifts";
+
+export const metadata: Metadata = { title: "المبيعات | غصن" };
+
+export default async function SalesPage() {
+  await requirePermission({ sale: ["read"] });
+  const [sales, shifts] = await Promise.all([listSales(), listShifts()]);
+  return (
+    <div className="flex flex-col gap-6">
+      <h1 className="font-display text-3xl font-bold">المبيعات</h1>
+      <Card className="p-0">
+        <CardHeader className="px-5 pt-5">
+          <CardTitle>آخر الفواتير</CardTitle>
+        </CardHeader>
+        {sales.length === 0 ? (
+          <p className="p-6 text-center text-muted-foreground">لا مبيعات بعد.</p>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>الفاتورة</TableHead>
+                <TableHead>الوقت</TableHead>
+                <TableHead>البائعة</TableHead>
+                <TableHead>الإجمالي ج.س</TableHead>
+                <TableHead>الخصم</TableHead>
+                <TableHead>الربح $</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {sales.map((s) => (
+                <TableRow key={s.id}>
+                  <TableCell>
+                    <Link href={`/pos/receipt/${s.id}`} className="font-semibold hover:underline">
+                      <bdi dir="ltr">{s.number}</bdi>
+                    </Link>
+                  </TableCell>
+                  <TableCell className="text-sm">{formatDateTime(s.createdAt)}</TableCell>
+                  <TableCell>
+                    {s.cashierName}
+                    {s.approvedBy ? (
+                      <span className="text-xs text-muted-foreground"> · موافقة {s.approvedBy}</span>
+                    ) : null}
+                  </TableCell>
+                  <TableCell className="tabular-nums">{formatAmount(s.totalSdg, 0)}</TableCell>
+                  <TableCell className="tabular-nums">{formatAmount(s.discountSdg, 0)}</TableCell>
+                  <TableCell className="tabular-nums">{formatAmount(s.profitUsd)}</TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </Card>
+
+      <Card className="p-0">
+        <CardHeader className="px-5 pt-5">
+          <CardTitle>الورديات</CardTitle>
+        </CardHeader>
+        {shifts.length === 0 ? (
+          <p className="p-6 text-center text-muted-foreground">لا ورديات بعد.</p>
+        ) : (
+          <Table>
+            <TableHeader>
+              <TableRow>
+                <TableHead>الموظفة</TableHead>
+                <TableHead>الفتح</TableHead>
+                <TableHead>الإغلاق</TableHead>
+                <TableHead>الفواتير</TableHead>
+                <TableHead>فرق النقد ج.س</TableHead>
+              </TableRow>
+            </TableHeader>
+            <TableBody>
+              {shifts.map((s) => (
+                <TableRow key={s.id}>
+                  <TableCell>{s.userName}</TableCell>
+                  <TableCell className="text-sm">{formatDateTime(s.openedAt)}</TableCell>
+                  <TableCell className="text-sm">{s.closedAt ? formatDateTime(s.closedAt) : "مفتوحة"}</TableCell>
+                  <TableCell className="tabular-nums">{s.salesCount}</TableCell>
+                  <TableCell className="tabular-nums">
+                    {s.differenceSdg ? formatAmount(s.differenceSdg, 0) : "—"}
+                  </TableCell>
+                </TableRow>
+              ))}
+            </TableBody>
+          </Table>
+        )}
+      </Card>
+    </div>
+  );
+}

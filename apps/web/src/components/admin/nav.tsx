@@ -7,6 +7,9 @@ import {
   FolderTree,
   LayoutDashboard,
   Package,
+  Receipt,
+  Settings,
+  ShoppingCart,
   Tags,
   Warehouse,
   Truck,
@@ -27,6 +30,9 @@ const ICONS = {
   stock: Warehouse,
   labels: Tags,
   pricing: BadgeDollarSign,
+  pos: ShoppingCart,
+  sales: Receipt,
+  settings: Settings,
   users: Users,
 } satisfies Record<string, LucideIcon>;
 

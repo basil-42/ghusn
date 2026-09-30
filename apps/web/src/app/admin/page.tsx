@@ -50,6 +50,16 @@ export default async function AdminHome() {
         </Card>
       ) : null}
 
+      {roleCan(user.role, { pos: ["sell"] }) ? (
+        <Link
+          href="/pos"
+          className="flex max-w-md min-h-16 items-center justify-between gap-3 rounded-2xl bg-primary p-5 text-lg font-bold text-primary-foreground"
+        >
+          نقطة البيع
+          <ArrowLeft aria-hidden className="size-5" />
+        </Link>
+      ) : null}
+
       {priceReview ? (
         <Link
           href="/admin/pricing"
@@ -87,8 +97,6 @@ export default async function AdminHome() {
           </ul>
         </Card>
       ) : null}
-
-      <p className="text-muted-foreground">الشاشات القادمة تُضاف هنا تباعاً: المنتجات، الشحنات، المخزون، نقطة البيع.</p>
     </div>
   );
 }

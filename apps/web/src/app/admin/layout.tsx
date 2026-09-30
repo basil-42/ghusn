@@ -13,6 +13,8 @@ type Permissions = Parameters<typeof roleCan>[1];
 // كل رابط يظهر فقط لمن يملك صلاحيته (D-62)
 const NAV: (NavItem & { permission?: Permissions })[] = [
   { href: "/admin", label: "الرئيسية", icon: "dashboard" },
+  { href: "/pos", label: "نقطة البيع", icon: "pos", permission: { pos: ["sell"] } },
+  { href: "/admin/sales", label: "المبيعات", icon: "sales", permission: { sale: ["read"] } },
   { href: "/admin/products", label: "المنتجات", icon: "products", permission: { product: ["read"] } },
   { href: "/admin/stock", label: "المخزون", icon: "stock", permission: { stock: ["read"] } },
   { href: "/admin/pricing", label: "الأسعار", icon: "pricing", permission: { price: ["approve"] } },
@@ -21,6 +23,7 @@ const NAV: (NavItem & { permission?: Permissions })[] = [
   { href: "/admin/shipments", label: "الشحنات", icon: "shipments", permission: { shipment: ["read"] } },
   { href: "/admin/suppliers", label: "الموردون", icon: "suppliers", permission: { supplier: ["read"] } },
   { href: "/admin/exchange-rates", label: "سعر الصرف", icon: "rates", permission: { exchangeRate: ["read"] } },
+  { href: "/admin/settings", label: "الضبط", icon: "settings", permission: { settings: ["update"] } },
   { href: "/admin/users", label: "المستخدمون", icon: "users", permission: { user: ["list"] } },
 ];
 

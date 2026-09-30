@@ -3,7 +3,6 @@ import {
   canChangeShipmentCosts,
   canTransitionShipment,
   dec,
-  documentNumber,
   isShipmentEditable,
   planReceipt,
   roundMoney,
@@ -16,6 +15,7 @@ import {
   type ShipmentStatus,
 } from "@ghusn/core";
 import { Prisma, prisma, type ShipmentCostKind } from "@ghusn/db";
+import { nextDocumentNumber } from "./documents";
 import { getRateAt } from "./exchange-rates";
 import { ShipmentError } from "./shipment-error";
 import { revalueForCost } from "./stock";
@@ -42,18 +42,6 @@ export const COST_LABELS: Record<ShipmentCostKind, string> = {
 };
 
 type Tx = Prisma.TransactionClient;
-
-/** الرقم التالي لمستند (SHP-2026-001) — ذري حتى مع إدخال متزامن. */
-async function nextDocumentNumber(tx: Tx, prefix: string, at: Date): Promise<string> {
-  const year = Number(shopDay(at).slice(0, 4));
-  const key = `${prefix}-${year}`;
-  const [row] = await tx.$queryRaw<{ value: number }[]>`
-    INSERT INTO "DocumentCounter" ("key", "value") VALUES (${key}, 1)
-    ON CONFLICT ("key") DO UPDATE SET "value" = "DocumentCounter"."value" + 1
-    RETURNING "value"`;
-  if (!row) throw new Error("counter failed");
-  return documentNumber(prefix, year, row.value);
-}
 
 async function rateOrThrow(currencyCode: string, at: Date): Promise<string> {
   const rate = await getRateAt(currencyCode, at);
