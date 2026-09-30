@@ -1,5 +1,16 @@
 import { describe, expect, it } from "vitest";
-import { allocateWhole, checkDiscount, computeSale, expectedCash, percentOf, settlePayments, sum } from "../src";
+import {
+  allocateWhole,
+  applyExchangeCredit,
+  checkDiscount,
+  computeSale,
+  daysBetweenShopDays,
+  expectedCash,
+  percentOf,
+  refundForLine,
+  settlePayments,
+  sum,
+} from "../src";
 
 const s = (d: { toString(): string }) => d.toString();
 
@@ -123,5 +134,30 @@ describe("payments and shift cash", () => {
   });
   it("expected cash in the drawer", () => {
     expect(s(expectedCash(50_000, 320_000, 20_000))).toBe("350000");
+  });
+});
+
+describe("returns (D-81)", () => {
+  // سطر: 3 × 50,000 بخصم فاتورة موزّع ← صافي 140,000
+  const line = { qty: 3, netSdg: 140_000 };
+  it("refunds at the net price, rounding partial returns", () => {
+    expect(s(refundForLine({ ...line, returnedQty: 0, refundedSdg: 0, returnQty: 1 }))).toBe("46667");
+    // الإرجاع الثاني يأخذ ما تبقى بالضبط
+    expect(s(refundForLine({ ...line, returnedQty: 1, refundedSdg: 46_667, returnQty: 2 }))).toBe("93333");
+    expect(s(refundForLine({ ...line, returnedQty: 0, refundedSdg: 0, returnQty: 3 }))).toBe("140000");
+  });
+  it("cannot return more than what is left", () => {
+    expect(() => refundForLine({ ...line, returnedQty: 2, refundedSdg: 0, returnQty: 2 })).toThrow();
+    expect(() => refundForLine({ ...line, returnedQty: 0, refundedSdg: 0, returnQty: 0 })).toThrow();
+  });
+  it("counts shop days for the return window", () => {
+    expect(daysBetweenShopDays("2026-09-30", "2026-10-07")).toBe(7);
+    expect(daysBetweenShopDays("2026-12-30", "2027-01-02")).toBe(3);
+  });
+  it("exchange credit: used first, surplus back in cash", () => {
+    const more = applyExchangeCredit(100_000, 150_000);
+    expect([s(more.usedSdg), s(more.dueSdg), s(more.cashBackSdg)]).toEqual(["100000", "50000", "0"]);
+    const less = applyExchangeCredit(100_000, 60_000);
+    expect([s(less.usedSdg), s(less.dueSdg), s(less.cashBackSdg)]).toEqual(["60000", "0", "40000"]);
   });
 });
