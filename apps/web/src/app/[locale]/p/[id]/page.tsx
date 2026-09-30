@@ -40,7 +40,6 @@ export default async function ProductPage({ params }: Props) {
         <div className="flex flex-col gap-5">
           <h1 className="font-display text-4xl font-bold">{product.name}</h1>
           <VariantPicker variants={product.variants} />
-          <p className="rounded-xl bg-muted p-3 text-sm text-muted-foreground">{t("cartSoon")}</p>
           {product.description ? (
             <section className="flex flex-col gap-2">
               <h2 className="font-semibold">{t("description")}</h2>

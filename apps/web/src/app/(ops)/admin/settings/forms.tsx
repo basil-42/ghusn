@@ -4,8 +4,14 @@ import { useActionState } from "react";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input, NativeSelect } from "@/components/ui/input";
-import type { PosSettings, ReceiptSettings } from "@/lib/settings";
-import { saveExpenseCategoryAction, savePosSettingsAction, saveReceiptSettingsAction, type FormState } from "./actions";
+import type { PosSettings, ReceiptSettings, StoreSettings } from "@/lib/settings";
+import {
+  saveExpenseCategoryAction,
+  savePosSettingsAction,
+  saveReceiptSettingsAction,
+  saveStoreSettingsAction,
+  type FormState,
+} from "./actions";
 
 function Messages({ state }: { state: FormState }) {
   return (
@@ -196,6 +202,54 @@ export function ExpenseCategoryForm({
       </Button>
       {state.error ? <span className="text-sm text-destructive">{state.error}</span> : null}
       {state.success ? <span className="text-sm text-muted-foreground">{state.success}</span> : null}
+    </form>
+  );
+}
+
+/** إعدادات المتجر (D-88): محفظة شركة التوصيل وحد الدفع عند الاستلام. */
+export function StoreSettingsForm({
+  initial,
+  wallets,
+}: {
+  initial: StoreSettings;
+  wallets: { value: string; label: string }[];
+}) {
+  const [state, action, pending] = useActionState<FormState, FormData>(saveStoreSettingsAction, {});
+  return (
+    <form action={action} className="flex flex-col gap-3">
+      <Messages state={state} />
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <label className={field}>
+          <span className="font-semibold">محفظة شركة التوصيل</span>
+          <NativeSelect name="courierWalletId" defaultValue={initial.courierWalletId ?? ""}>
+            <option value="">«شركة التوصيل» (افتراضي)</option>
+            {wallets.map((w) => (
+              <option key={w.value} value={w.value}>
+                {w.label}
+              </option>
+            ))}
+          </NativeSelect>
+          <span className="text-xs text-muted-foreground">
+            يدخلها ما يحصّله المندوب عند الاستلام حتى تحوّله الشركة.
+          </span>
+        </label>
+        <label className={field}>
+          <span className="font-semibold">حد الدفع عند الاستلام (ج.س)</span>
+          <Input
+            name="codMaxSdg"
+            defaultValue={initial.codMaxSdg ? String(initial.codMaxSdg) : ""}
+            inputMode="numeric"
+            dir="ltr"
+            placeholder="0"
+          />
+          <span className="text-xs text-muted-foreground">
+            فارغ أو 0 = بلا حد. الطلب الأعلى منه يُرفض (بنكك قريباً).
+          </span>
+        </label>
+      </div>
+      <Button type="submit" disabled={pending} className="self-start">
+        حفظ
+      </Button>
     </form>
   );
 }

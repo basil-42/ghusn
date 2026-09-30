@@ -23,7 +23,8 @@ export type MovementKind =
   | "CAPITAL"
   | "TRANSFER_OUT"
   | "TRANSFER_IN"
-  | "SHIFT_DIFF";
+  | "SHIFT_DIFF"
+  | "ORDER";
 
 export const MOVEMENT_LABELS: Record<MovementKind, string> = {
   OPENING: "رصيد افتتاحي",
@@ -37,6 +38,7 @@ export const MOVEMENT_LABELS: Record<MovementKind, string> = {
   TRANSFER_OUT: "تحويل صادر",
   TRANSFER_IN: "تحويل وارد",
   SHIFT_DIFF: "فرق عدّ وردية",
+  ORDER: "طلب متجر",
 };
 
 /** كل حركات المحافظ بمبلغ بإشارة وبعملة المحفظة. الملغى لا يُحسب. */
@@ -76,6 +78,9 @@ const MOVEMENTS = Prisma.sql`
   SELECT a."walletId", a."occurredAt", a."amount", a."kind"::text, NULL, a."id", a."reason", a."id"
     FROM "WalletAdjustment" a
    WHERE a."voidedAt" IS NULL
+  UNION ALL
+  SELECT op."walletId", op."receivedAt", op."amountSdg", 'ORDER', o."number", o."id", NULL, op."id"
+    FROM "OrderPayment" op JOIN "Order" o ON o."id" = op."orderId"
   UNION ALL
   SELECT sh."cashWalletId", sh."closedAt", sh."countedCashSdg" - sh."expectedCashSdg", 'SHIFT_DIFF', u."name", sh."id", sh."closeNote", sh."id"
     FROM "Shift" sh JOIN "User" u ON u."id" = sh."userId"

@@ -4,6 +4,7 @@ import { Suspense } from "react";
 import { Link } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
 import { listStoreCategories } from "@/lib/storefront";
+import { CartLink } from "./cart-link";
 import { LanguageSwitch } from "./language-switch";
 
 // رأس الصفحة: «غصن + الرمز» بالعربي و«GHUSN + الرمز» بالإنجليزي (D-52، brand-identity §7) بارتفاع 44px
@@ -24,9 +25,12 @@ export async function StoreHeader() {
         <Link href="/" aria-label={t("home")} className="shrink-0">
           <Image src={logo.src} alt={locale === "ar" ? "غصن" : "GHUSN"} width={logo.width} height={44} priority />
         </Link>
-        <Suspense fallback={<span className="size-11" />}>
-          <LanguageSwitch />
-        </Suspense>
+        <div className="flex items-center gap-2">
+          <Suspense fallback={<span className="size-11" />}>
+            <LanguageSwitch />
+          </Suspense>
+          <CartLink />
+        </div>
       </div>
       {categories.length ? (
         <nav aria-label={t("categories")} className="mx-auto max-w-6xl px-4 pb-2">

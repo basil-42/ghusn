@@ -4,7 +4,14 @@ import { toLatinDigits } from "@ghusn/core";
 import { revalidatePath } from "next/cache";
 import { requirePermission } from "@/lib/auth/session";
 import { ExpenseError, saveExpenseCategory } from "@/lib/expenses";
-import { posSettingsSchema, receiptSettingsSchema, savePosSettings, saveReceiptSettings } from "@/lib/settings";
+import {
+  posSettingsSchema,
+  receiptSettingsSchema,
+  savePosSettings,
+  saveReceiptSettings,
+  saveStoreSettings,
+  storeSettingsSchema,
+} from "@/lib/settings";
 
 export type FormState = { error?: string; success?: string };
 
@@ -70,4 +77,16 @@ export async function saveExpenseCategoryAction(_prev: FormState, formData: Form
   revalidatePath("/admin/settings");
   revalidatePath("/admin/expenses");
   return { success: "تم الحفظ." };
+}
+
+export async function saveStoreSettingsAction(_prev: FormState, formData: FormData): Promise<FormState> {
+  await requirePermission({ settings: ["update"] });
+  const parsed = storeSettingsSchema.safeParse({
+    courierWalletId: text(formData, "courierWalletId") || null,
+    codMaxSdg: text(formData, "codMaxSdg") ? numberOf(formData, "codMaxSdg") : 0,
+  });
+  if (!parsed.success) return { error: "حد الدفع عند الاستلام رقم صحيح بالجنيه (0 = بلا حد)." };
+  await saveStoreSettings(parsed.data);
+  revalidatePath("/admin/settings");
+  return { success: "تم حفظ إعدادات المتجر." };
 }

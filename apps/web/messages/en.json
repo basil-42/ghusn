@@ -8,7 +8,8 @@
     "categories": "Categories",
     "switchLanguage": "العربية",
     "switchLanguageShort": "ع",
-    "menu": "Menu"
+    "menu": "Menu",
+    "cart": "Cart"
   },
   "home": {
     "tagline": "Gifts made to be remembered",
@@ -38,9 +39,12 @@
     "option": "Option",
     "description": "Description",
     "deliveryNote": "Delivered by a courier company; the delivery fee is paid to them on receipt.",
-    "cartSoon": "Online ordering opens soon.",
     "backTo": "Back to {category}",
-    "noImage": "No image yet"
+    "noImage": "No image yet",
+    "qty": "Quantity",
+    "addToCart": "Add to cart",
+    "added": "Added to your cart.",
+    "viewCart": "View cart"
   },
   "footer": {
     "rights": "© {year} GHUSN. All rights reserved.",
@@ -51,5 +55,91 @@
     "body": "It may have moved or is no longer available.",
     "home": "Back to home"
   },
-  "currency": "SDG"
+  "currency": "SDG",
+  "cart": {
+    "title": "Your cart",
+    "empty": "Your cart is empty.",
+    "browse": "Shop gifts",
+    "remove": "Remove",
+    "unavailable": "This quantity isn't available right now — reduce it or remove the item.",
+    "total": "Total",
+    "deliveryNote": "The delivery fee is paid to the courier on receipt.",
+    "checkout": "Checkout",
+    "loading": "Updating…",
+    "decrease": "Decrease",
+    "increase": "Increase"
+  },
+  "checkout": {
+    "title": "Checkout",
+    "you": "Your details",
+    "name": "Name",
+    "phone": "Phone (WhatsApp)",
+    "phoneHint": "We'll contact you on it to confirm the order.",
+    "receive": "Receiving",
+    "delivery": "Delivery",
+    "deliveryHint": "By a courier company — they set the time and contact you. Their fee is paid to them on receipt.",
+    "pickup": "Pick up from the shop",
+    "pickupHint": "We'll tell you when it's ready; pay at the shop.",
+    "city": "City",
+    "chooseCity": "Choose city",
+    "address": "Full address",
+    "addressHint": "Neighbourhood, street, nearest landmark.",
+    "gift": "A gift for someone else? (optional)",
+    "recipientName": "Recipient's name",
+    "recipientPhone": "Recipient's phone",
+    "note": "Note (optional)",
+    "notePlaceholder": "e.g. It's a surprise — please don't call the recipient before arriving.",
+    "payment": "Payment",
+    "cod": "Cash on delivery (to the courier)",
+    "inShop": "Pay at the shop on pickup",
+    "summary": "Order summary",
+    "place": "Place order",
+    "placing": "Sending…",
+    "cities": {
+      "KHARTOUM": "Khartoum",
+      "BAHRI": "Bahri",
+      "OMDURMAN": "Omdurman"
+    }
+  },
+  "errors": {
+    "NAME": "Please enter your name.",
+    "INVALID_PHONE": "The phone number isn't valid.",
+    "INVALID_RECIPIENT_PHONE": "The recipient's phone isn't valid.",
+    "ADDRESS": "Choose the city and enter the full address.",
+    "UNAVAILABLE": "Some items are no longer available in that quantity — please review your cart.",
+    "PRICE_CHANGED": "The price changed — the total is now SDG {total}. Review the summary, then place the order.",
+    "COD_LIMIT": "Cash on delivery is available up to SDG {limit}. Split the order or contact us.",
+    "RATE_LIMIT": "Too many orders from this device — please try again shortly.",
+    "EMPTY": "Your cart is empty.",
+    "TOO_MANY": "Too many items in one order.",
+    "INVALID_QTY": "Invalid quantity.",
+    "CONFLICT": "Something conflicted — refresh and try again.",
+    "INVALID": "Please review your details and try again.",
+    "NETWORK": "Couldn't connect — check your internet and try again."
+  },
+  "order": {
+    "title": "Order {number}",
+    "thanks": "Thank you — we've received your order.",
+    "save": "Keep this link to follow your order.",
+    "status": "Status",
+    "items": "Items",
+    "total": "Total",
+    "deliveryTo": "Delivery to",
+    "pickup": "Pick up from the shop",
+    "payCod": "Cash on delivery; the delivery fee goes to the courier.",
+    "payShop": "Pay at the shop on pickup.",
+    "statuses": {
+      "NEW": "We've received your order — we'll contact you to confirm it",
+      "AWAITING_PAYMENT": "Awaiting payment",
+      "PAYMENT_REVIEW": "Reviewing your payment",
+      "CONFIRMED": "Your order is confirmed",
+      "PREPARING": "We're preparing your gift",
+      "AWAITING_PHOTO_APPROVAL": "Awaiting your approval of the gift photo",
+      "READY": "Your order is ready",
+      "OUT_FOR_DELIVERY": "On the way with the courier",
+      "DELIVERED": "Delivered — thank you for choosing GHUSN",
+      "CANCELLED": "Order cancelled"
+    },
+    "continue": "Continue shopping"
+  }
 }

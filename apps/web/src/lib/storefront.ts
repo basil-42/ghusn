@@ -1,12 +1,13 @@
 import { dec } from "@ghusn/core";
 import { prisma, type Prisma } from "@ghusn/db";
 import type { Locale } from "@/i18n/routing";
+import { availableVariantIds } from "./orders";
 import { imageUrl } from "./product-images";
 
 /**
  * بيانات المتجر العام. ما يظهر: منتج بضاعة نشط «ظاهر في المتجر» في قسم نشط، وله متغيّر واحد
  * على الأقل نشط ومسعّر ومتوفر. لا تُعاد التكلفة ولا الهوامش ولا الكميات — «متوفر» فقط.
- * (الحجز من الطلبات يُطرح من المتاح مع مرحلة السلة.)
+ * المتاح = الرصيد − المحجوز لطلبات لم يبدأ تجهيزها (lib/orders).
  */
 
 const visibleProduct = {
@@ -17,12 +18,10 @@ const visibleProduct = {
   category: { isActive: true },
 } satisfies Prisma.ProductWhereInput;
 
-const sellableVariant = {
-  deletedAt: null,
-  isActive: true,
-  priceSdg: { not: null },
-  stockLevel: { qty: { gt: 0 } },
-} satisfies Prisma.ProductVariantWhereInput;
+/** متغيّر متاح للبيع أونلاين: نشط ومسعّر ومتاحه (الرصيد − المحجوز) أكبر من صفر. */
+async function sellableVariant(): Promise<Prisma.ProductVariantWhereInput> {
+  return { deletedAt: null, isActive: true, priceSdg: { not: null }, id: { in: await availableVariantIds() } };
+}
 
 const nameOf = (locale: Locale, ar: string, en: string | null) => (locale === "en" && en ? en : ar);
 
@@ -35,6 +34,7 @@ export interface StoreCategory {
 
 /** الأقسام التي فيها منتج متاح واحد على الأقل، بترتيبها في الإدارة. */
 export async function listStoreCategories(locale: Locale): Promise<StoreCategory[]> {
+  const sellable = await sellableVariant();
   const categories = await prisma.category.findMany({
     where: { isActive: true },
     orderBy: { sortOrder: "asc" },
@@ -43,7 +43,7 @@ export async function listStoreCategories(locale: Locale): Promise<StoreCategory
       nameAr: true,
       nameEn: true,
       products: {
-        where: { ...visibleProduct, variants: { some: sellableVariant } },
+        where: { ...visibleProduct, variants: { some: sellable } },
         orderBy: { createdAt: "desc" },
         select: { images: { orderBy: { sortOrder: "asc" }, take: 1, select: { key: true } } },
       },
@@ -79,11 +79,12 @@ export async function listStoreProducts(
   locale: Locale,
   opts: { categorySlug?: string; sort?: StoreSort; take?: number } = {},
 ): Promise<StoreProductCard[]> {
+  const sellable = await sellableVariant();
   const products = await prisma.product.findMany({
     where: {
       ...visibleProduct,
       ...(opts.categorySlug ? { category: { isActive: true, slug: opts.categorySlug } } : {}),
-      variants: { some: sellableVariant },
+      variants: { some: sellable },
     },
     orderBy: { createdAt: "desc" },
     select: {
@@ -93,7 +94,7 @@ export async function listStoreProducts(
       createdAt: true,
       category: { select: { nameAr: true, nameEn: true } },
       images: { orderBy: { sortOrder: "asc" }, take: 1, select: { key: true } },
-      variants: { where: sellableVariant, select: { priceSdg: true } },
+      variants: { where: sellable, select: { priceSdg: true } },
     },
   });
   const cards = products.map((p) => {
@@ -142,8 +143,9 @@ export interface StoreProduct {
 }
 
 export async function getStoreProduct(locale: Locale, id: string): Promise<StoreProduct | null> {
+  const sellable = await sellableVariant();
   const p = await prisma.product.findFirst({
-    where: { id, ...visibleProduct, variants: { some: sellableVariant } },
+    where: { id, ...visibleProduct, variants: { some: sellable } },
     select: {
       id: true,
       nameAr: true,
@@ -153,7 +155,7 @@ export async function getStoreProduct(locale: Locale, id: string): Promise<Store
       category: { select: { slug: true, nameAr: true, nameEn: true } },
       images: { orderBy: { sortOrder: "asc" }, select: { key: true, width: true, height: true } },
       variants: {
-        where: sellableVariant,
+        where: sellable,
         orderBy: { sortOrder: "asc" },
         select: { id: true, size: true, color: true, volume: true, priceSdg: true },
       },
