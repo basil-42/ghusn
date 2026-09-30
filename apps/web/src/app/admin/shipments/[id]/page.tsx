@@ -20,6 +20,7 @@ import { COST_LABELS, STATUS_LABELS, getShipment } from "@/lib/shipments";
 import { COUNTRIES } from "@/lib/suppliers";
 import { listCategoryOptions } from "@/lib/catalog";
 import { CostForm, DetailsForm, LinesEditor, StatusActions, VoidCostForm } from "../forms";
+import { ImportPanel } from "../import-panel";
 import { StatusBadge } from "../page";
 
 export const metadata: Metadata = { title: "شحنة | غصن" };
@@ -124,7 +125,12 @@ export default async function ShipmentPage({ params }: { params: Promise<{ id: s
               : "تعديل البنود بعد الشراء يُحدِّث حساب المورد (تُلغى الحركة السابقة وتُسجَّل جديدة)."}
           </CardDescription>
         </CardHeader>
+        {canEdit && roleCan(role, { product: ["create"] }) ? (
+          <ImportPanel id={s.id} currencySymbol={cur.symbol} />
+        ) : null}
         <LinesEditor
+          // بعد الاستيراد تتغير البنود على الخادم ← محرر جديد بقيمها
+          key={s.lines.map((l) => l.id).join(",")}
           id={s.id}
           currencySymbol={cur.symbol}
           disabled={!canEdit}
