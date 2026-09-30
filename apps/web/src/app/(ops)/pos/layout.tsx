@@ -2,7 +2,7 @@ import { LayoutDashboard, LogOut } from "lucide-react";
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
-import { logout } from "@/app/login/actions";
+import { logout } from "@/app/(ops)/login/actions";
 import { Button } from "@/components/ui/button";
 import { roleCan } from "@/lib/auth/permissions";
 import { requirePermission } from "@/lib/auth/session";

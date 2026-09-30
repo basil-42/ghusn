@@ -9,7 +9,7 @@ import { requirePermission } from "@/lib/auth/session";
 import { formatAmount } from "@/lib/format";
 import { getReceipt } from "@/lib/sales";
 import { getReceiptSettings } from "@/lib/settings";
-import { PrintButton } from "@/app/print/labels/print-button";
+import { PrintButton } from "@/app/(ops)/print/labels/print-button";
 
 export const metadata: Metadata = { title: "إيصال | غصن" };
 
