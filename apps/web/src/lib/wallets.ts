@@ -42,42 +42,42 @@ export const MOVEMENT_LABELS: Record<MovementKind, string> = {
 /** كل حركات المحافظ بمبلغ بإشارة وبعملة المحفظة. الملغى لا يُحسب. */
 const MOVEMENTS = Prisma.sql`
   SELECT sp."walletId" AS "walletId", s."createdAt" AS "at", sp."amountSdg" AS "amount",
-         'SALE' AS "kind", s."number" AS "ref", s."id" AS "refId", NULL::text AS "note"
+         'SALE' AS "kind", s."number" AS "ref", s."id" AS "refId", NULL::text AS "note", sp."id" AS "rowId"
     FROM "SalePayment" sp JOIN "Sale" s ON s."id" = sp."saleId"
    WHERE sp."walletId" IS NOT NULL
   UNION ALL
-  SELECT rr."walletId", rr."createdAt", -rr."amountSdg", 'REFUND', r."number", r."id", NULL
+  SELECT rr."walletId", rr."createdAt", -rr."amountSdg", 'REFUND', r."number", r."id", NULL, rr."id"
     FROM "ReturnRefund" rr JOIN "SaleReturn" r ON r."id" = rr."returnId"
   UNION ALL
-  SELECT e."walletId", e."spentAt", -e."amount", 'EXPENSE', e."number", e."id", c."name"
+  SELECT e."walletId", e."spentAt", -e."amount", 'EXPENSE', e."number", e."id", c."name", e."id"
     FROM "Expense" e JOIN "ExpenseCategory" c ON c."id" = e."categoryId"
    WHERE e."voidedAt" IS NULL
   UNION ALL
-  SELECT sc."walletId", sc."paidAt", -sc."amount", 'SHIPMENT_COST', sh."number", sh."id", sc."note"
+  SELECT sc."walletId", sc."paidAt", -sc."amount", 'SHIPMENT_COST', sh."number", sh."id", sc."note", sc."id"
     FROM "ShipmentCost" sc JOIN "Shipment" sh ON sh."id" = sc."shipmentId"
    WHERE sc."voidedAt" IS NULL
   UNION ALL
-  SELECT le."walletId", le."occurredAt", -le."paidAmount", 'SUPPLIER_PAYMENT', sup."name", sup."id", le."reference"
+  SELECT le."walletId", le."occurredAt", -le."paidAmount", 'SUPPLIER_PAYMENT', sup."name", sup."id", le."reference", le."id"
     FROM "SupplierLedgerEntry" le JOIN "Supplier" sup ON sup."id" = le."supplierId"
    WHERE le."kind" = 'PAYMENT' AND le."voidedAt" IS NULL AND le."walletId" IS NOT NULL AND le."paidAmount" IS NOT NULL
   UNION ALL
-  SELECT cc."walletId", cc."contributedAt", cc."amount", 'CAPITAL', cc."partnerName", cc."id", cc."note"
+  SELECT cc."walletId", cc."contributedAt", cc."amount", 'CAPITAL', cc."partnerName", cc."id", cc."note", cc."id"
     FROM "CapitalContribution" cc
    WHERE cc."walletId" IS NOT NULL AND cc."voidedAt" IS NULL
   UNION ALL
-  SELECT t."fromWalletId", t."occurredAt", -t."fromAmount", 'TRANSFER_OUT', t."number", t."id", w."name"
+  SELECT t."fromWalletId", t."occurredAt", -t."fromAmount", 'TRANSFER_OUT', t."number", t."id", w."name", t."id" || ':out'
     FROM "WalletTransfer" t JOIN "Wallet" w ON w."id" = t."toWalletId"
    WHERE t."voidedAt" IS NULL
   UNION ALL
-  SELECT t."toWalletId", t."occurredAt", t."toAmount", 'TRANSFER_IN', t."number", t."id", w."name"
+  SELECT t."toWalletId", t."occurredAt", t."toAmount", 'TRANSFER_IN', t."number", t."id", w."name", t."id" || ':in'
     FROM "WalletTransfer" t JOIN "Wallet" w ON w."id" = t."fromWalletId"
    WHERE t."voidedAt" IS NULL
   UNION ALL
-  SELECT a."walletId", a."occurredAt", a."amount", a."kind"::text, NULL, a."id", a."reason"
+  SELECT a."walletId", a."occurredAt", a."amount", a."kind"::text, NULL, a."id", a."reason", a."id"
     FROM "WalletAdjustment" a
    WHERE a."voidedAt" IS NULL
   UNION ALL
-  SELECT sh."cashWalletId", sh."closedAt", sh."countedCashSdg" - sh."expectedCashSdg", 'SHIFT_DIFF', u."name", sh."id", sh."closeNote"
+  SELECT sh."cashWalletId", sh."closedAt", sh."countedCashSdg" - sh."expectedCashSdg", 'SHIFT_DIFF', u."name", sh."id", sh."closeNote", sh."id"
     FROM "Shift" sh JOIN "User" u ON u."id" = sh."userId"
    WHERE sh."cashWalletId" IS NOT NULL AND sh."closedAt" IS NOT NULL
      AND sh."countedCashSdg" IS DISTINCT FROM sh."expectedCashSdg"`;
@@ -90,7 +90,7 @@ const COUNTED = Prisma.sql`
      WHERE "kind" = 'OPENING' AND "voidedAt" IS NULL
   )
   SELECT mv.* FROM mv LEFT JOIN opening o ON o."walletId" = mv."walletId"
-   WHERE o."id" IS NULL OR mv."refId" = o."id" OR mv."at" > o."occurredAt"`;
+   WHERE o."id" IS NULL OR mv."rowId" = o."id" OR mv."at" > o."occurredAt"`;
 
 export interface WalletCard {
   id: string;
@@ -139,7 +139,10 @@ export interface StatementRow {
   at: Date;
   kind: MovementKind;
   ref: string | null;
+  /** المستند الذي يُفتح من الكشف (الفاتورة، الشحنة، المورد…). */
   refId: string;
+  /** معرّف الحركة نفسها — فريد لكل سطر (قد تتكرر refId: دفعتان لنفس المورد). */
+  rowId: string;
   note: string | null;
   amount: string;
   balance: string;
@@ -153,15 +156,16 @@ export async function walletStatement(walletId: string, take = 200): Promise<Sta
       kind: MovementKind;
       ref: string | null;
       refId: string;
+      rowId: string;
       note: string | null;
       amount: Prisma.Decimal;
       balance: Prisma.Decimal;
     }[]
   >`
     SELECT * FROM (
-      SELECT c.*, SUM(c."amount") OVER (ORDER BY c."at", c."kind" = 'OPENING' DESC, c."refId", c."kind") AS "balance"
+      SELECT c.*, SUM(c."amount") OVER (ORDER BY c."at", c."kind" = 'OPENING' DESC, c."rowId") AS "balance"
         FROM (${COUNTED}) c WHERE c."walletId" = ${walletId}
-    ) x ORDER BY x."at" DESC, x."kind" = 'OPENING', x."refId" DESC, x."kind" DESC LIMIT ${take}`;
+    ) x ORDER BY x."at" DESC, x."kind" = 'OPENING', x."rowId" DESC LIMIT ${take}`;
   return rows.map((r) => ({ ...r, amount: r.amount.toFixed(2), balance: r.balance.toFixed(2) }));
 }
 
