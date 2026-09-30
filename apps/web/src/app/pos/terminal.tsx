@@ -18,6 +18,10 @@ import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatAmount } from "@/lib/format";
 import type { PosItem } from "@/lib/sales";
+import { Receipt, type ReceiptData } from "@/components/receipt";
+import { getMeta, nextLocalNumber, pendingCount, posDb, searchCatalog } from "@/lib/pos-offline/db";
+import { usePosSync } from "@/lib/pos-offline/use-pos-sync";
+import type { ReceiptSettings } from "@/lib/settings";
 import { createSaleAction, findItemsAction } from "./actions";
 import { ApprovalDialog } from "./approval-dialog";
 
@@ -69,6 +73,9 @@ export function PosTerminal({
   const [tendered, setTendered] = useState("");
   const [approval, setApproval] = useState<{ reasons: string[] } | null>(null);
   const [pending, startTransition] = useTransition();
+  const sync = usePosSync();
+  // إيصال فاتورة حُفظت على الجهاز دون اتصال (D-82)
+  const [localReceipt, setLocalReceipt] = useState<{ data: ReceiptData; settings: ReceiptSettings } | null>(null);
 
   function add(item: PosItem) {
     setChoices([]);
@@ -90,7 +97,9 @@ export function PosTerminal({
     const q = query.trim();
     if (!q) return;
     startTransition(async () => {
-      const items = await findItemsAction(q);
+      // البحث في نسخة الجهاز أولاً (فوري ويعمل دون اتصال)، ثم الخادم لصنف جديد لم يُنسخ بعد
+      let items = await searchCatalog(q);
+      if (items.length === 0 && navigator.onLine) items = await findItemsAction(q).catch(() => []);
       if (items.length === 1 && items[0]) add(items[0]);
       else if (items.length === 0) setMessage({ kind: "error", text: `لا يوجد صنف بـ «${q}».` });
       else setChoices(items);
@@ -147,11 +156,86 @@ export function PosTerminal({
     setSaleId(createId());
   }
 
+  /** حفظ الفاتورة على الجهاز عند الانقطاع — تُرسل تلقائياً عند عودة الاتصال (D-63، D-82). */
+  async function saveOffline(input: Record<string, unknown>, t: SaleTotals) {
+    if (credit) {
+      setMessage({ kind: "error", text: "الاستبدال يحتاج اتصالاً بالإنترنت." });
+      return;
+    }
+    if (discountPct.gt(maxDiscountPercent)) {
+      setMessage({
+        kind: "error",
+        text: `الخصم فوق حدّك (${maxDiscountPercent}%) يحتاج موافقة، والموافقة تحتاج اتصالاً.`,
+      });
+      return;
+    }
+    const cashier = await getMeta<{ id: string; name: string }>("cashier");
+    const settings = await getMeta<ReceiptSettings>("receipt");
+    if (!cashier || !settings) {
+      setMessage({ kind: "error", text: "افتحي نقطة البيع مرة مع الاتصال أولاً ليُحفظ الكتالوج على الجهاز." });
+      return;
+    }
+    const localNumber = await nextLocalNumber();
+    const createdAt = new Date();
+    const payments = [
+      { method: "CASH" as const, amountSdg: num(cashDue), reference: null },
+      { method: "BANKAK" as const, amountSdg: num(bankak), reference: bankakRef || null },
+    ].filter((p) => dec(p.amountSdg).gt(0));
+    const data: ReceiptData = {
+      number: localNumber,
+      createdAt,
+      cashierName: cashier.name,
+      customer: customerPhone ? { phone: customerPhone, name: customerName || null } : null,
+      subtotalSdg: t.subtotalSdg.toFixed(0),
+      discountSdg: t.discountSdg.toFixed(0),
+      totalSdg: t.totalSdg.toFixed(0),
+      cashTenderedSdg: tendered ? num(tendered) : null,
+      changeSdg: change.gt(0) ? change.toFixed(0) : "0",
+      lines: cart.map((l) => {
+        const line = t.lines.find((x) => x.key === l.variantId);
+        return {
+          id: l.variantId,
+          label: l.label,
+          qty: num(l.qty),
+          unitPriceSdg: l.priceSdg ?? "0",
+          lineDiscountSdg: line?.lineDiscountSdg.toFixed(0) ?? "0",
+          amountSdg: line ? line.grossSdg.minus(line.lineDiscountSdg).toFixed(0) : "0",
+        };
+      }),
+      payments,
+    };
+    await posDb.transaction("rw", posDb.outbox, posDb.catalog, async () => {
+      await posDb.outbox.add({
+        id: saleId,
+        localNumber,
+        createdAt: createdAt.toISOString(),
+        cashierId: cashier.id,
+        payload: {
+          ...input,
+          createdAt: createdAt.toISOString(),
+          localNumber,
+          unitPrices: Object.fromEntries(cart.map((l) => [l.variantId, l.priceSdg ?? "0"])),
+        },
+        receipt: data,
+        status: "pending",
+        attempts: 0,
+      });
+      // الرصيد على الجهاز ينقص فوراً (يُصحَّح من الخادم عند المزامنة)
+      for (const l of cart) {
+        const item = await posDb.catalog.get(l.variantId);
+        if (item) await posDb.catalog.update(l.variantId, { stockQty: dec(item.stockQty).minus(num(l.qty)).toFixed() });
+      }
+    });
+    sync.setPending(await pendingCount());
+    reset();
+    setLocalReceipt({ data, settings });
+  }
+
   function submit(withApproval?: { phone: string; password: string }) {
     if (!totals) return;
     const t = totals;
     startTransition(async () => {
-      const result = await createSaleAction({
+      const input = {
         id: saleId,
         lines: cart.map((l) => ({
           variantId: l.variantId,
@@ -168,7 +252,15 @@ export function PosTerminal({
         customerName,
         approval: withApproval ?? null,
         creditReturnId: credit?.returnId ?? null,
-      });
+      };
+      if (!navigator.onLine) return saveOffline(input, t);
+      let result;
+      try {
+        result = await createSaleAction(input);
+      } catch {
+        // انقطع الاتصال أثناء الإرسال — نفس المعرّف، فلا تكرار إن كان وصل فعلاً
+        return saveOffline(input, t);
+      }
       if ("ok" in result) {
         reset();
         router.push(`/pos/receipt/${result.id}`);
@@ -182,9 +274,33 @@ export function PosTerminal({
 
   const canPay = !!totals && cart.length > 0 && paidSum.eq(due) && !change.lt(0) && !pending && hasRate;
 
+  if (localReceipt) {
+    return (
+      <div className="flex flex-col items-center gap-4">
+        <style>{`@page { size: 80mm auto; margin: 0; } @media print { body * { visibility: hidden; } .receipt, .receipt * { visibility: visible; } .receipt { position: absolute; inset: 0 auto auto 0; } }`}</style>
+        <Alert className="max-w-md print:hidden">
+          حُفظت الفاتورة على الجهاز (دون اتصال) وتُرسل تلقائياً عند عودة الإنترنت. رقمها المؤقت{" "}
+          <bdi dir="ltr">{localReceipt.data.number}</bdi>.
+        </Alert>
+        <div className="flex gap-2 print:hidden">
+          <Button type="button" onClick={() => window.print()}>
+            طباعة
+          </Button>
+          <Button type="button" variant="outline" onClick={() => setLocalReceipt(null)}>
+            بيع جديد
+          </Button>
+        </div>
+        <div className="rounded-xl border border-border shadow-sm print:border-0 print:shadow-none">
+          <Receipt data={localReceipt.data} settings={localReceipt.settings} />
+        </div>
+      </div>
+    );
+  }
+
   return (
     <div className="grid grid-cols-1 gap-4 lg:grid-cols-[1fr_22rem]">
       <section className="flex min-w-0 flex-col gap-3">
+        <SyncBar {...sync} />
         {!hasRate ? <Alert variant="destructive">لا يوجد سعر للجنيه — لا يمكن البيع حتى تُدخله المديرة.</Alert> : null}
         {message ? <Alert variant={message.kind === "error" ? "destructive" : "default"}>{message.text}</Alert> : null}
         <form
@@ -480,6 +596,40 @@ function DiscountInput({
       >
         {mode === "percent" ? "%" : "ج.س"}
       </Button>
+    </div>
+  );
+}
+
+/** شريط الاتصال: دون اتصال، أو فواتير بانتظار الإرسال، أو جلسة منتهية. */
+function SyncBar({
+  online,
+  pending,
+  needsLogin,
+  syncing,
+  sync,
+}: {
+  online: boolean;
+  pending: number;
+  needsLogin: boolean;
+  syncing: boolean;
+  sync: () => Promise<void>;
+}) {
+  if (online && pending === 0 && !needsLogin) return null;
+  return (
+    <div
+      role="status"
+      className="flex flex-wrap items-center justify-between gap-2 rounded-xl border border-gold/40 bg-gold/10 px-4 py-2 text-sm font-semibold text-warning"
+    >
+      <span>
+        {!online ? "دون اتصال — البيع مستمر ويُحفظ على الجهاز. " : ""}
+        {pending ? `${pending} فاتورة بانتظار الإرسال.` : ""}
+        {needsLogin ? " انتهت الجلسة — سجّلي الدخول لإرسال الفواتير." : ""}
+      </span>
+      {online && pending ? (
+        <Button type="button" size="sm" variant="outline" disabled={syncing} onClick={() => void sync()}>
+          {syncing ? "جارٍ الإرسال…" : "إرسال الآن"}
+        </Button>
+      ) : null}
     </div>
   );
 }

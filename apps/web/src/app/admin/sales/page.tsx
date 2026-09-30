@@ -4,18 +4,61 @@ import { Card, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { requirePermission } from "@/lib/auth/session";
 import { formatAmount, formatDateTime } from "@/lib/format";
-import { listSales } from "@/lib/sales";
+import { Button } from "@/components/ui/button";
+import { roleCan } from "@/lib/auth/permissions";
+import { listSales, listSalesToReview } from "@/lib/sales";
+import { markReviewedAction } from "./actions";
 import { listReturns } from "@/lib/returns";
 import { listShifts } from "@/lib/shifts";
 
 export const metadata: Metadata = { title: "المبيعات | غصن" };
 
 export default async function SalesPage() {
-  await requirePermission({ sale: ["read"] });
-  const [sales, shifts, returns] = await Promise.all([listSales(), listShifts(), listReturns()]);
+  const session = await requirePermission({ sale: ["read"] });
+  const [sales, shifts, returns, toReview] = await Promise.all([
+    listSales(),
+    listShifts(),
+    listReturns(),
+    listSalesToReview(),
+  ]);
+  const canReview = roleCan(session.user.role, { pos: ["approve"] });
   return (
     <div className="flex flex-col gap-6">
       <h1 className="font-display text-3xl font-bold">المبيعات</h1>
+      {toReview.length ? (
+        <Card className="border-gold/40">
+          <CardHeader>
+            <CardTitle>مبيعات دون اتصال تحتاج مراجعة ({toReview.length})</CardTitle>
+          </CardHeader>
+          <ul className="flex flex-col gap-2">
+            {toReview.map((s) => (
+              <li
+                key={s.id}
+                className="flex flex-wrap items-start justify-between gap-3 rounded-xl border border-border p-3"
+              >
+                <div className="min-w-0">
+                  <Link href={`/pos/receipt/${s.id}`} className="font-semibold hover:underline">
+                    <bdi dir="ltr">{s.number}</bdi>
+                  </Link>{" "}
+                  <span className="text-sm text-muted-foreground">
+                    (<bdi dir="ltr">{s.localNumber}</bdi>) · {s.cashierName} · {formatDateTime(s.createdAt)} ·{" "}
+                    {formatAmount(s.totalSdg, 0)} ج.س
+                  </span>
+                  <p className="text-sm text-destructive">{s.reviewNote}</p>
+                </div>
+                {canReview ? (
+                  <form action={markReviewedAction}>
+                    <input type="hidden" name="saleId" value={s.id} />
+                    <Button type="submit" size="sm" variant="outline">
+                      تمت المراجعة
+                    </Button>
+                  </form>
+                ) : null}
+              </li>
+            ))}
+          </ul>
+        </Card>
+      ) : null}
       <Card className="p-0">
         <CardHeader className="px-5 pt-5">
           <CardTitle>آخر الفواتير</CardTitle>

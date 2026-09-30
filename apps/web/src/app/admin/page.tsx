@@ -7,6 +7,7 @@ import { requireSession } from "@/lib/auth/session";
 import { SELLING_CURRENCY, SOURCE_LABELS, getRateBoard } from "@/lib/exchange-rates";
 import { formatAmount, formatDateTime, formatDay, formatRate } from "@/lib/format";
 import { countPriceReview } from "@/lib/pricing";
+import { countSalesToReview } from "@/lib/sales";
 import { listDueSoon } from "@/lib/shipments";
 
 export default async function AdminHome() {
@@ -15,6 +16,7 @@ export default async function AdminHome() {
   const sdg = canSeeRates ? (await getRateBoard()).find((c) => c.currency.code === SELLING_CURRENCY) : undefined;
   const due = roleCan(user.role, { supplier: ["read"] }) ? await listDueSoon(7) : [];
   const priceReview = roleCan(user.role, { price: ["approve"] }) ? await countPriceReview() : null;
+  const salesReview = roleCan(user.role, { sale: ["read"] }) ? await countSalesToReview() : 0;
 
   return (
     <div className="flex flex-col gap-8">
@@ -57,6 +59,21 @@ export default async function AdminHome() {
         >
           نقطة البيع
           <ArrowLeft aria-hidden className="size-5" />
+        </Link>
+      ) : null}
+
+      {salesReview ? (
+        <Link
+          href="/admin/sales"
+          className="flex max-w-md items-center justify-between gap-3 rounded-2xl border border-destructive/40 bg-destructive/10 p-5"
+        >
+          <span>
+            <span className="block font-bold">{salesReview} فاتورة دون اتصال تحتاج مراجعة</span>
+            <span className="text-sm text-muted-foreground">
+              رصيد لم يكفِ، أو سعر تغيّر، أو وردية أُغلقت قبل وصولها.
+            </span>
+          </span>
+          <ArrowLeft aria-hidden className="size-5 shrink-0" />
         </Link>
       ) : null}
 
