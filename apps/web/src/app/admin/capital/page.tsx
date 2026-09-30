@@ -13,10 +13,15 @@ export const metadata: Metadata = { title: "التمويل | غصن" };
 
 export default async function CapitalPage() {
   await requirePermission({ capital: ["update"] });
-  const [rows, total, currencies] = await Promise.all([
+  const [rows, total, currencies, wallets] = await Promise.all([
     listContributions(),
     totalCapitalUsd(),
     prisma.currency.findMany({ orderBy: { code: "asc" }, select: { code: true } }),
+    prisma.wallet.findMany({
+      where: { isActive: true },
+      orderBy: { createdAt: "asc" },
+      select: { id: true, name: true, currencyCode: true },
+    }),
   ]);
   return (
     <div className="flex flex-col gap-6">
@@ -35,7 +40,7 @@ export default async function CapitalPage() {
           <CardTitle>تمويل جديد</CardTitle>
           <CardDescription>ما دفعه الشريك للمشروع: شراء بضاعة، تجهيز المحل، تحويلات…</CardDescription>
         </CardHeader>
-        <ContributionForm currencies={currencies.map((c) => c.code)} today={shopDay(new Date())} />
+        <ContributionForm currencies={currencies.map((c) => c.code)} wallets={wallets} today={shopDay(new Date())} />
       </Card>
       <Card>
         <CardHeader>
@@ -54,6 +59,7 @@ export default async function CapitalPage() {
                   <p className={`font-semibold ${c.voided ? "line-through" : ""}`}>{c.partnerName}</p>
                   <p className="text-sm text-muted-foreground">
                     {formatDateTime(c.contributedAt)}
+                    {c.wallet ? ` · إلى ${c.wallet}` : ""}
                     {c.note ? ` · ${c.note}` : ""}
                     {c.voided ? ` · ملغى: ${c.voided.reason}` : ""}
                   </p>

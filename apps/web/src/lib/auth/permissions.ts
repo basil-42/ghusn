@@ -24,6 +24,7 @@ export const statements = {
   expense: ["read", "create", "void"],
   report: ["read"],
   capital: ["update"],
+  wallet: ["update"],
 } as const;
 
 export const ac = createAccessControl(statements);
@@ -50,6 +51,8 @@ export const roles = {
     expense: ["read", "create", "void"],
     report: ["read"],
     capital: ["update"],
+    // المحافظ: الأرصدة والتحويلات والتسويات — للمالك فقط (D-86)
+    wallet: ["update"],
   }),
   // المديرة: سعر الصرف والهوامش (D-29) وترى التكاليف، وتدير الكتالوج (D-69)
   MANAGER: ac.newRole({

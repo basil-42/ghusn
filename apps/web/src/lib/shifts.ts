@@ -1,5 +1,6 @@
 import { dec, expectedCash, sum } from "@ghusn/core";
 import { Prisma, prisma } from "@ghusn/db";
+import { posWallets } from "./settings";
 
 export class ShiftError extends Error {}
 
@@ -90,6 +91,8 @@ export async function shiftSummary(shiftId: string) {
  * ويظهر في التقرير؛ الفرق غير الصفري يحتاج ملاحظة.
  */
 export async function closeShift(shiftId: string, userId: string, countedCashSdg: string, note: string | null) {
+  // فرق العدّ يُسوّى في رصيد محفظة النقد (D-86)
+  const { cash: cashWalletId } = await posWallets();
   await prisma.$transaction(async (tx) => {
     await tx.$queryRaw`SELECT "id" FROM "Shift" WHERE "id" = ${shiftId} FOR UPDATE`;
     const shift = await tx.shift.findUnique({ where: { id: shiftId } });
@@ -118,6 +121,7 @@ export async function closeShift(shiftId: string, userId: string, countedCashSdg
         expectedCashSdg: expected.toFixed(2),
         countedCashSdg,
         closeNote: note,
+        cashWalletId,
       },
     });
   });
