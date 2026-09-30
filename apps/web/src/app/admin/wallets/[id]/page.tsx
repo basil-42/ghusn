@@ -106,7 +106,7 @@ export default async function WalletPage({ params }: { params: Promise<{ id: str
                   const link = LINKS[r.kind]?.(r.refId);
                   const label = [MOVEMENT_LABELS[r.kind], r.ref, r.note].filter(Boolean).join(" · ");
                   return (
-                    <tr key={`${r.kind}-${r.refId}`} className="border-b border-border last:border-0 align-top">
+                    <tr key={r.rowId} className="border-b border-border last:border-0 align-top">
                       <td className="whitespace-nowrap p-2">{formatDateTime(r.at)}</td>
                       <td className="p-2">
                         {link ? (
