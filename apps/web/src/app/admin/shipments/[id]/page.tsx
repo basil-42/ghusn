@@ -1,8 +1,16 @@
-import { allowedShipmentTransitions, isShipmentEditable, plainNumber, shopDay } from "@ghusn/core";
+import {
+  allowedShipmentTransitions,
+  canChangeShipmentCosts,
+  canReceiveShipment,
+  isShipmentEditable,
+  plainNumber,
+  shopDay,
+} from "@ghusn/core";
 import { prisma } from "@ghusn/db";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { Button } from "@/components/ui/button";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { roleCan } from "@/lib/auth/permissions";
@@ -30,8 +38,11 @@ export default async function ShipmentPage({ params }: { params: Promise<{ id: s
   if (!s) notFound();
   const role = session.user.role;
   const canEdit = roleCan(role, { shipment: ["update"] }) && isShipmentEditable(s.status);
-  const canCost = roleCan(role, { shipmentCost: ["create"] }) && isShipmentEditable(s.status) && s.status !== "DRAFT";
-  const canVoidCost = roleCan(role, { shipmentCost: ["void"] }) && isShipmentEditable(s.status);
+  const canEditDetails = roleCan(role, { shipment: ["update"] }) && s.status !== "CANCELLED";
+  const canCost = roleCan(role, { shipmentCost: ["create"] }) && canChangeShipmentCosts(s.status);
+  const canVoidCost = roleCan(role, { shipmentCost: ["void"] }) && canChangeShipmentCosts(s.status);
+  const canReceive = roleCan(role, { shipment: ["receive"] }) && canReceiveShipment(s.status);
+  const received = s.status === "RECEIVED";
   const wallets = canCost
     ? await prisma.wallet.findMany({
         where: { isActive: true },
@@ -81,10 +92,21 @@ export default async function ShipmentPage({ params }: { params: Promise<{ id: s
           }))}
         />
       ) : null}
-      {s.status === "ARRIVED" ? (
-        <p className="text-sm text-muted-foreground">
-          الاستلام وإدخال البضاعة للمخزون: الخطوة القادمة (شاشة الاستلام).
-        </p>
+      {canReceive ? (
+        <Button asChild className="self-start">
+          <Link href={`/admin/shipments/${s.id}/receive`}>استلام الشحنة وإدخالها للمخزون</Link>
+        </Button>
+      ) : null}
+      {received ? (
+        <div className="flex flex-wrap items-center justify-between gap-3 rounded-xl border border-border bg-muted p-4">
+          <p>
+            استُلمت {s.receivedAt ? formatDateTime(s.receivedAt) : ""}
+            {s.receivedBy ? ` · ${s.receivedBy}` : ""} — دخلت البضاعة المخزون.
+          </p>
+          <Button asChild variant="outline">
+            <Link href={`/admin/labels?shipment=${s.id}`}>طباعة ملصقات الباركود</Link>
+          </Button>
+        </div>
       ) : null}
 
       <Card>
@@ -117,7 +139,9 @@ export default async function ShipmentPage({ params }: { params: Promise<{ id: s
           <CardDescription>
             {s.status === "DRAFT"
               ? "تُضاف بعد تأكيد الشراء."
-              : "كل بند بعملة المحفظة التي دُفع منها وبسعر صرف يوم الدفع. تُوزَّع على البنود حسب القيمة (D-25)."}
+              : received
+                ? "فاتورة وصلت بعد الاستلام؟ أضيفيها هنا: نصيب البضاعة الباقية يرفع متوسط تكلفتها، ونصيب ما بيع يُسجَّل مصروفاً."
+                : "كل بند بعملة المحفظة التي دُفع منها وبسعر صرف يوم الدفع. تُوزَّع على البنود حسب القيمة (D-25)."}
           </CardDescription>
         </CardHeader>
         {s.costs.length ? (
@@ -174,7 +198,11 @@ export default async function ShipmentPage({ params }: { params: Promise<{ id: s
           <CardTitle>التكلفة الواصلة</CardTitle>
           <CardDescription>
             {s.landed
-              ? `البضاعة ${formatAmount(s.landed.goodsUsd)}$ + تكاليف ${formatAmount(s.landed.extraUsd)}$ = ${formatAmount(s.landed.totalUsd)}$. تُثبَّت للدفعة عند الاستلام بالكمية المستلمة فعلاً.`
+              ? `البضاعة ${formatAmount(s.landed.goodsUsd)}$ + تكاليف ${formatAmount(s.landed.extraUsd)}$ = ${formatAmount(s.landed.totalUsd)}$. ${
+                  received
+                    ? "محسوبة على السليم المستلم؛ تكلفة التالف والناقص محمّلة عليه."
+                    : "تُثبَّت للدفعة عند الاستلام بالكمية المستلمة فعلاً."
+                }${received && s.landed.lossUsd !== "0" ? ` خسارة بنود لم تصل: ${formatAmount(s.landed.lossUsd)}$.` : ""}`
               : s.lines.length
                 ? `لا يوجد سعر صرف لـ ${cur.code} في تاريخ الشراء.`
                 : "أضيفي البنود لحساب التكلفة."}
@@ -186,6 +214,13 @@ export default async function ShipmentPage({ params }: { params: Promise<{ id: s
               <TableRow>
                 <TableHead>المنتج</TableHead>
                 <TableHead>الكمية</TableHead>
+                {received ? (
+                  <>
+                    <TableHead>السليم</TableHead>
+                    <TableHead>التالف</TableHead>
+                    <TableHead>الناقص</TableHead>
+                  </>
+                ) : null}
                 <TableHead>القيمة $</TableHead>
                 <TableHead>الحصة</TableHead>
                 <TableHead>التكاليف $</TableHead>
@@ -199,10 +234,25 @@ export default async function ShipmentPage({ params }: { params: Promise<{ id: s
                   <TableRow key={l.id}>
                     <TableCell>{l.label}</TableCell>
                     <TableCell className="tabular-nums">{plainNumber(l.qty)}</TableCell>
+                    {l.received ? (
+                      <>
+                        <TableCell className="tabular-nums">{plainNumber(l.received.qty)}</TableCell>
+                        <TableCell className="tabular-nums">{plainNumber(l.received.damaged)}</TableCell>
+                        <TableCell className="tabular-nums">{plainNumber(l.received.missing)}</TableCell>
+                      </>
+                    ) : null}
                     <TableCell className="tabular-nums">{x ? formatAmount(x.valueUsd) : ""}</TableCell>
                     <TableCell className="tabular-nums">{x ? `${x.sharePct}%` : ""}</TableCell>
                     <TableCell className="tabular-nums">{x ? formatAmount(x.extraUsd) : ""}</TableCell>
-                    <TableCell className="font-bold tabular-nums">{x ? formatAmount(x.landedUnitUsd) : ""}</TableCell>
+                    <TableCell className="font-bold tabular-nums">
+                      {x?.landedUnitUsd ? (
+                        formatAmount(x.landedUnitUsd)
+                      ) : x ? (
+                        <span className="text-destructive">خسارة</span>
+                      ) : (
+                        ""
+                      )}
+                    </TableCell>
                   </TableRow>
                 );
               })}
@@ -223,7 +273,7 @@ export default async function ShipmentPage({ params }: { params: Promise<{ id: s
           origin={s.origin}
           notes={s.notes ?? ""}
           today={today}
-          disabled={!canEdit}
+          disabled={!canEditDetails}
           countries={Object.entries(COUNTRIES).map(([value, label]) => ({ value, label }))}
         />
       </Card>

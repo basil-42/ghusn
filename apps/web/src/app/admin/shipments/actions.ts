@@ -16,6 +16,7 @@ import {
   updateShipmentDetails,
   voidShipmentCost,
 } from "@/lib/shipments";
+import { receiveShipment } from "@/lib/stock";
 import { COUNTRIES, amountField } from "@/lib/suppliers";
 
 export type FormState = { error?: string; success?: string };
@@ -189,4 +190,42 @@ export async function voidCostAction(_prev: FormState, formData: FormData): Prom
   }
   refresh(parsed.data.id);
   return { success: "تم الإلغاء." };
+}
+
+const qtyField = z
+  .string()
+  .transform(clean)
+  .refine((v) => /^\d{1,9}(\.\d{1,3})?$/.test(v), "الكمية رقم (حتى 3 خانات عشرية)");
+
+const receiveLineSchema = z.object({
+  lineId: z.string().min(1),
+  receivedQty: qtyField,
+  damagedQty: qtyField,
+  expiresAt: z
+    .string()
+    .optional()
+    .transform((v, ctx) => {
+      if (!v) return null;
+      const m = /^(\d{4})-(\d{2})-(\d{2})$/.exec(v);
+      const at = m ? new Date(`${v}T00:00:00Z`) : null;
+      if (!at || Number.isNaN(at.getTime()) || at.toISOString().slice(0, 10) !== v) {
+        ctx.addIssue({ code: "custom", message: "تاريخ الصلاحية غير صحيح." });
+        return null;
+      }
+      return at;
+    }),
+});
+
+export async function receiveAction(id: string, _prev: FormState, lines: unknown): Promise<FormState> {
+  const session = await requirePermission({ shipment: ["receive"] });
+  const parsed = z.array(receiveLineSchema).min(1).max(200).safeParse(lines);
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message };
+  try {
+    await receiveShipment(id, parsed.data, session.user.id);
+  } catch (error) {
+    return fail(error);
+  }
+  refresh(id);
+  revalidatePath("/admin/stock");
+  redirect(`/admin/shipments/${id}`);
 }

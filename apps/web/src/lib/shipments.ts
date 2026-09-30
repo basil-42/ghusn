@@ -1,19 +1,26 @@
 import {
   allocateLandedCost,
+  canChangeShipmentCosts,
   canTransitionShipment,
   dec,
   documentNumber,
   isShipmentEditable,
+  planReceipt,
   roundMoney,
   searchTerms,
   shipmentGoodsTotal,
   shopDay,
   toUsdExact,
   variantLabel,
+  type Decimal,
   type ShipmentStatus,
 } from "@ghusn/core";
 import { Prisma, prisma, type ShipmentCostKind } from "@ghusn/db";
 import { getRateAt } from "./exchange-rates";
+import { ShipmentError } from "./shipment-error";
+import { revalueForCost } from "./stock";
+
+export { ShipmentError };
 
 export const STATUS_LABELS: Record<ShipmentStatus, string> = {
   DRAFT: "مسودة",
@@ -33,8 +40,6 @@ export const COST_LABELS: Record<ShipmentCostKind, string> = {
   COMMISSION: "عمولة",
   OTHER: "أخرى",
 };
-
-export class ShipmentError extends Error {}
 
 type Tx = Prisma.TransactionClient;
 
@@ -95,6 +100,7 @@ export async function getShipment(id: string) {
     where: { id },
     include: {
       supplier: { select: { id: true, name: true } },
+      receivedBy: { select: { name: true } },
       lines: {
         orderBy: { sortOrder: "asc" },
         include: {
@@ -105,9 +111,10 @@ export async function getShipment(id: string) {
               size: true,
               color: true,
               volume: true,
-              product: { select: { nameAr: true, unit: true } },
+              product: { select: { nameAr: true, unit: true, trackExpiry: true } },
             },
           },
+          batch: { select: { expiresAt: true } },
         },
       },
       costs: {
@@ -124,26 +131,61 @@ export async function getShipment(id: string) {
     label: [l.variant.product.nameAr, variantLabel(l.variant)].filter(Boolean).join(" · "),
     sku: l.variant.sku,
     unit: l.variant.product.unit,
+    trackExpiry: l.variant.product.trackExpiry,
     qty: l.qty.toString(),
     unitPrice: l.unitPrice.toString(),
+    received:
+      l.receivedQty === null
+        ? null
+        : {
+            qty: l.receivedQty.toString(),
+            damaged: l.damagedQty?.toString() ?? "0",
+            missing: l.qty
+              .minus(l.receivedQty)
+              .minus(l.damagedQty ?? 0)
+              .toString(),
+            lossUsd: l.lossUsd?.toString() ?? "0",
+            expiresAt: l.batch?.expiresAt ?? null,
+          },
   }));
   const activeCosts = s.costs.filter((c) => !c.voidedAt);
 
   // سعر الشراء: المثبّت عند التأكيد، أو سعر يوم الشراء للمسودة (للمعاينة)
   const purchaseRate = s.rateUsed?.toString() ?? (await getRateAt(s.currencyCode, s.purchasedAt));
+  const costInputs = activeCosts.map((c) => ({ amount: c.amount.toString(), rateUsed: c.rateUsed.toString() }));
+  const received = s.status === "RECEIVED";
+  // بعد الاستلام: التكلفة الفعلية (السليم فقط، وتشمل الفواتير المتأخرة)؛ قبله: معاينة بالكمية المشتراة
   const landed =
     lines.length && purchaseRate
-      ? allocateLandedCost(
-          lines.map((l) => ({
-            key: l.id,
-            qty: l.qty,
-            unitPrice: l.unitPrice,
-            rateUsed: purchaseRate,
-            receivedQty: l.qty,
-          })),
-          activeCosts.map((c) => ({ amount: c.amount.toString(), rateUsed: c.rateUsed.toString() })),
-        )
+      ? received
+        ? planReceipt(
+            lines.map((l) => ({
+              key: l.id,
+              qty: l.qty,
+              unitPrice: l.unitPrice,
+              rateUsed: purchaseRate,
+              receivedQty: l.received?.qty ?? "0",
+              damagedQty: l.received?.damaged ?? "0",
+            })),
+            costInputs,
+          )
+        : allocateLandedCost(
+            lines.map((l) => ({
+              key: l.id,
+              qty: l.qty,
+              unitPrice: l.unitPrice,
+              rateUsed: purchaseRate,
+              receivedQty: l.qty,
+            })),
+            costInputs,
+          ).lines.map((l) => ({
+            key: l.key,
+            landedUnitUsd: l.landedUnitUsd as Decimal | null,
+            totalUsd: l.lineValueUsd.plus(l.extraUsd),
+          }))
       : null;
+  const goodsUsd = purchaseRate ? toUsdExact(shipmentGoodsTotal(lines), purchaseRate) : null;
+  const extraUsd = costInputs.reduce((acc, c) => acc.plus(toUsdExact(c.amount, c.rateUsed)), dec(0));
 
   return {
     id: s.id,
@@ -171,18 +213,26 @@ export async function getShipment(id: string) {
       note: c.note,
       voided: c.voidedAt ? { at: c.voidedAt, by: c.voidedBy?.name ?? null, reason: c.voidReason } : null,
     })),
-    landed: landed && {
-      goodsUsd: roundMoney(landed.goodsUsd).toString(),
-      extraUsd: roundMoney(landed.extraUsd).toString(),
-      totalUsd: roundMoney(landed.totalUsd).toString(),
-      lines: landed.lines.map((l) => ({
-        lineId: l.key,
-        valueUsd: roundMoney(l.lineValueUsd).toString(),
-        sharePct: l.share.mul(100).toDecimalPlaces(1).toString(),
-        extraUsd: roundMoney(l.extraUsd).toString(),
-        landedUnitUsd: l.landedUnitUsd.toString(),
-      })),
-    },
+    receivedAt: s.receivedAt,
+    receivedBy: s.receivedBy?.name ?? null,
+    landed: landed &&
+      goodsUsd && {
+        goodsUsd: roundMoney(goodsUsd).toString(),
+        extraUsd: roundMoney(extraUsd).toString(),
+        totalUsd: roundMoney(goodsUsd.plus(extraUsd)).toString(),
+        lossUsd: roundMoney(lines.reduce((acc, l) => acc.plus(l.received?.lossUsd ?? "0"), dec(0))).toString(),
+        lines: landed.map((l) => {
+          const line = lines.find((x) => x.id === l.key)!;
+          const valueUsd = toUsdExact(dec(line.qty).mul(line.unitPrice), purchaseRate!);
+          return {
+            lineId: l.key,
+            valueUsd: roundMoney(valueUsd).toString(),
+            sharePct: valueUsd.div(goodsUsd).mul(100).toDecimalPlaces(1).toString(),
+            extraUsd: roundMoney(l.totalUsd.minus(valueUsd)).toString(),
+            landedUnitUsd: l.landedUnitUsd?.toString() ?? null,
+          };
+        }),
+      },
   };
 }
 
@@ -226,7 +276,13 @@ export async function createShipment(supplierId: string, userId: string): Promis
   });
 }
 
+/** قفل صف الشحنة حتى نهاية المعاملة: التعديل والاستلام والإلغاء لا تتداخل. */
+async function lockShipment(tx: Tx, id: string) {
+  await tx.$queryRaw`SELECT "id" FROM "Shipment" WHERE "id" = ${id} FOR UPDATE`;
+}
+
 async function loadEditable(tx: Tx, id: string) {
+  await lockShipment(tx, id);
   const s = await tx.shipment.findUnique({ where: { id }, include: { lines: true } });
   if (!s) throw new ShipmentError("الشحنة غير موجودة.");
   if (!isShipmentEditable(s.status)) throw new ShipmentError("الشحنة مغلقة ولا تُعدَّل.");
@@ -268,7 +324,10 @@ export async function updateShipmentDetails(
   input: { purchasedAt: Date | null; dueDate: Date | null; origin: string; notes: string | null },
 ): Promise<void> {
   await prisma.$transaction(async (tx) => {
-    const s = await loadEditable(tx, id);
+    const s = await tx.shipment.findUnique({ where: { id } });
+    if (!s) throw new ShipmentError("الشحنة غير موجودة.");
+    // الاستحقاق والملاحظات تبقى قابلة للتعديل بعد الاستلام (السداد قد يتأخر)
+    if (s.status === "CANCELLED") throw new ShipmentError("الشحنة ملغاة ولا تُعدَّل.");
     if (input.purchasedAt && s.status !== "DRAFT" && shopDay(input.purchasedAt) !== shopDay(s.purchasedAt)) {
       throw new ShipmentError("تاريخ الشراء يُعدَّل في المسودة فقط (سعر صرفه ثبّت التكلفة).");
     }
@@ -342,6 +401,10 @@ export async function transitionShipment(id: string, to: ShipmentStatus, userId:
   const rate = to === "PURCHASED" ? await rateOrThrow(current.currencyCode, purchasedAt) : null;
 
   await prisma.$transaction(async (tx) => {
+    // إعادة الفحص تحت القفل: ربما استُلمت أو تغيّرت من جهاز آخر منذ القراءة الأولى
+    await lockShipment(tx, id);
+    const locked = await tx.shipment.findUniqueOrThrow({ where: { id }, select: { status: true } });
+    if (!canTransitionShipment(locked.status, to)) throw new ShipmentError("تغيّرت حالة الشحنة — حدّثي الصفحة.");
     if (to === "PURCHASED") {
       if (current._count.lines === 0) throw new ShipmentError("أضيفي بنود الشحنة قبل تأكيد الشراء.");
       await tx.shipment.update({ where: { id }, data: { status: to, rateUsed: rate, purchasedAt } });
@@ -368,9 +431,8 @@ export async function addShipmentCost(
   if (!wallet) throw new ShipmentError("اختاري المحفظة.");
   const rate = await rateOrThrow(wallet.currencyCode, input.paidAt);
   await prisma.$transaction(async (tx) => {
-    const s = await loadEditable(tx, id);
-    if (s.status === "DRAFT") throw new ShipmentError("أكّدي الشراء قبل تسجيل تكاليف الشحنة.");
-    await tx.shipmentCost.create({
+    const s = await loadForCosts(tx, id);
+    const cost = await tx.shipmentCost.create({
       data: {
         shipmentId: id,
         kind: input.kind,
@@ -384,18 +446,51 @@ export async function addShipmentCost(
         createdById: userId,
       },
     });
+    // فاتورة متأخرة بعد الاستلام ← إعادة تقييم المخزون (D-78)
+    if (s.status === "RECEIVED") {
+      await revalueForCost(
+        tx,
+        id,
+        { id: cost.id, amount: cost.amount.toString(), rateUsed: cost.rateUsed.toString() },
+        1,
+        userId,
+        `تكلفة متأخرة: ${COST_LABELS[input.kind]}`,
+      );
+    }
   });
 }
 
 export async function voidShipmentCost(id: string, costId: string, reason: string, userId: string): Promise<void> {
   await prisma.$transaction(async (tx) => {
-    await loadEditable(tx, id);
+    const s = await loadForCosts(tx, id);
+    const cost = await tx.shipmentCost.findFirst({ where: { id: costId, shipmentId: id, voidedAt: null } });
+    if (!cost) throw new ShipmentError("التكلفة غير موجودة أو ملغاة.");
+    // الشرط voidedAt: null يمنع إلغاءها مرتين من جهازين
     const updated = await tx.shipmentCost.updateMany({
-      where: { id: costId, shipmentId: id, voidedAt: null },
+      where: { id: costId, voidedAt: null },
       data: { voidedAt: new Date(), voidedById: userId, voidReason: reason },
     });
     if (updated.count === 0) throw new ShipmentError("التكلفة غير موجودة أو ملغاة.");
+    if (s.status === "RECEIVED") {
+      await revalueForCost(
+        tx,
+        id,
+        { id: cost.id, amount: cost.amount.toString(), rateUsed: cost.rateUsed.toString() },
+        -1,
+        userId,
+        `إلغاء تكلفة: ${reason}`,
+      );
+    }
   });
+}
+
+async function loadForCosts(tx: Tx, id: string) {
+  await lockShipment(tx, id);
+  const s = await tx.shipment.findUnique({ where: { id } });
+  if (!s) throw new ShipmentError("الشحنة غير موجودة.");
+  if (s.status === "DRAFT") throw new ShipmentError("أكّدي الشراء قبل تسجيل تكاليف الشحنة.");
+  if (!canChangeShipmentCosts(s.status)) throw new ShipmentError("الشحنة ملغاة ولا تُعدَّل.");
+  return s;
 }
 
 /** دفعات للموردين مستحقة خلال أيام (للوحة الرئيسية) — فقط لمن رصيده ما زال «علينا». */

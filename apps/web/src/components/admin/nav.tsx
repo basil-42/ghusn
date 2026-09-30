@@ -6,6 +6,8 @@ import {
   FolderTree,
   LayoutDashboard,
   Package,
+  Tags,
+  Warehouse,
   Truck,
   Users,
   type LucideIcon,
@@ -21,6 +23,8 @@ const ICONS = {
   categories: FolderTree,
   suppliers: Truck,
   shipments: Container,
+  stock: Warehouse,
+  labels: Tags,
   users: Users,
 } satisfies Record<string, LucideIcon>;
 

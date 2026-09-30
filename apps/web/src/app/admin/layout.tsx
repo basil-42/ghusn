@@ -14,6 +14,8 @@ type Permissions = Parameters<typeof roleCan>[1];
 const NAV: (NavItem & { permission?: Permissions })[] = [
   { href: "/admin", label: "الرئيسية", icon: "dashboard" },
   { href: "/admin/products", label: "المنتجات", icon: "products", permission: { product: ["read"] } },
+  { href: "/admin/stock", label: "المخزون", icon: "stock", permission: { stock: ["read"] } },
+  { href: "/admin/labels", label: "الملصقات", icon: "labels", permission: { product: ["read"] } },
   { href: "/admin/categories", label: "الأقسام", icon: "categories", permission: { category: ["update"] } },
   { href: "/admin/shipments", label: "الشحنات", icon: "shipments", permission: { shipment: ["read"] } },
   { href: "/admin/suppliers", label: "الموردون", icon: "suppliers", permission: { supplier: ["read"] } },
