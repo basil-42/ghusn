@@ -18,6 +18,9 @@ export const statements = {
   shipmentCost: ["create", "void"],
   stock: ["read"],
   price: ["approve"],
+  pos: ["sell", "approve"],
+  sale: ["read"],
+  settings: ["update"],
 } as const;
 
 export const ac = createAccessControl(statements);
@@ -38,6 +41,9 @@ export const roles = {
     shipmentCost: ["create", "void"],
     stock: ["read"],
     price: ["approve"],
+    pos: ["sell", "approve"],
+    sale: ["read"],
+    settings: ["update"],
   }),
   // المديرة: سعر الصرف والهوامش (D-29) وترى التكاليف، وتدير الكتالوج (D-69)
   MANAGER: ac.newRole({
@@ -52,12 +58,16 @@ export const roles = {
     shipmentCost: ["create", "void"],
     stock: ["read"],
     price: ["approve"],
+    pos: ["sell", "approve"],
+    sale: ["read"],
   }),
   // الموظفة: ترى سعر الصرف فقط، ولا ترى التكاليف ولا الهوامش (system-design §4.9)
   STAFF: ac.newRole({
     exchangeRate: ["read"],
     product: ["read"],
     stock: ["read"],
+    // تبيع وتخصم حتى الحد وتفتح ورديتها وتغلقها (D-80)
+    pos: ["sell"],
   }),
 };
 
