@@ -101,7 +101,14 @@
       "OMDURMAN": "Omdurman"
     },
     "bankak": "Pay now with Bankak",
-    "bankakHint": "We hold your order and its price for 24 hours; transfer the amount and upload the receipt from the order page."
+    "bankakHint": "We hold your order and its price for 24 hours; transfer the amount and upload the receipt from the order page.",
+    "giftTitle": "Design your gift",
+    "noWrap": "No wrapping",
+    "photoPromise": "We'll send you a photo of the gift to approve before delivery.",
+    "card": "Gift card (optional)",
+    "cardPlaceholder": "Write your message as you'd like it on the card",
+    "cardCount": "{used} / {max}",
+    "wrapLine": "Wrapping"
   },
   "errors": {
     "NAME": "Please enter your name.",
@@ -123,7 +130,11 @@
     "INVALID_REFERENCE": "Enter the transaction number exactly as shown on the Bankak receipt.",
     "IMAGE_REQUIRED": "Please attach the receipt image.",
     "IMAGE_TOO_LARGE": "The image is larger than 10 MB.",
-    "IMAGE_UNREADABLE": "We couldn't read the image. Please use a JPG or PNG."
+    "IMAGE_UNREADABLE": "We couldn't read the image. Please use a JPG or PNG.",
+    "WRAP_UNAVAILABLE": "The selected wrapping is no longer available. Please choose another.",
+    "CARD_TOO_LONG": "The card message is longer than 150 characters.",
+    "PHOTO_CLOSED": "This photo is no longer awaiting your reply. Please refresh the page.",
+    "FEEDBACK_REQUIRED": "Please describe the change you'd like."
   },
   "order": {
     "title": "Order {number}",
@@ -163,6 +174,16 @@
     "proofSent": "Receipt received — we'll review it and confirm your order shortly.",
     "proofRejected": "We couldn't confirm the previous receipt: {reason}. Please send a correct one.",
     "reviewing": "We received your payment receipt and are checking it against our statement.",
-    "unpaidExpired": "This order was cancelled because payment didn't arrive in time. You're welcome to order again."
+    "unpaidExpired": "This order was cancelled because payment didn't arrive in time. You're welcome to order again.",
+    "wrap": "Wrapping",
+    "card": "Card message",
+    "photoTitle": "Your gift photo",
+    "photoIntro": "Here's your gift before delivery. Approve it or ask for a change.",
+    "photoDue": "If we don't hear from you by {time}, we'll take it as approved.",
+    "approvePhoto": "Approve, send it",
+    "requestChanges": "I'd like a change",
+    "changesLabel": "What would you like changed?",
+    "sendChanges": "Send change request",
+    "back": "Back"
   }
 }

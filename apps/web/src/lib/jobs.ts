@@ -1,13 +1,15 @@
 import { PgBoss } from "pg-boss";
-import { expireUnpaidOrders } from "./orders";
+import { approveOverduePhotos, expireUnpaidOrders } from "./orders";
 
 /**
  * المهام الدورية (pg-boss على نفس Postgres، مخطط «pgboss» منفصل). تبدأ مرة واحدة مع الخادم
- * (src/instrumentation.ts). حالياً: إلغاء طلبات بنكك المنتهية مهلتها كل 5 دقائق (D-12، D-90).
+ * (src/instrumentation.ts). كل 5 دقائق: إلغاء طلبات بنكك المنتهية مهلتها (D-12، D-90)، والموافقة
+ * الضمنية على صور الهدايا بعد ساعة بلا رد (D-13، D-91).
  * pg-boss يضمن تنفيذ المهمة مرة واحدة حتى لو عمل أكثر من خادم.
  */
 
 const EXPIRE_UNPAID = "expire-unpaid-orders";
+const APPROVE_PHOTOS = "approve-overdue-gift-photos";
 
 const globalForJobs = globalThis as unknown as { ghusnJobs?: Promise<PgBoss | null> };
 
@@ -31,6 +33,12 @@ async function start(): Promise<PgBoss | null> {
   await boss.work(EXPIRE_UNPAID, async () => {
     const n = await expireUnpaidOrders();
     if (n) console.info(`[jobs] cancelled ${n} unpaid Bankak order(s)`);
+  });
+  await boss.createQueue(APPROVE_PHOTOS);
+  await boss.schedule(APPROVE_PHOTOS, "*/5 * * * *");
+  await boss.work(APPROVE_PHOTOS, async () => {
+    const n = await approveOverduePhotos();
+    if (n) console.info(`[jobs] auto-approved ${n} gift photo(s)`);
   });
   return boss;
 }
