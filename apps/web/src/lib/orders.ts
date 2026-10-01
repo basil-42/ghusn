@@ -776,6 +776,30 @@ export async function listOrders(tab: OrderTab, take = 100) {
   }));
 }
 
+/**
+ * طلبات المتجر المسلّمة لصفحة «المبيعات» (المالك والمديرة): الإيراد بسعر يوم التسليم والتكلفة من
+ * يوم التجهيز، مثل التقرير الشهري (D-89).
+ */
+export async function listDeliveredOrders(take = 100) {
+  const rows = await prisma.order.findMany({
+    where: { status: "DELIVERED" },
+    orderBy: { deliveredAt: "desc" },
+    take,
+  });
+  return rows.map((o) => ({
+    id: o.id,
+    number: o.number,
+    customerName: o.customerName,
+    fulfillment: o.fulfillment,
+    paymentMethod: o.paymentMethod,
+    deliveredAt: o.deliveredAt ?? o.updatedAt,
+    totalSdg: o.totalSdg.toString(),
+    profitUsd: dec(o.revenueUsd?.toString() ?? "0")
+      .minus(o.cogsUsd?.toString() ?? "0")
+      .toString(),
+  }));
+}
+
 /** تفاصيل الطلب للوحة الموظفات (بلا تكلفة). */
 export async function getOrderForStaff(id: string) {
   const o = await prisma.order.findUnique({
