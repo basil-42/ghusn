@@ -7,6 +7,7 @@ import {
   Wallet,
   Container,
   FolderTree,
+  Gift,
   LayoutDashboard,
   Package,
   Receipt,
@@ -42,6 +43,7 @@ const ICONS = {
   orders: ShoppingBag,
   reports: ChartColumn,
   users: Users,
+  wrapping: Gift,
 } satisfies Record<string, LucideIcon>;
 
 export type NavItem = { href: string; label: string; icon: keyof typeof ICONS };

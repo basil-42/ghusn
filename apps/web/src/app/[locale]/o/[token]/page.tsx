@@ -4,9 +4,10 @@ import { notFound } from "next/navigation";
 import { Price } from "@/components/store/price";
 import { Link } from "@/i18n/navigation";
 import { formatDateTime } from "@/lib/format";
-import { expireUnpaidOrders, getOrderByToken } from "@/lib/orders";
+import { approveOverduePhotos, expireUnpaidOrders, getOrderByToken } from "@/lib/orders";
 import { bankakAccount } from "@/lib/settings";
 import { PaymentProofForm } from "./payment-proof-form";
+import { PhotoDecision } from "./photo-decision";
 
 export const dynamic = "force-dynamic";
 
@@ -34,6 +35,10 @@ export default async function OrderStatusPage({ params }: Props) {
   if (!o) notFound();
   if (o.status === "AWAITING_PAYMENT" && o.paymentDueAt && o.paymentDueAt <= new Date()) {
     await expireUnpaidOrders();
+    o = (await getOrderByToken(token, locale)) ?? o;
+  }
+  if (o.status === "AWAITING_PHOTO_APPROVAL" && o.photoDueAt && o.photoDueAt <= new Date()) {
+    await approveOverduePhotos();
     o = (await getOrderByToken(token, locale)) ?? o;
   }
   const account = o.status === "AWAITING_PAYMENT" ? await bankakAccount() : null;
@@ -111,6 +116,29 @@ export default async function OrderStatusPage({ params }: Props) {
         </section>
       ) : null}
 
+      {o.photo && o.status !== "CANCELLED" ? (
+        <section
+          className={`flex flex-col gap-4 rounded-2xl bg-card p-4 ${o.photo.pending ? "border-2 border-gold" : "border border-line"}`}
+        >
+          <h2 className="font-display text-2xl font-bold">{t("photoTitle")}</h2>
+          {/* eslint-disable-next-line @next/next/no-img-element -- صورة خاصة برابط الطلب */}
+          <img
+            src={`/api/v1/gift-photo/${token}/${o.photo.id}`}
+            alt={t("photoTitle")}
+            className="max-h-[28rem] w-full rounded-xl object-contain"
+          />
+          {o.photo.pending ? (
+            <>
+              <p className="text-sm">{t("photoIntro")}</p>
+              {o.photoDueAt ? (
+                <p className="text-sm font-semibold">{t("photoDue", { time: formatDateTime(o.photoDueAt) })}</p>
+              ) : null}
+              <PhotoDecision token={token} photoId={o.photo.id} />
+            </>
+          ) : null}
+        </section>
+      ) : null}
+
       <section className="flex flex-col gap-2 rounded-2xl border border-line bg-card p-4">
         <h2 className="font-semibold">{t("items")}</h2>
         <ul className="flex flex-col gap-2">
@@ -124,6 +152,20 @@ export default async function OrderStatusPage({ params }: Props) {
             </li>
           ))}
         </ul>
+        {o.wrap ? (
+          <p className="flex justify-between gap-2">
+            <span>
+              {t("wrap")}: {o.wrap.name}
+            </span>
+            <Price value={o.wrap.priceSdg} locale={locale} className="shrink-0" />
+          </p>
+        ) : null}
+        {o.cardMessage ? (
+          <p className="whitespace-pre-line rounded-xl bg-muted p-3 font-display text-lg">
+            <span className="block text-xs text-muted-foreground">{t("card")}</span>
+            {o.cardMessage}
+          </p>
+        ) : null}
         <p className="flex justify-between border-t border-line pt-2 text-lg font-bold">
           <span>{t("total")}</span>
           <Price value={o.totalSdg} locale={locale} />

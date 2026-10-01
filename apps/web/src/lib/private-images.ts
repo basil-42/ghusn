@@ -14,7 +14,7 @@ export class PrivateImageError extends Error {
  * صورة خاصة (فاتورة مصروف، إشعار بنكك): تصحيح الاتجاه وحذف البيانات الوصفية (D-73)، WebP بعرض
  * 1600 كحد أقصى، ومفتاح من المحتوى تحت «private/» — /media يرفضه، وتُقدَّم فقط من مسار بصلاحية.
  */
-export async function savePrivateImage(file: File, folder: "expenses" | "payments"): Promise<string> {
+export async function savePrivateImage(file: File, folder: "expenses" | "payments" | "gifts"): Promise<string> {
   if (file.size > MAX_UPLOAD_BYTES) throw new PrivateImageError("TOO_LARGE");
   const input = Buffer.from(await file.arrayBuffer());
   let data: Buffer;

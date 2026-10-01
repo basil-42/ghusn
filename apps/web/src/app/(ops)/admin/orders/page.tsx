@@ -6,6 +6,7 @@ import { formatAmount, formatDateTime } from "@/lib/format";
 import {
   CITY_LABELS,
   ORDER_STATUS_LABELS,
+  approveOverduePhotos,
   expireUnpaidOrders,
   ORDER_TABS,
   listOrders,
@@ -20,8 +21,9 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
   await requirePermission({ order: ["read"] });
   const { tab: t } = await searchParams;
   const tab = (ORDER_TABS.find((x) => x.key === t)?.key ?? "new") as OrderTab;
-  // احتياط إن تأخر العامل الدوري: طلبات بنكك المنتهية مهلتها تُلغى قبل العرض
+  // احتياط إن تأخر العامل الدوري: طلبات بنكك المنتهية مهلتها تُلغى، والصور بلا رد بعد ساعة تُعتمد
   await expireUnpaidOrders();
+  await approveOverduePhotos();
   const [orders, counts] = await Promise.all([listOrders(tab), orderTabCounts()]);
 
   return (
@@ -67,6 +69,7 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
                       ? "استلام من المحل"
                       : `توصيل${o.city ? ` — ${CITY_LABELS[o.city]}` : ""}`}
                     {o.paymentMethod === "BANKAK" ? " · بنكك" : ""}
+                    {o.wrapped ? " · تغليف" : ""}
                   </span>
                   {o.status === "AWAITING_PAYMENT" && o.paymentDueAt ? (
                     <span className="text-sm text-muted-foreground">

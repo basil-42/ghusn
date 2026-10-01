@@ -66,6 +66,7 @@ model User {
   orderPaymentsBy   OrderPayment[]        @relation("orderPaymentBy")
   proofsReviewed    PaymentProof[]        @relation("proofReviewedBy")
   returnsApproved   SaleReturn[]          @relation("returnApprovedBy")
+  giftPhotos        GiftPhoto[]           @relation("giftPhotoBy")
 }
 
 model Session {
@@ -325,6 +326,7 @@ model ProductVariant {
   stockLevel     StockLevel?
   stockBatches   StockBatch[]
   stockMovements StockMovement[]
+  wrapMaterials  WrapStyleMaterial[]
 
   @@index([productId])
 }
@@ -553,6 +555,7 @@ enum StockMovementKind {
   REVALUATION // تكلفة متأخرة أو إلغاؤها بعد الاستلام (الكمية صفر)
   SALE // بيع (كمية سالبة)
   RETURN // مرتجع سليم يعود للمخزون
+  CONSUMPTION // مواد تغليف استُهلكت في تجهيز طلب (كمية سالبة)
 }
 
 // دفتر حركات المخزون — لا يُعدَّل ولا يُحذف (system-design §4.3)
@@ -959,6 +962,15 @@ model Order {
   deliveredAt    DateTime?
   cancelledAt    DateTime?
   cancelReason   String?
+  // «صمّم هديتك» (D-91): نمط التغليف وسعره مثبّتان عند الطلب، ونص البطاقة
+  wrapStyle      WrapStyle?         @relation(fields: [wrapStyleId], references: [id])
+  wrapStyleId    String?
+  wrapName       String?
+  wrapPriceSdg   Decimal?           @db.Decimal(18, 2)
+  wrapCostUsd    Decimal?           @db.Decimal(18, 2)
+  cardMessage    String?
+  // صورة الهدية: عدم الرد خلال ساعة = موافقة (D-13)
+  photoDueAt     DateTime?
   createdAt      DateTime           @default(now())
   updatedAt      DateTime           @updatedAt
 
@@ -966,10 +978,12 @@ model Order {
   history        OrderStatusHistory[]
   payments       OrderPayment[]
   paymentProofs  PaymentProof[]
+  giftPhotos     GiftPhoto[]
   stockMovements StockMovement[]
 
   @@index([status, createdAt])
   @@index([status, paymentDueAt])
+  @@index([status, photoDueAt])
   @@index([deliveredAt])
   @@index([customerId])
 }
@@ -1046,6 +1060,57 @@ model PaymentProof {
   reviewedById String?
   accepted     Boolean?
   reviewNote   String?
+
+  @@index([orderId, createdAt])
+}
+
+// نمط تغليف (D-91): سعر خدمة بالجنيه + مواد مستهلكة تُخصم من المخزون عند التجهيز
+model WrapStyle {
+  id            String              @id @default(cuid())
+  code          String              @unique
+  nameAr        String
+  nameEn        String
+  descriptionAr String?
+  descriptionEn String?
+  priceSdg      Decimal             @default(0) @db.Decimal(18, 2)
+  isActive      Boolean             @default(false)
+  sortOrder     Int                 @default(0)
+  createdAt     DateTime            @default(now())
+  updatedAt     DateTime            @updatedAt
+  materials     WrapStyleMaterial[]
+  orders        Order[]
+}
+
+model WrapStyleMaterial {
+  id          String         @id @default(cuid())
+  wrapStyle   WrapStyle      @relation(fields: [wrapStyleId], references: [id], onDelete: Cascade)
+  wrapStyleId String
+  variant     ProductVariant @relation(fields: [variantId], references: [id])
+  variantId   String
+  qty         Decimal        @db.Decimal(12, 3)
+
+  @@unique([wrapStyleId, variantId])
+}
+
+enum GiftPhotoDecision {
+  APPROVED // وافق العميل
+  CHANGES // طلب تعديلاً
+  AUTO_APPROVED // لم يرد خلال ساعة
+  STAFF_APPROVED // وصلت الموافقة على واتساب
+}
+
+// صورة الهدية قبل التسليم (D-13، D-91) — جولة لكل صورة
+model GiftPhoto {
+  id           String             @id @default(cuid())
+  order        Order              @relation(fields: [orderId], references: [id])
+  orderId      String
+  imageKey     String
+  uploadedBy   User?              @relation("giftPhotoBy", fields: [uploadedById], references: [id])
+  uploadedById String?
+  createdAt    DateTime           @default(now())
+  decision     GiftPhotoDecision?
+  decidedAt    DateTime?
+  feedback     String?
 
   @@index([orderId, createdAt])
 }

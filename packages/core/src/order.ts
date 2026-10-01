@@ -72,20 +72,31 @@ const PAYMENT_STAGES: readonly OrderStatus[] = ["AWAITING_PAYMENT", "PAYMENT_REV
 export function assertTransition(
   from: OrderStatus,
   to: OrderStatus,
-  fulfillment: Fulfillment,
-  payment: OrderPaymentMethod,
+  order: { fulfillment: Fulfillment; payment: OrderPaymentMethod; wrapped: boolean },
 ): void {
+  const { fulfillment, payment, wrapped } = order;
   const bankak = payment === "BANKAK";
   const ok =
     canTransition(from, to) &&
     !(to === "OUT_FOR_DELIVERY" && fulfillment !== "DELIVERY") &&
     !(from === "READY" && to === "DELIVERED" && fulfillment !== "PICKUP") &&
     !(bankak && from === "NEW" && to === "CONFIRMED") &&
-    !(!bankak && PAYMENT_STAGES.includes(to));
+    !(!bankak && PAYMENT_STAGES.includes(to)) &&
+    // الهدية المغلّفة لا تصبح «جاهزة» قبل صورتها (D-13، D-91)
+    !(wrapped && from === "PREPARING" && to === "READY") &&
+    !(!wrapped && to === "AWAITING_PHOTO_APPROVAL");
   if (!ok) {
-    throw new CoreError("INVALID_TRANSITION", `Order cannot go from ${from} to ${to} (${fulfillment}, ${payment})`);
+    throw new CoreError(
+      "INVALID_TRANSITION",
+      `Order cannot go from ${from} to ${to} (${fulfillment}, ${payment}, wrapped=${wrapped})`,
+    );
   }
 }
+
+/** صورة الهدية: عدم رد العميل خلال ساعة = موافقة (D-13). */
+export const PHOTO_APPROVAL_MINUTES = 60;
+/** نص بطاقة الإهداء (customer-journey §3). */
+export const CARD_MESSAGE_MAX = 150;
 
 /** بعد رفض إشعار بنكك: يبقى للعميل 12 ساعة على الأقل لإرسال إشعار صحيح (D-90). */
 export const PAYMENT_WINDOW_HOURS = 24;
@@ -112,8 +123,11 @@ export interface OrderLineInput {
   unitPriceSdg: DecimalInput;
 }
 
-/** إجمالي الطلب بالجنيه من أسعار الخادم (لا يُوثق بمجموع المتصفح). بلا خصم في المتجر حالياً. */
-export function orderTotals(lines: readonly OrderLineInput[]) {
+/**
+ * إجمالي الطلب بالجنيه من أسعار الخادم (لا يُوثق بمجموع المتصفح). بلا خصم في المتجر حالياً.
+ * خدمة التغليف (D-91) تُضاف بعد مجموع الأصناف.
+ */
+export function orderTotals(lines: readonly OrderLineInput[], wrapPriceSdg: DecimalInput = 0) {
   if (lines.length === 0) throw new CoreError("EMPTY_CART", "Order has no lines");
   const out = lines.map((l) => {
     const qty = dec(l.qty);
@@ -122,6 +136,8 @@ export function orderTotals(lines: readonly OrderLineInput[]) {
     if (unit.lte(0)) throw new CoreError("INVALID_AMOUNT", "Unit price must be > 0");
     return { key: l.key, qty, unitPriceSdg: unit, lineTotalSdg: qty.mul(unit) };
   });
-  const totalSdg = out.reduce((a, l) => a.plus(l.lineTotalSdg), dec(0));
-  return { lines: out, subtotalSdg: totalSdg, totalSdg };
+  const subtotalSdg = out.reduce((a, l) => a.plus(l.lineTotalSdg), dec(0));
+  const wrap = dec(wrapPriceSdg);
+  if (wrap.lt(0)) throw new CoreError("INVALID_AMOUNT", "Wrap price must be >= 0");
+  return { lines: out, subtotalSdg, wrapPriceSdg: wrap, totalSdg: subtotalSdg.plus(wrap) };
 }

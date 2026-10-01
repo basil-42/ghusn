@@ -6,8 +6,10 @@ import {
   dec,
   isStockOut,
   normalizePhone,
+  CARD_MESSAGE_MAX,
   orderTotals,
   PAYMENT_WINDOW_HOURS,
+  PHOTO_APPROVAL_MINUTES,
   paymentDueAfterRejection,
   RESERVING_STATUSES,
   roundMoney,
@@ -17,11 +19,12 @@ import {
   type Decimal,
   type OrderStatus,
 } from "@ghusn/core";
-import { Prisma, prisma, type DeliveryCity, type Fulfillment } from "@ghusn/db";
+import { Prisma, prisma, type DeliveryCity, type Fulfillment, type GiftPhotoDecision } from "@ghusn/db";
 import { nextDocumentNumber } from "./documents";
 import { formatAmount } from "./format";
 import { currentSellingRate } from "./pricing";
 import { PrivateImageError, savePrivateImage } from "./private-images";
+import { activeWrapStyle } from "./wrapping";
 import { bankakAccount, courierWallet, getStoreSettings, posWallets } from "./settings";
 
 /**
@@ -45,11 +48,15 @@ export class OrderError extends Error {
       | "PRICE_CHANGED"
       | "COD_LIMIT"
       | "CONFLICT"
+      | "INVALID"
       | "BANKAK_UNAVAILABLE"
       | "PAYMENT_CLOSED"
       | "INVALID_REFERENCE"
       | "IMAGE_TOO_LARGE"
-      | "IMAGE_UNREADABLE",
+      | "IMAGE_UNREADABLE"
+      | "WRAP_UNAVAILABLE"
+      | "CARD_TOO_LONG"
+      | "PHOTO_CLOSED",
     readonly params: Record<string, string> = {},
   ) {
     super(code);
@@ -126,12 +133,22 @@ export interface CartQuoteLine {
 }
 
 /** عرض السلة من أسعار وتوفر الخادم الآن. الأصناف غير المعروضة تُسقط. */
+export interface CartQuote {
+  lines: CartQuoteLine[];
+  subtotalSdg: string;
+  /** التغليف المختار إن كان متاحاً (D-91). */
+  wrap: { id: string; name: string; priceSdg: string } | null;
+  totalSdg: string;
+  allAvailable: boolean;
+}
+
 export async function quoteCart(
   locale: string,
   items: CartItemInput[],
-): Promise<{ lines: CartQuoteLine[]; totalSdg: string; allAvailable: boolean }> {
+  wrapStyleId: string | null = null,
+): Promise<CartQuote> {
   const clean = items.filter((i) => Number.isInteger(i.qty) && i.qty >= 1).slice(0, MAX_ORDER_LINES);
-  if (clean.length === 0) return { lines: [], totalSdg: "0", allAvailable: false };
+  if (clean.length === 0) return { lines: [], subtotalSdg: "0", wrap: null, totalSdg: "0", allAvailable: false };
   const ids = clean.map((i) => i.variantId);
   const [variants, reserved] = await Promise.all([
     prisma.productVariant.findMany({
@@ -170,9 +187,15 @@ export async function quoteCart(
       available: avail.gte(qty),
     });
   }
+  const style = wrapStyleId ? await activeWrapStyle(wrapStyleId) : null;
+  const subtotal = sum(lines.map((l) => l.lineTotalSdg));
   return {
     lines,
-    totalSdg: sum(lines.map((l) => l.lineTotalSdg)).toFixed(0),
+    subtotalSdg: subtotal.toFixed(0),
+    wrap: style
+      ? { id: style.id, name: locale === "en" ? style.nameEn : style.nameAr, priceSdg: dec(style.priceSdg).toFixed(0) }
+      : null,
+    totalSdg: subtotal.plus(style?.priceSdg ?? 0).toFixed(0),
     allAvailable: lines.length > 0 && lines.every((l) => l.available),
   };
 }
@@ -191,6 +214,9 @@ export interface CreateOrderInput {
   note: string | null;
   /** عند الاستلام (نقداً للمندوب أو في المحل) أو تحويل بنكك مسبقاً. */
   payment: "ON_RECEIPT" | "BANKAK";
+  /** «صمّم هديتك» (D-91): نمط التغليف ونص البطاقة (اختياريان). */
+  wrapStyleId: string | null;
+  cardMessage: string | null;
   items: CartItemInput[];
   /** الإجمالي الذي رآه العميل — إن تغيّر السعر يُطلب منه التأكيد من جديد. */
   expectedTotalSdg: string;
@@ -221,6 +247,11 @@ export async function createWebOrder(input: CreateOrderInput): Promise<{ number:
   const missing = input.items.filter((i) => !byId.has(i.variantId));
   if (missing.length) throw new OrderError("UNAVAILABLE");
 
+  const cardMessage = input.cardMessage?.trim() || null;
+  if (cardMessage && cardMessage.length > CARD_MESSAGE_MAX) throw new OrderError("CARD_TOO_LONG");
+  const wrap = input.wrapStyleId ? await activeWrapStyle(input.wrapStyleId) : null;
+  if (input.wrapStyleId && !wrap) throw new OrderError("WRAP_UNAVAILABLE");
+
   let totals;
   try {
     totals = orderTotals(
@@ -229,6 +260,7 @@ export async function createWebOrder(input: CreateOrderInput): Promise<{ number:
         qty: i.qty,
         unitPriceSdg: byId.get(i.variantId)?.priceSdg?.toString() ?? "0",
       })),
+      wrap?.priceSdg ?? 0,
     );
   } catch (e) {
     if (e instanceof CoreError) throw new OrderError("INVALID_QTY");
@@ -293,6 +325,10 @@ export async function createWebOrder(input: CreateOrderInput): Promise<{ number:
           paymentMethod,
           subtotalSdg: totals.subtotalSdg.toFixed(2),
           totalSdg: totals.totalSdg.toFixed(2),
+          wrapStyleId: wrap?.id ?? null,
+          wrapName: wrap?.nameAr ?? null,
+          wrapPriceSdg: wrap ? totals.wrapPriceSdg.toFixed(2) : null,
+          cardMessage,
           createdAt: now,
           lines: {
             create: totals.lines.map((l, i) => {
@@ -333,6 +369,10 @@ export interface TransitionOptions {
   proofId?: string | null;
   /** إشعار جديد من العميل (صفحة المتابعة). */
   proof?: { imageKey: string; reference: string } | null;
+  /** صورة الهدية الجاهزة (قيد التجهيز ← بانتظار موافقة الصورة). */
+  photo?: { imageKey: string } | null;
+  /** قرار الصورة: الموافقة الضمنية بعد ساعة تُمرَّر صراحة. */
+  photoDecision?: GiftPhotoDecision | null;
 }
 
 /** سبب الإلغاء التلقائي — صفحة العميل تعرضه بلغته. */
@@ -369,6 +409,111 @@ export async function transitionOrder(
   await prisma.$transaction((tx) => applyTransition(tx, orderId, to, actorId, opts, ctx));
 }
 
+/** خصم كمية من المخزون (FEFO) بحركة مربوطة بالطلب — بلا رصيد سالب. يعيد تكلفة الوحدة والإجمالي. */
+async function deductStock(
+  tx: Prisma.TransactionClient,
+  p: {
+    variantId: string;
+    qty: Decimal;
+    kind: "SALE" | "CONSUMPTION";
+    label: string;
+    order: { id: string; number: string };
+    actorId: string | null;
+  },
+): Promise<{ unitCost: Decimal; exact: Decimal }> {
+  const [level] = await tx.$queryRaw<{ qty: Prisma.Decimal; avgCostUsd: Prisma.Decimal }[]>`
+    SELECT "qty", "avgCostUsd" FROM "StockLevel" WHERE "variantId" = ${p.variantId} FOR UPDATE`;
+  const stockQty = dec(level?.qty.toString() ?? "0");
+  if (stockQty.lt(p.qty)) throw new OrderActionError(`الرصيد لا يكفي: ${p.label} — راجعي المخزون قبل التجهيز.`);
+  const unitCost = dec(level?.avgCostUsd.toString() ?? "0");
+  const batches = await tx.$queryRaw<
+    { id: string; qtyRemaining: Prisma.Decimal; expiresAt: Date | null; receivedAt: Date }[]
+  >`SELECT "id", "qtyRemaining", "expiresAt", "receivedAt" FROM "StockBatch"
+    WHERE "variantId" = ${p.variantId} AND "qtyRemaining" > 0 FOR UPDATE`;
+  const { takes } = consumeBatches(
+    batches.map((b) => ({
+      id: b.id,
+      qtyRemaining: b.qtyRemaining.toString(),
+      expiresAt: b.expiresAt ? b.expiresAt.toISOString().slice(0, 10) : null,
+      receivedAt: b.receivedAt,
+    })),
+    p.qty,
+  );
+  for (const t of takes) {
+    await tx.stockBatch.update({ where: { id: t.batchId }, data: { qtyRemaining: { decrement: t.qty.toFixed() } } });
+  }
+  const qtyAfter = stockQty.minus(p.qty);
+  await tx.stockLevel.update({ where: { variantId: p.variantId }, data: { qty: qtyAfter.toFixed() } });
+  const exact = p.qty.mul(unitCost);
+  await tx.stockMovement.create({
+    data: {
+      variantId: p.variantId,
+      batchId: takes.length === 1 ? takes[0]?.batchId : null,
+      kind: p.kind,
+      qty: p.qty.neg().toFixed(),
+      unitCostUsd: unitCost.toFixed(6),
+      valueUsd: roundMoney(exact).neg().toFixed(2),
+      qtyAfter: qtyAfter.toFixed(),
+      avgCostAfterUsd: unitCost.toFixed(6),
+      orderId: p.order.id,
+      note: p.order.number,
+      createdById: p.actorId,
+    },
+  });
+  return { unitCost, exact };
+}
+
+/** إعادة كمية للمخزون بتكلفتها (إلغاء بعد التجهيز) وإعادة حساب المتوسط المرجّح. */
+async function restock(
+  tx: Prisma.TransactionClient,
+  p: {
+    variantId: string;
+    qty: Decimal;
+    unitCost: Decimal;
+    order: { id: string; number: string };
+    actorId: string | null;
+  },
+): Promise<void> {
+  await tx.$executeRaw`
+    INSERT INTO "StockLevel" ("variantId", "qty", "avgCostUsd", "updatedAt")
+    VALUES (${p.variantId}, 0, 0, now()) ON CONFLICT ("variantId") DO NOTHING`;
+  const [level] = await tx.$queryRaw<{ qty: Prisma.Decimal; avgCostUsd: Prisma.Decimal }[]>`
+    SELECT "qty", "avgCostUsd" FROM "StockLevel" WHERE "variantId" = ${p.variantId} FOR UPDATE`;
+  const oldQty = level?.qty.toString() ?? "0";
+  const avgAfter = weightedAverageCost({
+    oldQty,
+    oldAvgUsd: level?.avgCostUsd.toString() ?? "0",
+    inQty: p.qty,
+    inUnitUsd: p.unitCost,
+  });
+  const qtyAfter = dec(oldQty).plus(p.qty);
+  await tx.stockLevel.update({
+    where: { variantId: p.variantId },
+    data: { qty: qtyAfter.toFixed(), avgCostUsd: avgAfter.toFixed(6) },
+  });
+  const [batch] = await tx.$queryRaw<{ id: string }[]>`
+    SELECT "id" FROM "StockBatch" WHERE "variantId" = ${p.variantId}
+    ORDER BY "receivedAt" DESC LIMIT 1 FOR UPDATE`;
+  if (batch) {
+    await tx.stockBatch.update({ where: { id: batch.id }, data: { qtyRemaining: { increment: p.qty.toFixed() } } });
+  }
+  await tx.stockMovement.create({
+    data: {
+      variantId: p.variantId,
+      batchId: batch?.id ?? null,
+      kind: "RETURN",
+      qty: p.qty.toFixed(),
+      unitCostUsd: p.unitCost.toFixed(6),
+      valueUsd: roundMoney(p.qty.mul(p.unitCost)).toFixed(2),
+      qtyAfter: qtyAfter.toFixed(),
+      avgCostAfterUsd: avgAfter.toFixed(6),
+      orderId: p.order.id,
+      note: `${p.order.number} — إلغاء`,
+      createdById: p.actorId,
+    },
+  });
+}
+
 async function applyTransition(
   tx: Prisma.TransactionClient,
   orderId: string,
@@ -386,12 +531,17 @@ async function applyTransition(
       lines: { orderBy: { sortOrder: "asc" } },
       payments: true,
       paymentProofs: { orderBy: { createdAt: "desc" }, take: 1 },
+      giftPhotos: { orderBy: { createdAt: "desc" }, take: 1 },
     },
   });
   if (!order) throw new OrderActionError("الطلب غير موجود.");
   const from = order.status as OrderStatus;
   try {
-    assertTransition(from, to, order.fulfillment, order.paymentMethod);
+    assertTransition(from, to, {
+      fulfillment: order.fulfillment,
+      payment: order.paymentMethod,
+      wrapped: !!order.wrapStyleId,
+    });
   } catch {
     throw new OrderActionError("لا يمكن نقل الطلب لهذه الحالة الآن — حدّثي الصفحة.");
   }
@@ -442,61 +592,68 @@ async function applyTransition(
     }
   }
 
-  if (to === "PREPARING") {
+  if (to === "PREPARING" && from === "CONFIRMED") {
     // خصم المخزون فعلياً — نفس منطق نقطة البيع (الأقدم صلاحية أولاً، بمتوسط التكلفة)
     const costs: Decimal[] = [];
     const lines = [...order.lines].sort((a, b) => a.variantId.localeCompare(b.variantId));
     for (const line of lines) {
-      const qty = dec(line.qty.toString());
-      const [level] = await tx.$queryRaw<{ qty: Prisma.Decimal; avgCostUsd: Prisma.Decimal }[]>`
-        SELECT "qty", "avgCostUsd" FROM "StockLevel" WHERE "variantId" = ${line.variantId} FOR UPDATE`;
-      const stockQty = dec(level?.qty.toString() ?? "0");
-      if (stockQty.lt(qty)) {
-        throw new OrderActionError(`الرصيد لا يكفي: ${line.label} — راجعي المخزون قبل التجهيز.`);
-      }
-      const unitCost = dec(level?.avgCostUsd.toString() ?? "0");
-      const batches = await tx.$queryRaw<
-        { id: string; qtyRemaining: Prisma.Decimal; expiresAt: Date | null; receivedAt: Date }[]
-      >`SELECT "id", "qtyRemaining", "expiresAt", "receivedAt" FROM "StockBatch"
-        WHERE "variantId" = ${line.variantId} AND "qtyRemaining" > 0 FOR UPDATE`;
-      const { takes } = consumeBatches(
-        batches.map((b) => ({
-          id: b.id,
-          qtyRemaining: b.qtyRemaining.toString(),
-          expiresAt: b.expiresAt ? b.expiresAt.toISOString().slice(0, 10) : null,
-          receivedAt: b.receivedAt,
-        })),
-        qty,
-      );
-      for (const t of takes) {
-        await tx.stockBatch.update({
-          where: { id: t.batchId },
-          data: { qtyRemaining: { decrement: t.qty.toFixed() } },
-        });
-      }
-      const qtyAfter = stockQty.minus(qty);
-      await tx.stockLevel.update({ where: { variantId: line.variantId }, data: { qty: qtyAfter.toFixed() } });
-      const costUsd = roundMoney(qty.mul(unitCost));
-      costs.push(qty.mul(unitCost));
+      const { unitCost, exact } = await deductStock(tx, {
+        variantId: line.variantId,
+        qty: dec(line.qty.toString()),
+        kind: "SALE",
+        label: line.label,
+        order,
+        actorId,
+      });
+      costs.push(exact);
       await tx.orderLine.update({ where: { id: line.id }, data: { unitCostUsd: unitCost.toFixed(6) } });
-      await tx.stockMovement.create({
-        data: {
-          variantId: line.variantId,
-          batchId: takes.length === 1 ? takes[0]?.batchId : null,
-          kind: "SALE",
-          qty: qty.neg().toFixed(),
-          unitCostUsd: unitCost.toFixed(6),
-          valueUsd: costUsd.neg().toFixed(2),
-          qtyAfter: qtyAfter.toFixed(),
-          avgCostAfterUsd: unitCost.toFixed(6),
-          orderId: order.id,
-          note: order.number,
-          createdById: actorId,
-        },
+    }
+    // مواد التغليف حسب وصفة النمط وقت التجهيز (D-91)
+    const wrapCosts: Decimal[] = [];
+    if (order.wrapStyleId) {
+      const materials = await tx.wrapStyleMaterial.findMany({
+        where: { wrapStyleId: order.wrapStyleId },
+        include: { variant: { include: { product: { select: { nameAr: true } } } } },
+        orderBy: { variantId: "asc" },
+      });
+      for (const m of materials) {
+        const { exact } = await deductStock(tx, {
+          variantId: m.variantId,
+          qty: dec(m.qty.toString()),
+          kind: "CONSUMPTION",
+          label: `مادة تغليف: ${m.variant.product.nameAr}`,
+          order,
+          actorId,
+        });
+        wrapCosts.push(exact);
+      }
+      data.wrapCostUsd = roundMoney(sum(wrapCosts)).toFixed(2);
+    }
+    data.cogsUsd = roundMoney(sum([...costs, ...wrapCosts])).toFixed(2);
+    data.preparedAt = now;
+  }
+
+  if (to === "AWAITING_PHOTO_APPROVAL") {
+    // صورة الهدية للعميل: يوافق أو يطلب تعديلاً، وعدم الرد خلال ساعة = موافقة (D-13)
+    if (!opts.photo) throw new OrderActionError("ارفعي صورة الهدية أولاً.");
+    await tx.giftPhoto.create({
+      data: { orderId: order.id, imageKey: opts.photo.imageKey, uploadedById: actorId, createdAt: now },
+    });
+    data.photoDueAt = new Date(now.getTime() + PHOTO_APPROVAL_MINUTES * 60_000);
+  }
+
+  if (from === "AWAITING_PHOTO_APPROVAL") {
+    const photo = order.giftPhotos[0];
+    if (to === "PREPARING" && !reason) throw new OrderActionError("اكتبي التعديل المطلوب.");
+    if (photo && !photo.decision && to !== "CANCELLED") {
+      const decision: GiftPhotoDecision =
+        to === "PREPARING" ? "CHANGES" : (opts.photoDecision ?? (actorId ? "STAFF_APPROVED" : "APPROVED"));
+      await tx.giftPhoto.update({
+        where: { id: photo.id },
+        data: { decision, decidedAt: now, feedback: to === "PREPARING" ? reason : null },
       });
     }
-    data.cogsUsd = roundMoney(sum(costs)).toFixed(2);
-    data.preparedAt = now;
+    data.photoDueAt = null;
   }
 
   if (to === "CANCELLED") {
@@ -524,50 +681,27 @@ async function applyTransition(
       });
     }
     if (isStockOut(from)) {
-      // خرج المخزون عند التجهيز ← يعود بتكلفته ويُعاد حساب المتوسط المرجّح
+      // خرج المخزون عند التجهيز ← يعود بتكلفته (الأصناف ومواد التغليف) ويُعاد حساب المتوسط المرجّح
       for (const line of order.lines) {
-        const qty = dec(line.qty.toString());
-        const unitCost = dec(line.unitCostUsd?.toString() ?? "0");
-        await tx.$executeRaw`
-          INSERT INTO "StockLevel" ("variantId", "qty", "avgCostUsd", "updatedAt")
-          VALUES (${line.variantId}, 0, 0, now()) ON CONFLICT ("variantId") DO NOTHING`;
-        const [level] = await tx.$queryRaw<{ qty: Prisma.Decimal; avgCostUsd: Prisma.Decimal }[]>`
-          SELECT "qty", "avgCostUsd" FROM "StockLevel" WHERE "variantId" = ${line.variantId} FOR UPDATE`;
-        const oldQty = level?.qty.toString() ?? "0";
-        const avgAfter = weightedAverageCost({
-          oldQty,
-          oldAvgUsd: level?.avgCostUsd.toString() ?? "0",
-          inQty: qty,
-          inUnitUsd: unitCost,
+        await restock(tx, {
+          variantId: line.variantId,
+          qty: dec(line.qty.toString()),
+          unitCost: dec(line.unitCostUsd?.toString() ?? "0"),
+          order,
+          actorId,
         });
-        const qtyAfter = dec(oldQty).plus(qty);
-        await tx.stockLevel.update({
-          where: { variantId: line.variantId },
-          data: { qty: qtyAfter.toFixed(), avgCostUsd: avgAfter.toFixed(6) },
-        });
-        const [batch] = await tx.$queryRaw<{ id: string }[]>`
-          SELECT "id" FROM "StockBatch" WHERE "variantId" = ${line.variantId}
-          ORDER BY "receivedAt" DESC LIMIT 1 FOR UPDATE`;
-        if (batch) {
-          await tx.stockBatch.update({
-            where: { id: batch.id },
-            data: { qtyRemaining: { increment: qty.toFixed() } },
-          });
-        }
-        await tx.stockMovement.create({
-          data: {
-            variantId: line.variantId,
-            batchId: batch?.id ?? null,
-            kind: "RETURN",
-            qty: qty.toFixed(),
-            unitCostUsd: unitCost.toFixed(6),
-            valueUsd: roundMoney(qty.mul(unitCost)).toFixed(2),
-            qtyAfter: qtyAfter.toFixed(),
-            avgCostAfterUsd: avgAfter.toFixed(6),
-            orderId: order.id,
-            note: `${order.number} — إلغاء`,
-            createdById: actorId,
-          },
+      }
+      const consumed = await tx.stockMovement.findMany({
+        where: { orderId: order.id, kind: "CONSUMPTION" },
+        orderBy: { variantId: "asc" },
+      });
+      for (const m of consumed) {
+        await restock(tx, {
+          variantId: m.variantId,
+          qty: dec(m.qty.toString()).neg(),
+          unitCost: dec(m.unitCostUsd?.toString() ?? "0"),
+          order,
+          actorId,
         });
       }
     }
@@ -702,6 +836,84 @@ export function paymentReminderLink(o: {
   return `https://wa.me/${o.phone.replace(/\D/g, "")}?text=${encodeURIComponent(text)}`;
 }
 
+/** صورة الهدية الجاهزة من الموظفة (D-13): تُرسل للعميل في صفحة المتابعة ويبدأ عدّ الساعة. */
+export async function uploadGiftPhoto(orderId: string, file: File, actorId: string): Promise<void> {
+  let imageKey: string;
+  try {
+    imageKey = await savePrivateImage(file, "gifts");
+  } catch (e) {
+    if (e instanceof PrivateImageError) {
+      throw new OrderActionError(
+        e.code === "TOO_LARGE" ? "الصورة أكبر من 10 ميغابايت." : "تعذّرت قراءة الصورة. استخدمي JPG أو PNG.",
+      );
+    }
+    throw e;
+  }
+  await transitionOrder(orderId, "AWAITING_PHOTO_APPROVAL", actorId, { photo: { imageKey } });
+}
+
+/** قرار العميل على صورة الهدية من صفحة المتابعة: موافقة ← جاهز، أو تعديل ← يعود للتجهيز. */
+export async function decideGiftPhoto(
+  token: string,
+  photoId: string,
+  approve: boolean,
+  feedback: string | null,
+): Promise<void> {
+  const order = await prisma.order.findUnique({
+    where: { trackingToken: token },
+    select: {
+      id: true,
+      status: true,
+      giftPhotos: { orderBy: { createdAt: "desc" }, take: 1, select: { id: true, decision: true } },
+    },
+  });
+  const photo = order?.giftPhotos[0];
+  if (!order || order.status !== "AWAITING_PHOTO_APPROVAL" || photo?.id !== photoId || photo.decision) {
+    throw new OrderError("PHOTO_CLOSED");
+  }
+  const note = feedback?.trim().slice(0, 300) || null;
+  if (!approve && !note) throw new OrderError("INVALID");
+  try {
+    await transitionOrder(order.id, approve ? "READY" : "PREPARING", null, {
+      reason: approve ? null : note,
+      photoDecision: approve ? "APPROVED" : "CHANGES",
+    });
+  } catch (e) {
+    if (e instanceof OrderActionError) throw new OrderError("PHOTO_CLOSED");
+    throw e;
+  }
+}
+
+/** الموافقة الضمنية: صورة بلا رد بعد ساعة ← «جاهز» (D-13). يعمل مع العامل الدوري وعند فتح الصفحات. */
+export async function approveOverduePhotos(now = new Date()): Promise<number> {
+  const due = await prisma.order.findMany({
+    where: { status: "AWAITING_PHOTO_APPROVAL", photoDueAt: { lte: now } },
+    select: { id: true },
+    take: 200,
+  });
+  let n = 0;
+  for (const o of due) {
+    try {
+      await transitionOrder(o.id, "READY", null, { photoDecision: "AUTO_APPROVED" });
+      n++;
+    } catch (e) {
+      if (!(e instanceof OrderActionError || e instanceof OrderError)) throw e;
+    }
+  }
+  return n;
+}
+
+/** رابط واتساب يرسل للعميل رابط صورة هديته. */
+export function giftPhotoLink(o: { phone: string; number: string; trackingToken: string; locale: string }) {
+  const base = (process.env.APP_URL ?? "").replace(/\/$/, "");
+  const url = `${base}${o.locale === "en" ? "/en" : ""}/o/${o.trackingToken}`;
+  const text =
+    o.locale === "en"
+      ? `Hello from Ghusn 🌿 Your gift for order ${o.number} is ready! See the photo and approve it here (no reply within an hour counts as approval): ${url}`
+      : `مرحباً من غصن 🌿 هديتك في الطلب ${o.number} جاهزة! شاهد الصورة ووافق عليها من هنا (عدم الرد خلال ساعة يعني الموافقة): ${url}`;
+  return `https://wa.me/${o.phone.replace(/\D/g, "")}?text=${encodeURIComponent(text)}`;
+}
+
 export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
   NEW: "جديد",
   AWAITING_PAYMENT: "بانتظار الدفع",
@@ -772,6 +984,7 @@ export async function listOrders(tab: OrderTab, take = 100) {
     lines: o._count.lines,
     paymentMethod: o.paymentMethod,
     paymentDueAt: o.paymentDueAt,
+    wrapped: !!o.wrapStyleId,
     createdAt: o.createdAt,
   }));
 }
@@ -810,6 +1023,7 @@ export async function getOrderForStaff(id: string) {
       history: { orderBy: { createdAt: "asc" }, include: { actor: { select: { name: true } } } },
       payments: { orderBy: { receivedAt: "asc" }, include: { wallet: { select: { name: true } } } },
       paymentProofs: { orderBy: { createdAt: "desc" }, include: { reviewedBy: { select: { name: true } } } },
+      giftPhotos: { orderBy: { createdAt: "desc" }, include: { uploadedBy: { select: { name: true } } } },
     },
   });
   if (!o) return null;
@@ -831,6 +1045,20 @@ export async function getOrderForStaff(id: string) {
     createdAt: o.createdAt,
     cancelReason: o.cancelReason,
     paymentDueAt: o.paymentDueAt,
+    wrapName: o.wrapName,
+    wrapPriceSdg: o.wrapPriceSdg?.toString() ?? null,
+    subtotalSdg: o.subtotalSdg.toString(),
+    cardMessage: o.cardMessage,
+    photoDueAt: o.photoDueAt,
+    photoLink: o.status === "AWAITING_PHOTO_APPROVAL" ? giftPhotoLink({ ...o, phone: o.customer.phone }) : null,
+    photos: o.giftPhotos.map((p) => ({
+      id: p.id,
+      at: p.createdAt,
+      by: p.uploadedBy?.name ?? null,
+      decision: p.decision,
+      decidedAt: p.decidedAt,
+      feedback: p.feedback,
+    })),
     reminderLink:
       o.status === "AWAITING_PAYMENT"
         ? paymentReminderLink({ ...o, phone: o.customer.phone, totalSdg: o.totalSdg.toFixed(0) })
@@ -883,10 +1111,13 @@ export async function getOrderByToken(token: string, locale: string) {
         include: { variant: { include: { product: { select: { nameAr: true, nameEn: true } } } } },
       },
       paymentProofs: { orderBy: { createdAt: "desc" }, take: 1 },
+      giftPhotos: { orderBy: { createdAt: "desc" }, take: 1 },
+      wrapStyle: { select: { nameAr: true, nameEn: true } },
     },
   });
   if (!o) return null;
   const proof = o.paymentProofs[0];
+  const photo = o.giftPhotos[0];
   return {
     number: o.number,
     status: o.status as OrderStatus,
@@ -902,6 +1133,19 @@ export async function getOrderByToken(token: string, locale: string) {
     /** سبب رفض آخر إشعار (يكتبه المحل للعميل) — يظهر ما دام الطلب بانتظار الدفع. */
     proofRejection: o.status === "AWAITING_PAYMENT" && proof?.accepted === false ? (proof.reviewNote ?? "") : null,
     unpaidExpired: o.status === "CANCELLED" && o.cancelReason === UNPAID_CANCEL_REASON,
+    wrap: o.wrapName
+      ? {
+          name: (locale === "en" ? o.wrapStyle?.nameEn : o.wrapStyle?.nameAr) ?? o.wrapName,
+          priceSdg: o.wrapPriceSdg?.toFixed(0) ?? "0",
+        }
+      : null,
+    cardMessage: o.cardMessage,
+    photoDueAt: o.photoDueAt,
+    /** آخر صورة للهدية: تنتظر القرار، أو موافَق عليها (تبقى للذكرى). */
+    photo:
+      photo && (photo.decision === null || photo.decision !== "CHANGES")
+        ? { id: photo.id, pending: o.status === "AWAITING_PHOTO_APPROVAL" && photo.decision === null }
+        : null,
     lines: o.lines.map((l) => ({
       id: l.id,
       name: locale === "en" && l.variant.product.nameEn ? l.variant.product.nameEn : l.variant.product.nameAr,
