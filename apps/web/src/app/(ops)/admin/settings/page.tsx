@@ -3,12 +3,14 @@ import type { Metadata } from "next";
 import { Receipt } from "@/components/receipt";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { requirePermission } from "@/lib/auth/session";
+import { imageUrl } from "@/lib/product-images";
 import { getPosSettings, getReceiptSettings, getStockSettings, getStoreSettings } from "@/lib/settings";
 import { listExpenseCategories } from "@/lib/expenses";
 import {
   ExpenseCategoryForm,
   PosSettingsForm,
   ReceiptSettingsForm,
+  HeroImageForm,
   StockSettingsForm,
   StoreSettingsForm,
 } from "./forms";
@@ -61,6 +63,7 @@ export default async function SettingsPage() {
           <CardDescription>التوصيل عبر شركة توصيل، ورسومه يدفعها العميل لها (D-88).</CardDescription>
         </CardHeader>
         <StoreSettingsForm initial={store} wallets={wallets.map((w) => ({ value: w.id, label: w.name }))} />
+        <HeroImageForm imageUrl={store.heroImageKey ? imageUrl(store.heroImageKey, "thumb") : null} />
       </Card>
       <Card>
         <CardHeader>

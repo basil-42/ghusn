@@ -4,11 +4,13 @@ import { toLatinDigits } from "@ghusn/core";
 import { revalidatePath } from "next/cache";
 import { requirePermission } from "@/lib/auth/session";
 import { ExpenseError, saveExpenseCategory } from "@/lib/expenses";
+import { ImageError, savePublicImage } from "@/lib/product-images";
 import {
   posSettingsSchema,
   receiptSettingsSchema,
   savePosSettings,
   saveReceiptSettings,
+  getStoreSettings,
   saveStockSettings,
   saveStoreSettings,
   stockSettingsSchema,
@@ -89,6 +91,7 @@ export async function saveStoreSettingsAction(_prev: FormState, formData: FormDa
     bankakAccountName: text(formData, "bankakAccountName"),
     bankakAccountNumber: text(formData, "bankakAccountNumber"),
     bankakNote: text(formData, "bankakNote"),
+    heroImageKey: (await getStoreSettings()).heroImageKey,
   });
   if (!parsed.success) {
     return { error: "حد الدفع عند الاستلام رقم صحيح بالجنيه (0 = بلا حد)، ونصوص بنكك قصيرة." };
@@ -109,4 +112,25 @@ export async function saveStockSettingsAction(_prev: FormState, formData: FormDa
   revalidatePath("/admin/settings");
   revalidatePath("/admin");
   return { success: "تم حفظ تنبيهات المخزون." };
+}
+
+/** صورة البانر الرئيسي في المتجر (D-95): رفع أو حذف. */
+export async function saveHeroImageAction(_prev: FormState, formData: FormData): Promise<FormState> {
+  await requirePermission({ settings: ["update"] });
+  const current = await getStoreSettings();
+  const image = formData.get("image");
+  let heroImageKey = current.heroImageKey;
+  if (formData.get("remove") === "on") heroImageKey = null;
+  else if (image instanceof File && image.size > 0) {
+    try {
+      heroImageKey = await savePublicImage(image, "hero");
+    } catch (e) {
+      if (e instanceof ImageError) return { error: e.message };
+      throw e;
+    }
+  } else return { error: "اختاري صورة." };
+  await saveStoreSettings({ ...current, heroImageKey });
+  revalidatePath("/admin/settings");
+  revalidatePath("/", "layout");
+  return { success: heroImageKey ? "تم تحديث صورة البانر." : "حُذفت الصورة — يظهر نقش الهوية." };
 }

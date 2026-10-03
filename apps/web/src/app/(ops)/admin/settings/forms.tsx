@@ -9,6 +9,7 @@ import {
   saveExpenseCategoryAction,
   savePosSettingsAction,
   saveReceiptSettingsAction,
+  saveHeroImageAction,
   saveStockSettingsAction,
   saveStoreSettingsAction,
   type FormState,
@@ -290,6 +291,46 @@ export function StockSettingsForm({ initial }: { initial: StockSettings }) {
       </div>
       <Button type="submit" disabled={pending} className="self-start">
         حفظ
+      </Button>
+    </form>
+  );
+}
+
+/** صورة البانر الرئيسي في المتجر (D-95). */
+export function HeroImageForm({ imageUrl }: { imageUrl: string | null }) {
+  const [state, action, pending] = useActionState<FormState, FormData>(saveHeroImageAction, {});
+  return (
+    <form action={action} className="flex flex-col gap-3 border-t border-border pt-4">
+      <Messages state={state} />
+      <span className="font-semibold">صورة البانر الرئيسي</span>
+      <div className="flex flex-wrap items-center gap-4">
+        {imageUrl ? (
+          // eslint-disable-next-line @next/next/no-img-element -- معاينة صغيرة
+          <img src={imageUrl} alt="" className="h-24 w-36 rounded-xl object-cover" />
+        ) : (
+          <span className="flex h-24 w-36 items-center justify-center rounded-xl bg-muted text-xs text-muted-foreground">
+            نقش الهوية
+          </span>
+        )}
+        <div className="flex flex-col gap-2">
+          <input
+            type="file"
+            name="image"
+            accept="image/jpeg,image/png,image/webp"
+            className="text-sm file:me-3 file:min-h-11 file:rounded-xl file:border-0 file:bg-muted file:px-4 file:font-semibold"
+          />
+          {imageUrl ? (
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" name="remove" className="size-5 accent-forest" /> حذف الصورة
+            </label>
+          ) : null}
+          <span className="text-xs text-muted-foreground">
+            صورة أفقية أو مربعة بإضاءة جيدة (هدية مغلّفة، تشكيلة منتجات). غيّريها مع المواسم.
+          </span>
+        </div>
+      </div>
+      <Button type="submit" variant="outline" disabled={pending} className="self-start">
+        {pending ? "جارٍ الرفع…" : "حفظ الصورة"}
       </Button>
     </form>
   );

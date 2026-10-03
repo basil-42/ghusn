@@ -23,7 +23,18 @@
     "empty": "We're stocking the shelves — products will appear here soon.",
     "occasions": "Shop by occasion",
     "season": "Seasonal gifts",
-    "shopSeason": "Shop now"
+    "shopSeason": "Shop now",
+    "viewAll": "View all",
+    "allProducts": "All products",
+    "trustLabel": "Why Ghusn",
+    "trustDelivery": "Delivery in the capital",
+    "trustDeliveryText": "Khartoum, Bahri and Omdurman",
+    "trustPayment": "Pay your way",
+    "trustPaymentText": "On delivery or with Bankak",
+    "trustWrap": "Wrapping worthy of your gift",
+    "trustWrapText": "Three styles and a gift card",
+    "trustPhoto": "A photo before delivery",
+    "trustPhotoText": "Approve your gift before it arrives"
   },
   "category": {
     "products": "{count, plural, =0 {No products} one {1 product} other {# products}}",
@@ -49,14 +60,20 @@
     "qty": "Quantity",
     "addToCart": "Add to cart",
     "added": "Added to your cart.",
-    "viewCart": "View cart"
+    "viewCart": "View cart",
+    "home": "Home",
+    "breadcrumb": "Breadcrumb"
   },
   "footer": {
     "rights": "© {year} GHUSN. All rights reserved.",
     "categories": "Categories",
     "track": "Track your order",
     "whatsapp": "Contact us on WhatsApp",
-    "whatsappText": "Hello Ghusn 🌿"
+    "whatsappText": "Hello Ghusn 🌿",
+    "help": "Help",
+    "occasions": "Occasions",
+    "deliveryInfo": "Delivered by a courier in Khartoum, Bahri and Omdurman; the delivery fee is paid to them on receipt.",
+    "paymentInfo": "Pay on delivery or by Bankak transfer."
   },
   "notFound": {
     "title": "Page not found",
