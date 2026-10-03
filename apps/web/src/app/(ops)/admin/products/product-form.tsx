@@ -14,6 +14,8 @@ type Variant = ProductInput["variants"][number] & { key: string; sku?: string; c
 export interface ProductFormProps {
   productId: string | null;
   categories: { id: string; nameAr: string }[];
+  /** المناسبات (D-92) — المتوقفة تظهر فقط إن كان المنتج مربوطاً بها. */
+  occasions: { id: string; nameAr: string; isActive: boolean }[];
   typeLabels: Record<ProductInput["type"], string>;
   unitLabels: Record<ProductInput["unit"], string>;
   initial?: Omit<ProductInput, "variants"> & { variants: (Variant & { sku: string })[] };
@@ -35,6 +37,7 @@ const newVariant = (): Variant => ({
 export function ProductForm({
   productId,
   categories,
+  occasions,
   typeLabels,
   unitLabels,
   initial,
@@ -60,6 +63,7 @@ export function ProductForm({
       ? initial.variants.map((v) => ({ ...v, barcode: null, currentBarcode: v.barcode ?? undefined }))
       : [newVariant()],
   );
+  const [occasionIds, setOccasionIds] = useState<string[]>(() => initial?.occasionIds ?? []);
   const [multi, setMulti] = useState(variants.length > 1 || variants.some((v) => v.size || v.color || v.volume));
 
   const set = <K extends keyof typeof fields>(k: K, v: (typeof fields)[K]) => setFields((f) => ({ ...f, [k]: v }));
@@ -74,6 +78,7 @@ export function ProductForm({
       nameEn: fields.nameEn || null,
       descriptionAr: fields.descriptionAr || null,
       descriptionEn: initial?.descriptionEn ?? null,
+      occasionIds,
       variants: list.map(({ id, size, color, volume, barcode, isActive }) => ({
         id,
         size,
@@ -174,6 +179,36 @@ export function ProductForm({
               نشط (يُباع ويظهر في القوائم)
             </Check>
           </div>
+          {!isMaterial && occasions.length ? (
+            <fieldset className="flex flex-col gap-2 sm:col-span-2">
+              <legend className="mb-1 text-sm font-semibold">المناسبات (يظهر المنتج في صفحاتها بالمتجر)</legend>
+              <div className="flex flex-wrap gap-2">
+                {occasions
+                  .filter((o) => o.isActive || occasionIds.includes(o.id))
+                  .map((o) => {
+                    const on = occasionIds.includes(o.id);
+                    return (
+                      <label
+                        key={o.id}
+                        className={`flex min-h-11 cursor-pointer items-center gap-2 rounded-full border px-4 text-sm font-semibold ${
+                          on ? "border-forest bg-forest text-ivory" : "border-line bg-card"
+                        }`}
+                      >
+                        <input
+                          type="checkbox"
+                          checked={on}
+                          onChange={(e) =>
+                            setOccasionIds((ids) => (e.target.checked ? [...ids, o.id] : ids.filter((x) => x !== o.id)))
+                          }
+                          className="sr-only"
+                        />
+                        {o.nameAr}
+                      </label>
+                    );
+                  })}
+              </div>
+            </fieldset>
+          ) : null}
         </section>
 
         <section className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-5">

@@ -9,7 +9,9 @@
     "switchLanguage": "English",
     "switchLanguageShort": "EN",
     "menu": "القائمة",
-    "cart": "السلة"
+    "cart": "السلة",
+    "search": "بحث",
+    "searchPlaceholder": "ابحث…"
   },
   "home": {
     "tagline": "هدايا تُصنع لتُذكر",
@@ -18,7 +20,10 @@
     "shop": "تسوّق الهدايا",
     "categories": "تسوّق حسب القسم",
     "latest": "وصل حديثاً",
-    "empty": "نجهّز الرفوف — المنتجات تظهر هنا قريباً."
+    "empty": "نجهّز الرفوف — المنتجات تظهر هنا قريباً.",
+    "occasions": "تسوّق حسب المناسبة",
+    "season": "هدايا الموسم",
+    "shopSeason": "تسوّق الآن"
   },
   "category": {
     "products": "{count, plural, =0 {لا منتجات} one {منتج واحد} two {منتجان} few {# منتجات} many {# منتجاً} other {# منتج}}",
@@ -185,5 +190,14 @@
     "changesLabel": "ما التعديل الذي تريده؟",
     "sendChanges": "إرسال التعديل",
     "back": "رجوع"
+  },
+  "occasion": {
+    "empty": "لا منتجات متاحة لهذه المناسبة الآن."
+  },
+  "search": {
+    "title": "البحث",
+    "resultsFor": "نتائج «{q}»",
+    "noResults": "لا نتائج. جرّب كلمة أخرى أو تصفح الأقسام.",
+    "prompt": "اكتب ما تبحث عنه في خانة البحث."
   }
 }

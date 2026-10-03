@@ -11,6 +11,7 @@ import {
 } from "@ghusn/core";
 import { Prisma, prisma, type ProductType, type StockUnit } from "@ghusn/db";
 import { z } from "zod";
+import { setProductOccasions } from "./occasions";
 
 export const PRODUCT_TYPE_LABELS: Record<ProductType, string> = {
   STOCK: "بضاعة للبيع",
@@ -74,6 +75,7 @@ export async function getProduct(id: string) {
       category: { select: { nameAr: true } },
       variants: { where: { deletedAt: null }, orderBy: { sortOrder: "asc" } },
       images: { orderBy: { sortOrder: "asc" } },
+      occasions: { select: { occasionId: true } },
     },
   });
 }
@@ -109,6 +111,8 @@ export const productInput = z.object({
   trackExpiry: z.boolean(),
   isActive: z.boolean(),
   isWebVisible: z.boolean(),
+  /** المناسبات (D-92) — غير موجودة = لا تغيير (الإنشاء السريع والاستيراد). */
+  occasionIds: z.array(z.string().min(1).max(40)).max(30).optional(),
   variants: z.array(variantInput),
 });
 export type ProductInput = z.infer<typeof productInput>;
@@ -158,16 +162,22 @@ async function nextInternalBarcode(tx: Tx): Promise<string> {
   }
 }
 
-async function refreshSearchText(tx: Tx, productId: string) {
+/** نص البحث الموحّد: الاسمان والقسم والمناسبات والمتغيّرات (يبحث به المتجر ولوحة الإدارة). */
+export async function refreshSearchText(tx: Tx, productId: string) {
   const p = await tx.product.findUniqueOrThrow({
     where: { id: productId },
-    include: { category: true, variants: { where: { deletedAt: null } } },
+    include: {
+      category: true,
+      variants: { where: { deletedAt: null } },
+      occasions: { include: { occasion: { select: { nameAr: true, nameEn: true } } } },
+    },
   });
   const searchText = buildSearchText([
     p.nameAr,
     p.nameEn,
     p.category.nameAr,
     p.category.nameEn,
+    ...p.occasions.flatMap((o) => [o.occasion.nameAr, o.occasion.nameEn]),
     ...p.variants.flatMap((v) => [v.sku, v.barcode, v.size, v.color, v.volume]),
   ]);
   await tx.product.update({ where: { id: productId }, data: { searchText } });
@@ -216,6 +226,7 @@ export async function createProduct(input: ProductInput, userId: string): Promis
           },
         });
       }
+      if (input.occasionIds) await setProductOccasions(tx, product.id, input.occasionIds);
       await refreshSearchText(tx, product.id);
       return product.id;
     });
@@ -329,6 +340,7 @@ export async function updateProduct(id: string, input: ProductInput): Promise<vo
           });
         }
       }
+      if (input.occasionIds) await setProductOccasions(tx, id, input.occasionIds);
       await refreshSearchText(tx, id);
     });
   } catch (error) {

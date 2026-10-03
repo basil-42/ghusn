@@ -8,6 +8,7 @@ import {
   Container,
   FolderTree,
   Gift,
+  PartyPopper,
   LayoutDashboard,
   Package,
   Receipt,
@@ -44,6 +45,7 @@ const ICONS = {
   reports: ChartColumn,
   users: Users,
   wrapping: Gift,
+  occasions: PartyPopper,
 } satisfies Record<string, LucideIcon>;
 
 export type NavItem = { href: string; label: string; icon: keyof typeof ICONS };

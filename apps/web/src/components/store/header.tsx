@@ -1,3 +1,4 @@
+import { Search } from "lucide-react";
 import Image from "next/image";
 import { getLocale, getTranslations } from "next-intl/server";
 import { Suspense } from "react";
@@ -25,6 +26,28 @@ export async function StoreHeader() {
         <Link href="/" aria-label={t("home")} className="shrink-0">
           <Image src={logo.src} alt={locale === "ar" ? "غصن" : "GHUSN"} width={logo.width} height={44} priority />
         </Link>
+        {/* البحث: نموذج GET عادي — يعمل دون JavaScript */}
+        <form
+          action={locale === "en" ? "/en/search" : "/search"}
+          method="get"
+          role="search"
+          className="flex min-w-0 max-w-md flex-1 items-center rounded-full border border-line bg-card focus-within:border-forest"
+        >
+          <label htmlFor="store-search" className="sr-only">
+            {t("search")}
+          </label>
+          <input
+            id="store-search"
+            name="q"
+            type="search"
+            maxLength={80}
+            placeholder={t("searchPlaceholder")}
+            className="min-h-11 w-full min-w-0 bg-transparent ps-4 text-sm outline-none"
+          />
+          <button type="submit" aria-label={t("search")} className="flex size-11 shrink-0 items-center justify-center">
+            <Search aria-hidden className="size-5" />
+          </button>
+        </form>
         <div className="flex items-center gap-2">
           <Suspense fallback={<span className="size-11" />}>
             <LanguageSwitch />

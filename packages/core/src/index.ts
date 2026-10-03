@@ -18,3 +18,4 @@ export * from "./report";
 export * from "./shipment-import";
 export * from "./wallet";
 export * from "./order";
+export * from "./occasion";
