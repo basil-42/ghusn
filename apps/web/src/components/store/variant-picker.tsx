@@ -68,9 +68,10 @@ export function VariantPicker({ variants }: { variants: StoreVariant[] }) {
         </span>{" "}
         {t("available")}
       </p>
-      <div className="flex flex-wrap items-end gap-3">
+      {/* على الجوال: الكمية والزر مثبّتان أسفل الشاشة (D-95) */}
+      <div className="fixed inset-x-0 bottom-0 z-20 flex items-end gap-3 border-t border-line bg-card/95 p-3 backdrop-blur md:static md:z-auto md:flex-wrap md:border-0 md:bg-transparent md:p-0 md:backdrop-blur-none">
         <label className="flex flex-col gap-1">
-          <span className="text-sm font-semibold">{t("qty")}</span>
+          <span className="sr-only text-sm font-semibold md:not-sr-only">{t("qty")}</span>
           <select
             value={qty}
             onChange={(e) => setQty(Number(e.target.value))}
@@ -94,6 +95,7 @@ export function VariantPicker({ variants }: { variants: StoreVariant[] }) {
           {t("addToCart")}
         </button>
       </div>
+      <div aria-hidden className="h-16 md:hidden" />
       {added ? (
         <p role="status" className="flex flex-wrap items-center gap-2 rounded-xl bg-muted p-3 text-sm">
           {t("added")}

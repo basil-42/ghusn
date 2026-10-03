@@ -1,4 +1,5 @@
 import { dec } from "@ghusn/core";
+import { Gift, Truck, Wallet } from "lucide-react";
 import type { Metadata } from "next";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { notFound } from "next/navigation";
@@ -32,6 +33,7 @@ export default async function ProductPage({ params }: Props) {
   const product = await getStoreProduct(locale, id);
   if (!product) notFound();
   const t = await getTranslations("product");
+  const th = await getTranslations("home");
 
   // بيانات المنتج لـ Google (D-93): الاسم والصور والسعر بالجنيه والتوفر — المعروض متاح دائماً
   const prices = product.variants.map((v) => dec(v.priceSdg));
@@ -73,14 +75,49 @@ export default async function ProductPage({ params }: Props) {
         // نص من قاعدة البيانات: «<» يُهرَّب حتى لا يُغلق الوسم
         dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c") }}
       />
-      <Link href={`/c/${product.category.slug}`} className="text-sm text-muted-foreground hover:underline">
-        {t("backTo", { category: product.category.name })}
-      </Link>
-      <div className="grid gap-8 md:grid-cols-2">
+      <nav aria-label={t("breadcrumb")} className="text-sm text-muted-foreground">
+        <ol className="flex flex-wrap items-center gap-1.5">
+          <li>
+            <Link href="/" className="hover:underline">
+              {t("home")}
+            </Link>
+          </li>
+          <li aria-hidden>›</li>
+          <li>
+            <Link href={`/c/${product.category.slug}`} className="hover:underline">
+              {product.category.name}
+            </Link>
+          </li>
+          <li aria-hidden>›</li>
+          <li aria-current="page" className="font-semibold text-foreground">
+            {product.name}
+          </li>
+        </ol>
+      </nav>
+      <div className="grid gap-8 md:grid-cols-2 lg:gap-12">
         <Gallery images={product.images} alt={product.name} emptyLabel={t("noImage")} />
         <div className="flex flex-col gap-5">
-          <h1 className="font-display text-4xl font-bold">{product.name}</h1>
+          <div className="flex flex-col gap-1">
+            <Link href={`/c/${product.category.slug}`} className="text-sm font-semibold text-gold hover:underline">
+              {product.category.name}
+            </Link>
+            <h1 className="font-display text-4xl font-bold">{product.name}</h1>
+          </div>
           <VariantPicker variants={product.variants} />
+          <ul className="grid gap-3 rounded-2xl border border-line bg-card p-4 text-sm">
+            {[
+              { icon: Truck, title: th("trustDelivery"), text: th("trustDeliveryText") },
+              { icon: Wallet, title: th("trustPayment"), text: th("trustPaymentText") },
+              { icon: Gift, title: th("trustWrap"), text: th("trustWrapText") },
+            ].map(({ icon: Icon, title, text }) => (
+              <li key={title} className="flex items-center gap-3">
+                <Icon aria-hidden className="size-5 shrink-0 text-forest" />
+                <span>
+                  <span className="font-semibold">{title}</span> · <span className="text-muted-foreground">{text}</span>
+                </span>
+              </li>
+            ))}
+          </ul>
           {product.description ? (
             <section className="flex flex-col gap-2">
               <h2 className="font-semibold">{t("description")}</h2>

@@ -1,103 +1,126 @@
+import { Camera, Gift, Truck, Wallet } from "lucide-react";
 import Image from "next/image";
-import type { Locale } from "@/i18n/routing";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { ProductCard } from "@/components/store/product-card";
+import { SectionHeader } from "@/components/store/section-header";
 import { Link } from "@/i18n/navigation";
+import type { Locale } from "@/i18n/routing";
+import { imageUrl } from "@/lib/product-images";
+import { getStoreSettings } from "@/lib/settings";
 import { getSeasonBanner, listStoreCategories, listStoreOccasions, listStoreProducts } from "@/lib/storefront";
 
 export const dynamic = "force-dynamic";
 
+/** الرئيسية (D-95): بانر مقسوم (أو بانر الموسم)، شريط المزايا، الأقسام، المناسبات، وصل حديثاً. */
 export default async function StoreHome({ params }: { params: Promise<{ locale: string }> }) {
   const locale = (await params).locale as Locale;
   setRequestLocale(locale);
   const t = await getTranslations("home");
-  const [categories, latest, occasions, banner] = await Promise.all([
+  const [categories, latest, occasions, season, settings] = await Promise.all([
     listStoreCategories(locale),
     listStoreProducts(locale, { take: 8 }),
     listStoreOccasions(locale),
     getSeasonBanner(locale),
+    getStoreSettings(),
   ]);
+  const heroImage = season?.imageUrl ?? (settings.heroImageKey ? imageUrl(settings.heroImageKey, "full") : null);
+  const trust = [
+    { icon: Truck, title: t("trustDelivery"), text: t("trustDeliveryText") },
+    { icon: Wallet, title: t("trustPayment"), text: t("trustPaymentText") },
+    { icon: Gift, title: t("trustWrap"), text: t("trustWrapText") },
+    { icon: Camera, title: t("trustPhoto"), text: t("trustPhotoText") },
+  ];
 
   return (
     <>
-      {/* بانر الموسم (D-92): مناسبة تحددها المديرة بين تاريخين */}
-      {banner ? (
-        <section className="border-b border-gold/40 bg-sand/40">
-          <div className="mx-auto flex max-w-6xl flex-wrap items-center justify-between gap-4 px-4 py-5">
-            <div className="flex min-w-0 items-center gap-4">
-              {banner.imageUrl ? (
-                <Image
-                  src={banner.imageUrl}
-                  alt=""
-                  width={96}
-                  height={96}
-                  className="size-20 shrink-0 rounded-2xl object-cover sm:size-24"
-                  unoptimized
-                />
-              ) : null}
-              <div className="min-w-0">
-                <p className="text-sm font-semibold text-gold">{t("season")}</p>
-                <h2 className="font-display text-2xl font-bold sm:text-3xl">{banner.name}</h2>
-                {banner.description ? <p className="text-muted-foreground">{banner.description}</p> : null}
-              </div>
-            </div>
+      {/* البانر: النص على أخضر الغابة، والصورة (ترفعها المديرة، أو صورة الموسم) أو نقش الهوية */}
+      {/* النص يصطف مع حاوية الصفحة (72rem)، والصورة تمتد حتى حافة الشاشة */}
+      <section className="bg-forest text-ivory">
+        <div className="grid md:grid-cols-2">
+          <div className="flex flex-col items-start justify-center gap-5 px-4 py-12 md:py-16 md:ps-[max(1rem,calc((100vw-72rem)/2+1rem))] md:pe-10">
+            {season ? (
+              <span className="rounded-full bg-gold/20 px-3 py-1 text-sm font-semibold text-sand">{t("season")}</span>
+            ) : (
+              <Image src="/brand/mark-cream.svg" alt="" width={48} height={48} />
+            )}
+            <h1 className="font-display text-4xl font-bold leading-tight sm:text-5xl">
+              {season ? season.name : t("tagline")}
+            </h1>
+            <p className="max-w-md text-lg text-ivory/85">{season?.description ?? t("intro")}</p>
             <Link
-              href={`/occasion/${banner.slug}`}
-              className="inline-flex min-h-12 items-center rounded-xl bg-forest px-6 font-semibold text-ivory hover:bg-forest/90"
+              href={season ? `/occasion/${season.slug}` : categories[0] ? `/c/${categories[0].slug}` : "/products"}
+              className="inline-flex min-h-12 items-center rounded-xl bg-ivory px-6 font-semibold text-forest hover:bg-sand"
             >
-              {t("shopSeason")}
+              {season ? t("shopSeason") : t("shop")}
             </Link>
           </div>
-        </section>
-      ) : null}
-
-      {/* البانر الرئيسي: داكن مع أوراق شفافة (brand-identity §7) */}
-      <section className="relative overflow-hidden bg-forest text-ivory">
-        <div
-          aria-hidden
-          className="absolute inset-0 bg-[url('/brand/pattern-sage.svg')] bg-[length:320px] opacity-15"
-        />
-        <div className="relative mx-auto flex max-w-6xl flex-col items-start gap-5 px-4 py-16 sm:py-24">
-          <Image src="/brand/mark-cream.svg" alt="" width={56} height={56} />
-          <h1 className="font-display text-4xl font-bold sm:text-6xl">{t("tagline")}</h1>
-          <p className="max-w-xl text-lg text-ivory/90">{t("intro")}</p>
-          <Link
-            href={categories[0] ? `/c/${categories[0].slug}` : "/"}
-            className="inline-flex min-h-12 items-center rounded-xl bg-ivory px-6 font-semibold text-forest hover:bg-sand"
-          >
-            {t("shop")}
-          </Link>
+          <div className="relative min-h-56 overflow-hidden md:min-h-[26rem]">
+            {heroImage ? (
+              <Image
+                src={heroImage}
+                alt=""
+                fill
+                priority
+                sizes="(min-width: 768px) 50vw, 100vw"
+                className="object-cover"
+                unoptimized
+              />
+            ) : (
+              <div
+                aria-hidden
+                className="absolute inset-0 bg-sage/30 bg-[url('/brand/pattern-sage.svg')] bg-[length:280px]"
+              />
+            )}
+          </div>
         </div>
       </section>
 
-      <div className="mx-auto flex max-w-6xl flex-col gap-12 px-4 py-12">
+      {/* المزايا — معلومات صحيحة من النظام (التوصيل، الدفع، التغليف، صورة الهدية) */}
+      <section aria-label={t("trustLabel")} className="border-b border-line bg-card">
+        <ul className="mx-auto grid max-w-6xl grid-cols-2 gap-4 px-4 py-5 lg:grid-cols-4">
+          {trust.map(({ icon: Icon, title, text }) => (
+            <li key={title} className="flex items-start gap-3">
+              <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-muted text-forest">
+                <Icon aria-hidden className="size-5" />
+              </span>
+              <span className="min-w-0">
+                <span className="block text-sm font-semibold">{title}</span>
+                <span className="block text-xs text-muted-foreground">{text}</span>
+              </span>
+            </li>
+          ))}
+        </ul>
+      </section>
+
+      <div className="mx-auto flex max-w-6xl flex-col gap-14 px-4 py-12">
         {categories.length ? (
-          <section className="flex flex-col gap-4">
-            <h2 className="font-display text-3xl font-bold">{t("categories")}</h2>
-            <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
+          <section className="flex flex-col gap-5">
+            <SectionHeader title={t("categories")} locale={locale} />
+            <ul className="grid grid-cols-2 gap-3 sm:grid-cols-[repeat(auto-fit,minmax(12rem,1fr))]">
               {categories.map((c) => (
                 <li key={c.slug}>
                   <Link
                     href={`/c/${c.slug}`}
-                    className="group flex flex-col overflow-hidden rounded-2xl border border-line bg-card"
+                    className="group relative flex aspect-[4/3] items-end overflow-hidden rounded-2xl bg-muted"
                   >
-                    <div className="relative aspect-[4/3] bg-muted">
-                      {c.imageUrl ? (
-                        <Image
-                          src={c.imageUrl}
-                          alt=""
-                          fill
-                          sizes="(min-width: 1024px) 20vw, (min-width: 640px) 33vw, 50vw"
-                          className="object-cover transition-transform duration-500 group-hover:scale-105"
-                          unoptimized
-                        />
-                      ) : (
-                        <div className="flex size-full items-center justify-center">
-                          <Image src="/brand/leaves-sage.svg" alt="" width={48} height={48} className="opacity-50" />
-                        </div>
-                      )}
-                    </div>
-                    <span className="p-3 font-semibold">{c.name}</span>
+                    {c.imageUrl ? (
+                      <Image
+                        src={c.imageUrl}
+                        alt=""
+                        fill
+                        sizes="(min-width: 1024px) 25vw, 50vw"
+                        className="object-cover transition-transform duration-500 group-hover:scale-105"
+                        unoptimized
+                      />
+                    ) : (
+                      <span className="absolute inset-0 flex items-center justify-center">
+                        <Image src="/brand/leaves-sage.svg" alt="" width={48} height={48} className="opacity-50" />
+                      </span>
+                    )}
+                    <span className="relative m-2 rounded-xl bg-card/90 px-3 py-1.5 font-semibold backdrop-blur">
+                      {c.name}
+                      <span className="ms-2 text-xs font-normal text-muted-foreground tabular-nums">{c.count}</span>
+                    </span>
                   </Link>
                 </li>
               ))}
@@ -106,32 +129,29 @@ export default async function StoreHome({ params }: { params: Promise<{ locale: 
         ) : null}
 
         {occasions.length ? (
-          <section className="flex flex-col gap-4">
-            <h2 className="font-display text-3xl font-bold">{t("occasions")}</h2>
-            <ul className="flex gap-3 overflow-x-auto pb-2">
+          <section className="flex flex-col gap-5">
+            <SectionHeader title={t("occasions")} locale={locale} />
+            <ul className="-mx-4 flex gap-5 overflow-x-auto px-4 pb-1 [scrollbar-width:none]">
               {occasions.map((o) => (
-                <li key={o.slug} className="w-36 shrink-0 sm:w-44">
-                  <Link
-                    href={`/occasion/${o.slug}`}
-                    className="group flex flex-col overflow-hidden rounded-2xl border border-line bg-card"
-                  >
-                    <div className="relative aspect-square bg-muted">
+                <li key={o.slug} className="shrink-0">
+                  <Link href={`/occasion/${o.slug}`} className="group flex w-24 flex-col items-center gap-2 sm:w-28">
+                    <span className="relative size-24 overflow-hidden rounded-full border-2 border-sand bg-muted sm:size-28">
                       {o.imageUrl ? (
                         <Image
                           src={o.imageUrl}
                           alt=""
                           fill
-                          sizes="176px"
+                          sizes="112px"
                           className="object-cover transition-transform duration-500 group-hover:scale-105"
                           unoptimized
                         />
                       ) : (
-                        <div className="flex size-full items-center justify-center">
-                          <Image src="/brand/leaves-gold.svg" alt="" width={44} height={44} className="opacity-60" />
-                        </div>
+                        <span className="absolute inset-0 flex items-center justify-center">
+                          <Image src="/brand/leaves-gold.svg" alt="" width={40} height={40} className="opacity-70" />
+                        </span>
                       )}
-                    </div>
-                    <span className="p-3 font-semibold">{o.name}</span>
+                    </span>
+                    <span className="text-center text-sm font-semibold">{o.name}</span>
                   </Link>
                 </li>
               ))}
@@ -139,8 +159,13 @@ export default async function StoreHome({ params }: { params: Promise<{ locale: 
           </section>
         ) : null}
 
-        <section className="flex flex-col gap-4">
-          <h2 className="font-display text-3xl font-bold">{t("latest")}</h2>
+        <section className="flex flex-col gap-5">
+          <SectionHeader
+            title={t("latest")}
+            href={latest.length ? "/products" : undefined}
+            linkLabel={t("viewAll")}
+            locale={locale}
+          />
           {latest.length ? (
             <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
               {latest.map((p) => (

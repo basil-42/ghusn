@@ -68,6 +68,8 @@ export const storeSettingsSchema = z.object({
   bankakAccountName: z.string().max(80),
   bankakAccountNumber: z.string().max(40),
   bankakNote: z.string().max(200),
+  /** صورة البانر الرئيسي في المتجر — ترفعها المديرة (D-95)؛ بدونها نقشة الهوية. */
+  heroImageKey: z.string().max(120).nullable(),
 });
 export type StoreSettings = z.infer<typeof storeSettingsSchema>;
 const STORE_DEFAULTS: StoreSettings = {
@@ -76,6 +78,7 @@ const STORE_DEFAULTS: StoreSettings = {
   bankakAccountName: "",
   bankakAccountNumber: "",
   bankakNote: "",
+  heroImageKey: null,
 };
 
 /** حساب بنكك للعرض على العميل، أو null إن لم يُضبط (فيُخفى الخيار). */

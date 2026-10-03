@@ -4,56 +4,84 @@ import { Link } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
 import { getReceiptSettings } from "@/lib/settings";
 import { whatsappLink } from "@/lib/site";
-import { listStoreCategories } from "@/lib/storefront";
+import { listStoreCategories, listStoreOccasions } from "@/lib/storefront";
 
-/** التذييل: الشعار الكامل (≥ 220px — brand-identity §1) على أخضر الغابة، والأقسام والعبارة. */
+const linkClass = "inline-flex min-h-10 items-center text-ivory/85 hover:text-ivory hover:underline";
+
+/**
+ * التذييل (D-95): أربعة أعمدة — الشعار الكامل (≥ 220px — brand-identity §1) والعبارة، الأقسام،
+ * المناسبات، والمساعدة (التتبّع، واتساب، التوصيل والدفع) — ثم سطر الحقوق.
+ */
 export async function StoreFooter() {
   const locale = (await getLocale()) as Locale;
   const t = await getTranslations();
-  const [categories, receipt] = await Promise.all([listStoreCategories(locale), getReceiptSettings()]);
+  const [categories, occasions, receipt] = await Promise.all([
+    listStoreCategories(locale),
+    listStoreOccasions(locale),
+    getReceiptSettings(),
+  ]);
   const whatsapp = whatsappLink(receipt.whatsapp, t("footer.whatsappText"));
   return (
     <footer className="mt-16 bg-forest text-ivory">
-      <div className="mx-auto grid max-w-6xl gap-8 px-4 py-10 sm:grid-cols-2">
-        <div className="flex flex-col gap-3">
-          <Image src="/brand/logo-horizontal-cream.svg" alt="غصن GHUSN" width={240} height={122} />
+      <div className="mx-auto grid max-w-6xl grid-cols-2 gap-x-6 gap-y-10 px-4 py-12 lg:grid-cols-[1.4fr_1fr_1fr_1.4fr]">
+        <div className="col-span-2 flex flex-col gap-3 lg:col-span-1">
+          <Image src="/brand/logo-horizontal-cream.svg" alt="غصن GHUSN" width={220} height={112} />
           <p className="font-display text-xl">{t("home.tagline")}</p>
-          <ul className="flex flex-wrap gap-x-4">
-            <li>
-              <Link href="/track" className="inline-flex min-h-11 items-center hover:underline">
-                {t("footer.track")}
-              </Link>
-            </li>
-            {whatsapp ? (
-              <li>
-                <a
-                  href={whatsapp}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="inline-flex min-h-11 items-center hover:underline"
-                >
-                  {t("footer.whatsapp")}
-                </a>
-              </li>
-            ) : null}
-          </ul>
         </div>
         {categories.length ? (
           <nav aria-label={t("footer.categories")}>
             <p className="mb-2 font-semibold">{t("footer.categories")}</p>
-            <ul className="grid grid-cols-2 gap-1">
+            <ul>
               {categories.map((c) => (
                 <li key={c.slug}>
-                  <Link href={`/c/${c.slug}`} className="inline-flex min-h-11 items-center hover:underline">
+                  <Link href={`/c/${c.slug}`} className={linkClass}>
                     {c.name}
+                  </Link>
+                </li>
+              ))}
+              <li>
+                <Link href="/products" className={linkClass}>
+                  {t("home.allProducts")}
+                </Link>
+              </li>
+            </ul>
+          </nav>
+        ) : null}
+        {occasions.length ? (
+          <nav aria-label={t("footer.occasions")}>
+            <p className="mb-2 font-semibold">{t("footer.occasions")}</p>
+            <ul>
+              {occasions.map((o) => (
+                <li key={o.slug}>
+                  <Link href={`/occasion/${o.slug}`} className={linkClass}>
+                    {o.name}
                   </Link>
                 </li>
               ))}
             </ul>
           </nav>
         ) : null}
+        <div className="col-span-2 lg:col-span-1">
+          <p className="mb-2 font-semibold">{t("footer.help")}</p>
+          <ul>
+            <li>
+              <Link href="/track" className={linkClass}>
+                {t("footer.track")}
+              </Link>
+            </li>
+            {whatsapp ? (
+              <li>
+                <a href={whatsapp} target="_blank" rel="noreferrer" className={linkClass}>
+                  {t("footer.whatsapp")}
+                </a>
+              </li>
+            ) : null}
+          </ul>
+          <p className="mt-3 text-sm text-ivory/70">{t("footer.deliveryInfo")}</p>
+          <p className="mt-1 text-sm text-ivory/70">{t("footer.paymentInfo")}</p>
+        </div>
       </div>
-      <p className="border-t border-ivory/15 px-4 py-4 text-center text-sm text-ivory/80">
+      <p className="border-t border-ivory/15 px-4 py-4 text-center text-sm text-ivory/75">
         {t("footer.rights", { year: new Date().getFullYear() })}
       </p>
     </footer>
