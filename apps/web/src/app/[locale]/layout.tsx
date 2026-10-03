@@ -6,6 +6,7 @@ import { StoreFooter } from "@/components/store/footer";
 import { StoreHeader } from "@/components/store/header";
 import { routing } from "@/i18n/routing";
 import { fontVariables } from "@/lib/fonts";
+import { alternates, siteUrl } from "@/lib/site";
 import "../globals.css";
 
 export function generateStaticParams() {
@@ -18,7 +19,14 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
   return {
     title: { default: t("title"), template: locale === "ar" ? "%s | غصن" : "%s | GHUSN" },
     description: t("description"),
-    alternates: { languages: { ar: "/", en: "/en" } },
+    metadataBase: new URL(siteUrl()),
+    alternates: alternates(locale, "/"),
+    openGraph: {
+      siteName: locale === "ar" ? "غصن" : "GHUSN",
+      locale: locale === "ar" ? "ar_SD" : "en_US",
+      type: "website",
+      images: ["/og-default.png"],
+    },
   };
 }
 

@@ -2,6 +2,7 @@
 
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
+import { redirect } from "next/navigation";
 import { CARD_MESSAGE_MAX } from "@ghusn/core";
 import { z } from "zod";
 import { formatAmount } from "@/lib/format";
@@ -11,6 +12,7 @@ import {
   OrderError,
   createWebOrder,
   decideGiftPhoto,
+  findOrderToken,
   quoteCart,
   submitPaymentProof,
 } from "@/lib/orders";
@@ -147,4 +149,22 @@ export async function decidePhotoAction(_prev: ProofResult | null, formData: For
     throw e;
   }
   return { ok: true };
+}
+
+const trackLimiter = new SlidingWindowLimiter(10, 10 * 60 * 1000);
+
+/** «تتبّع طلبك»: يعيد رابط المتابعة أو خطأً عاماً واحداً (لا يكشف أيهما خطأ: الرقم أم الهاتف). */
+export async function trackOrderAction(
+  _prev: { ok: false; code: string } | null,
+  formData: FormData,
+): Promise<{ ok: false; code: string } | null> {
+  const ip = clientIp(await headers());
+  if (trackLimiter.isLimited(ip)) return { ok: false, code: "RATE_LIMIT" };
+  trackLimiter.hit(ip);
+  const number = String(formData.get("number") ?? "").slice(0, 30);
+  const phone = String(formData.get("phone") ?? "").slice(0, 20);
+  const locale = formData.get("locale") === "en" ? "en" : "ar";
+  const token = await findOrderToken(number, phone);
+  if (!token) return { ok: false, code: "TRACK_NOT_FOUND" };
+  redirect(locale === "en" ? `/en/o/${token}` : `/o/${token}`);
 }

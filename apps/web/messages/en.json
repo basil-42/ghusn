@@ -53,7 +53,10 @@
   },
   "footer": {
     "rights": "© {year} GHUSN. All rights reserved.",
-    "categories": "Categories"
+    "categories": "Categories",
+    "track": "Track your order",
+    "whatsapp": "Contact us on WhatsApp",
+    "whatsappText": "Hello Ghusn 🌿"
   },
   "notFound": {
     "title": "Page not found",
@@ -139,7 +142,8 @@
     "WRAP_UNAVAILABLE": "The selected wrapping is no longer available. Please choose another.",
     "CARD_TOO_LONG": "The card message is longer than 150 characters.",
     "PHOTO_CLOSED": "This photo is no longer awaiting your reply. Please refresh the page.",
-    "FEEDBACK_REQUIRED": "Please describe the change you'd like."
+    "FEEDBACK_REQUIRED": "Please describe the change you'd like.",
+    "TRACK_NOT_FOUND": "We couldn't find an order with this number and phone. Check the details or contact us."
   },
   "order": {
     "title": "Order {number}",
@@ -189,7 +193,9 @@
     "requestChanges": "I'd like a change",
     "changesLabel": "What would you like changed?",
     "sendChanges": "Send change request",
-    "back": "Back"
+    "back": "Back",
+    "whatsapp": "Contact us on WhatsApp",
+    "whatsappText": "Hello Ghusn, I'm asking about my order {number}"
   },
   "occasion": {
     "empty": "No products are available for this occasion right now."
@@ -199,5 +205,14 @@
     "resultsFor": "Results for “{q}”",
     "noResults": "No results. Try another word or browse the categories.",
     "prompt": "Type what you're looking for in the search box."
+  },
+  "track": {
+    "title": "Track your order",
+    "intro": "Enter your order number and the phone number you ordered with to open your order page.",
+    "number": "Order number",
+    "numberHint": "As in your order message, or just its last digits (e.g. 155).",
+    "phone": "Phone number",
+    "submit": "Show my order",
+    "searching": "Searching…"
   }
 }

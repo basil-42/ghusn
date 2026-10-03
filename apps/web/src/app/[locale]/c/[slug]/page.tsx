@@ -3,6 +3,7 @@ import { getTranslations, setRequestLocale } from "next-intl/server";
 import { notFound } from "next/navigation";
 import { ProductListing, parseSort } from "@/components/store/product-listing";
 import type { Locale } from "@/i18n/routing";
+import { alternates } from "@/lib/site";
 import { getStoreCategory, listStoreProducts } from "@/lib/storefront";
 
 export const dynamic = "force-dynamic";
@@ -15,7 +16,7 @@ type Props = {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { locale, slug } = await params;
   const category = await getStoreCategory(locale as Locale, slug);
-  return category ? { title: category.name } : {};
+  return category ? { title: category.name, alternates: alternates(locale, `/c/${slug}`) } : {};
 }
 
 export default async function CategoryPage({ params, searchParams }: Props) {

@@ -5,7 +5,8 @@ import { Price } from "@/components/store/price";
 import { Link } from "@/i18n/navigation";
 import { formatDateTime } from "@/lib/format";
 import { approveOverduePhotos, expireUnpaidOrders, getOrderByToken } from "@/lib/orders";
-import { bankakAccount } from "@/lib/settings";
+import { bankakAccount, getReceiptSettings } from "@/lib/settings";
+import { whatsappLink } from "@/lib/site";
 import { PaymentProofForm } from "./payment-proof-form";
 import { PhotoDecision } from "./photo-decision";
 
@@ -43,6 +44,7 @@ export default async function OrderStatusPage({ params }: Props) {
   }
   const account = o.status === "AWAITING_PAYMENT" ? await bankakAccount() : null;
   const t = await getTranslations("order");
+  const contact = whatsappLink((await getReceiptSettings()).whatsapp, t("whatsappText", { number: o.number }));
   const tc = await getTranslations("checkout");
   const steps = STEPS.filter((s) => o.fulfillment === "DELIVERY" || s !== "OUT_FOR_DELIVERY");
   const reached = o.status === "CANCELLED" ? -1 : steps.findIndex((s) => s === o.status);
@@ -74,6 +76,31 @@ export default async function OrderStatusPage({ params }: Props) {
               <li key={s} className={`h-2 flex-1 rounded-full ${i <= current ? "bg-sage" : "bg-muted"}`} />
             ))}
           </ol>
+        ) : null}
+        {/* الخط الزمني (D-93): كل مرحلة ووقتها، الأحدث في الأسفل */}
+        <ol className="mt-5 flex flex-col gap-3 border-s-2 border-line ps-4">
+          {o.timeline.map((h, i) => (
+            <li key={h.id} className="relative">
+              <span
+                aria-hidden
+                className={`absolute -start-[1.4rem] top-1.5 size-3 rounded-full ${
+                  i === o.timeline.length - 1 ? (o.status === "CANCELLED" ? "bg-danger" : "bg-forest") : "bg-sage"
+                }`}
+              />
+              <span className="block font-semibold">{t(`statuses.${h.status}`)}</span>
+              <span className="text-sm text-muted-foreground">{formatDateTime(h.at)}</span>
+            </li>
+          ))}
+        </ol>
+        {contact ? (
+          <a
+            href={contact}
+            target="_blank"
+            rel="noreferrer"
+            className="mt-5 inline-flex min-h-11 items-center rounded-xl border border-forest px-4 font-semibold text-forest hover:bg-muted"
+          >
+            {t("whatsapp")}
+          </a>
         ) : null}
       </section>
 

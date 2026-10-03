@@ -1,3 +1,4 @@
+import { dec } from "@ghusn/core";
 import type { Metadata } from "next";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { notFound } from "next/navigation";
@@ -6,6 +7,7 @@ import { VariantPicker } from "@/components/store/variant-picker";
 import { Link } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
 import { getStoreProduct } from "@/lib/storefront";
+import { alternates, localePath, siteUrl } from "@/lib/site";
 
 export const dynamic = "force-dynamic";
 
@@ -18,6 +20,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   return {
     title: p.name,
     description: p.description?.slice(0, 160) ?? undefined,
+    alternates: alternates(locale, `/p/${p.id}`),
     openGraph: p.images[0] ? { images: [p.images[0].full] } : undefined,
   };
 }
@@ -30,8 +33,46 @@ export default async function ProductPage({ params }: Props) {
   if (!product) notFound();
   const t = await getTranslations("product");
 
+  // بيانات المنتج لـ Google (D-93): الاسم والصور والسعر بالجنيه والتوفر — المعروض متاح دائماً
+  const prices = product.variants.map((v) => dec(v.priceSdg));
+  const low = prices.reduce((a, b) => (b.lt(a) ? b : a));
+  const high = prices.reduce((a, b) => (b.gt(a) ? b : a));
+  const url = `${siteUrl()}${localePath(locale, `/p/${product.id}`)}`;
+  const jsonLd = {
+    "@context": "https://schema.org",
+    "@type": "Product",
+    name: product.name,
+    description: product.description ?? undefined,
+    image: product.images.map((i) => `${siteUrl()}${i.full}`),
+    category: product.category.name,
+    brand: { "@type": "Brand", name: locale === "ar" ? "غصن" : "GHUSN" },
+    offers:
+      prices.length > 1
+        ? {
+            "@type": "AggregateOffer",
+            priceCurrency: "SDG",
+            lowPrice: low.toFixed(0),
+            highPrice: high.toFixed(0),
+            offerCount: prices.length,
+            availability: "https://schema.org/InStock",
+            url,
+          }
+        : {
+            "@type": "Offer",
+            priceCurrency: "SDG",
+            price: low.toFixed(0),
+            availability: "https://schema.org/InStock",
+            url,
+          },
+  };
+
   return (
     <div className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-8">
+      <script
+        type="application/ld+json"
+        // نص من قاعدة البيانات: «<» يُهرَّب حتى لا يُغلق الوسم
+        dangerouslySetInnerHTML={{ __html: JSON.stringify(jsonLd).replace(/</g, "\\u003c") }}
+      />
       <Link href={`/c/${product.category.slug}`} className="text-sm text-muted-foreground hover:underline">
         {t("backTo", { category: product.category.name })}
       </Link>

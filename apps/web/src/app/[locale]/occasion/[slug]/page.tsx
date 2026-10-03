@@ -3,6 +3,7 @@ import { getTranslations, setRequestLocale } from "next-intl/server";
 import { notFound } from "next/navigation";
 import { ProductListing, parseSort } from "@/components/store/product-listing";
 import type { Locale } from "@/i18n/routing";
+import { alternates } from "@/lib/site";
 import { getStoreOccasion, listStoreProducts } from "@/lib/storefront";
 
 export const dynamic = "force-dynamic";
@@ -15,7 +16,14 @@ type Props = {
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { locale, slug } = await params;
   const occasion = await getStoreOccasion(locale as Locale, slug);
-  return occasion ? { title: occasion.name, description: occasion.description ?? undefined } : {};
+  return occasion
+    ? {
+        title: occasion.name,
+        description: occasion.description ?? undefined,
+        alternates: alternates(locale, `/occasion/${slug}`),
+        openGraph: occasion.imageUrl ? { images: [occasion.imageUrl] } : undefined,
+      }
+    : {};
 }
 
 /** صفحة مناسبة (D-92): منتجاتها المتاحة بترتيب. */

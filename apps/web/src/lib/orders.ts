@@ -22,6 +22,7 @@ import {
 import { Prisma, prisma, type DeliveryCity, type Fulfillment, type GiftPhotoDecision } from "@ghusn/db";
 import { nextDocumentNumber } from "./documents";
 import { formatAmount } from "./format";
+import { localePath, siteUrl } from "./site";
 import { currentSellingRate } from "./pricing";
 import { PrivateImageError, savePrivateImage } from "./private-images";
 import { activeWrapStyle } from "./wrapping";
@@ -826,8 +827,7 @@ export function paymentReminderLink(o: {
   trackingToken: string;
   locale: string;
 }) {
-  const base = (process.env.APP_URL ?? "").replace(/\/$/, "");
-  const url = `${base}${o.locale === "en" ? "/en" : ""}/o/${o.trackingToken}`;
+  const url = `${siteUrl()}${localePath(o.locale, `/o/${o.trackingToken}`)}`;
   const total = formatAmount(o.totalSdg, 0);
   const text =
     o.locale === "en"
@@ -905,13 +905,33 @@ export async function approveOverduePhotos(now = new Date()): Promise<number> {
 
 /** رابط واتساب يرسل للعميل رابط صورة هديته. */
 export function giftPhotoLink(o: { phone: string; number: string; trackingToken: string; locale: string }) {
-  const base = (process.env.APP_URL ?? "").replace(/\/$/, "");
-  const url = `${base}${o.locale === "en" ? "/en" : ""}/o/${o.trackingToken}`;
+  const url = `${siteUrl()}${localePath(o.locale, `/o/${o.trackingToken}`)}`;
   const text =
     o.locale === "en"
       ? `Hello from Ghusn 🌿 Your gift for order ${o.number} is ready! See the photo and approve it here (no reply within an hour counts as approval): ${url}`
       : `مرحباً من غصن 🌿 هديتك في الطلب ${o.number} جاهزة! شاهد الصورة ووافق عليها من هنا (عدم الرد خلال ساعة يعني الموافقة): ${url}`;
   return `https://wa.me/${o.phone.replace(/\D/g, "")}?text=${encodeURIComponent(text)}`;
+}
+
+/**
+ * «تتبّع طلبك» (D-93): رقم الطلب (كاملاً أو أرقامه الأخيرة) + هاتف الطلب ← رابط المتابعة. الهاتف شرط
+ * دائماً، فلا يكفي تخمين الرقم؛ وحد المحاولات في الإجراء.
+ */
+export async function findOrderToken(numberInput: string, phoneInput: string): Promise<string | null> {
+  const phone = normalizePhone(phoneInput, "SD");
+  if (!phone) return null;
+  const raw = numberInput.trim().toUpperCase().replace(/\s+/g, "");
+  const digits = /^\d{1,6}$/.test(raw) ? raw.padStart(6, "0") : null;
+  if (!digits && !/^GHS-\d{4}-\d{6}$/.test(raw)) return null;
+  const order = await prisma.order.findFirst({
+    where: {
+      customer: { phone },
+      ...(digits ? { number: { endsWith: `-${digits}` } } : { number: raw }),
+    },
+    orderBy: { createdAt: "desc" },
+    select: { trackingToken: true },
+  });
+  return order?.trackingToken ?? null;
 }
 
 export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
@@ -1113,6 +1133,7 @@ export async function getOrderByToken(token: string, locale: string) {
       paymentProofs: { orderBy: { createdAt: "desc" }, take: 1 },
       giftPhotos: { orderBy: { createdAt: "desc" }, take: 1 },
       wrapStyle: { select: { nameAr: true, nameEn: true } },
+      history: { orderBy: { createdAt: "asc" }, select: { id: true, toStatus: true, createdAt: true } },
     },
   });
   if (!o) return null;
@@ -1141,6 +1162,8 @@ export async function getOrderByToken(token: string, locale: string) {
       : null,
     cardMessage: o.cardMessage,
     photoDueAt: o.photoDueAt,
+    /** الخط الزمني للعميل: كل مرحلة ووقتها (بلا أسباب ولا أسماء الموظفين). */
+    timeline: o.history.map((h) => ({ id: h.id, status: h.toStatus as OrderStatus, at: h.createdAt })),
     /** آخر صورة للهدية: تنتظر القرار، أو موافَق عليها (تبقى للذكرى). */
     photo:
       photo && (photo.decision === null || photo.decision !== "CHANGES")
