@@ -293,8 +293,9 @@ model Product {
   updatedAt     DateTime    @updatedAt
   deletedAt     DateTime?
 
-  variants ProductVariant[]
-  images   ProductImage[]
+  variants  ProductVariant[]
+  images    ProductImage[]
+  occasions ProductOccasion[]
 
   @@index([categoryId])
   @@index([deletedAt])
@@ -1113,4 +1114,35 @@ model GiftPhoto {
   feedback     String?
 
   @@index([orderId, createdAt])
+}
+
+// مناسبة (D-92): قائمة تديرها المديرة؛ المنتج في أكثر من مناسبة. بانر الموسم يظهر بين تاريخين
+model Occasion {
+  id            String            @id @default(cuid())
+  slug          String            @unique
+  nameAr        String
+  nameEn        String
+  descriptionAr String?
+  descriptionEn String?
+  imageKey      String?
+  isActive      Boolean           @default(true)
+  sortOrder     Int               @default(0)
+  // بانر الرئيسية: من بداية يوم البداية حتى نهاية يوم النهاية (بتوقيت الخرطوم)
+  bannerStart   DateTime?
+  bannerEnd     DateTime?
+  createdAt     DateTime          @default(now())
+  updatedAt     DateTime          @updatedAt
+  products      ProductOccasion[]
+
+  @@index([isActive, sortOrder])
+}
+
+model ProductOccasion {
+  product    Product  @relation(fields: [productId], references: [id], onDelete: Cascade)
+  productId  String
+  occasion   Occasion @relation(fields: [occasionId], references: [id], onDelete: Cascade)
+  occasionId String
+
+  @@id([productId, occasionId])
+  @@index([occasionId])
 }

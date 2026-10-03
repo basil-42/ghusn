@@ -1,4 +1,4 @@
-import { dec } from "@ghusn/core";
+import { dec, isBannerDay, searchTerms, shopDay } from "@ghusn/core";
 import { prisma, type Prisma } from "@ghusn/db";
 import type { Locale } from "@/i18n/routing";
 import { availableVariantIds } from "./orders";
@@ -77,13 +77,18 @@ export type StoreSort = "newest" | "price-asc" | "price-desc";
 
 export async function listStoreProducts(
   locale: Locale,
-  opts: { categorySlug?: string; sort?: StoreSort; take?: number } = {},
+  opts: { categorySlug?: string; occasionSlug?: string; q?: string; sort?: StoreSort; take?: number } = {},
 ): Promise<StoreProductCard[]> {
   const sellable = await sellableVariant();
+  // البحث: كل كلمة (بعد توحيد الهمزات والتشكيل) في نص البحث — الاسم والقسم والمناسبات
+  const terms = opts.q !== undefined ? searchTerms(opts.q) : [];
+  if (opts.q !== undefined && terms.length === 0) return [];
   const products = await prisma.product.findMany({
     where: {
       ...visibleProduct,
       ...(opts.categorySlug ? { category: { isActive: true, slug: opts.categorySlug } } : {}),
+      ...(opts.occasionSlug ? { occasions: { some: { occasion: { slug: opts.occasionSlug, isActive: true } } } } : {}),
+      ...(terms.length ? { AND: terms.map((t) => ({ searchText: { contains: t } })) } : {}),
       variants: { some: sellable },
     },
     orderBy: { createdAt: "desc" },
@@ -181,5 +186,71 @@ export async function getStoreProduct(locale: Locale, id: string): Promise<Store
       volume: v.volume,
       priceSdg: dec(v.priceSdg?.toString() ?? "0").toFixed(0),
     })),
+  };
+}
+
+export interface StoreOccasion {
+  slug: string;
+  name: string;
+  description: string | null;
+  imageUrl: string | null;
+}
+
+/** المناسبات الظاهرة التي فيها منتج متاح واحد على الأقل (D-92). */
+export async function listStoreOccasions(locale: Locale): Promise<StoreOccasion[]> {
+  const sellable = await sellableVariant();
+  const rows = await prisma.occasion.findMany({
+    where: { isActive: true },
+    orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+    include: {
+      products: {
+        where: { product: { ...visibleProduct, variants: { some: sellable } } },
+        take: 1,
+        select: {
+          product: { select: { images: { orderBy: { sortOrder: "asc" }, take: 1, select: { key: true } } } },
+        },
+      },
+    },
+  });
+  return rows
+    .filter((o) => o.products.length > 0)
+    .map((o) => {
+      const cover = o.imageKey ?? o.products[0]?.product.images[0]?.key ?? null;
+      return {
+        slug: o.slug,
+        name: locale === "en" ? o.nameEn : o.nameAr,
+        description: locale === "en" ? (o.descriptionEn ?? o.descriptionAr) : (o.descriptionAr ?? o.descriptionEn),
+        imageUrl: cover ? imageUrl(cover, "thumb") : null,
+      };
+    });
+}
+
+export async function getStoreOccasion(locale: Locale, slug: string): Promise<StoreOccasion | null> {
+  const o = await prisma.occasion.findFirst({ where: { slug, isActive: true } });
+  if (!o) return null;
+  return {
+    slug: o.slug,
+    name: locale === "en" ? o.nameEn : o.nameAr,
+    description: locale === "en" ? (o.descriptionEn ?? o.descriptionAr) : (o.descriptionAr ?? o.descriptionEn),
+    imageUrl: o.imageKey ? imageUrl(o.imageKey, "full") : null,
+  };
+}
+
+/** بانر الموسم اليوم (بتوقيت الخرطوم): أول مناسبة ظاهرة بالترتيب تقع اليوم في فترتها. */
+export async function getSeasonBanner(locale: Locale, now = new Date()): Promise<StoreOccasion | null> {
+  const today = shopDay(now);
+  const rows = await prisma.occasion.findMany({
+    where: { isActive: true, bannerStart: { not: null }, bannerEnd: { not: null } },
+    orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+  });
+  const o = rows.find((r) =>
+    isBannerDay(today, r.bannerStart ? shopDay(r.bannerStart) : null, r.bannerEnd ? shopDay(r.bannerEnd) : null),
+  );
+  if (!o) return null;
+  return {
+    slug: o.slug,
+    name: locale === "en" ? o.nameEn : o.nameAr,
+    description: locale === "en" ? (o.descriptionEn ?? o.descriptionAr) : (o.descriptionAr ?? o.descriptionEn),
+    imageUrl: o.imageKey ? imageUrl(o.imageKey, "full") : null,
   };
 }

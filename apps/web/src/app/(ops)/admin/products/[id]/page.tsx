@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { roleCan } from "@/lib/auth/permissions";
 import { requirePermission } from "@/lib/auth/session";
+import { listOccasionOptions } from "@/lib/occasions";
 import { PRODUCT_TYPE_LABELS, STOCK_UNIT_LABELS, getProduct, listCategoryOptions } from "@/lib/catalog";
 import { MAX_IMAGES_PER_PRODUCT, imageUrl } from "@/lib/product-images";
 import { formatDateTime } from "@/lib/format";
@@ -25,7 +26,7 @@ export default async function ProductPage({
   const [{ id }, { created }] = await Promise.all([params, searchParams]);
   const product = await getProduct(id);
   if (!product) notFound();
-  const categories = await listCategoryOptions(product.categoryId);
+  const [categories, occasions] = await Promise.all([listCategoryOptions(product.categoryId), listOccasionOptions()]);
 
   const canEdit = roleCan(session.user.role, { product: ["update"] });
   const canArchive = roleCan(session.user.role, { product: ["delete"] });
@@ -53,6 +54,7 @@ export default async function ProductPage({
       <ProductForm
         productId={product.id}
         categories={categories}
+        occasions={occasions}
         typeLabels={PRODUCT_TYPE_LABELS}
         unitLabels={STOCK_UNIT_LABELS}
         canEdit={canEdit}
@@ -68,6 +70,7 @@ export default async function ProductPage({
           trackExpiry: product.trackExpiry,
           isActive: product.isActive,
           isWebVisible: product.isWebVisible,
+          occasionIds: product.occasions.map((o) => o.occasionId),
           variants: product.variants.map((v) => ({
             key: v.id,
             id: v.id,
