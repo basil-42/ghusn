@@ -19,3 +19,4 @@ export * from "./shipment-import";
 export * from "./wallet";
 export * from "./order";
 export * from "./occasion";
+export * from "./dashboard";

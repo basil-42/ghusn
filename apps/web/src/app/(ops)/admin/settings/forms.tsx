@@ -4,11 +4,12 @@ import { useActionState } from "react";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input, NativeSelect } from "@/components/ui/input";
-import type { PosSettings, ReceiptSettings, StoreSettings } from "@/lib/settings";
+import type { PosSettings, ReceiptSettings, StockSettings, StoreSettings } from "@/lib/settings";
 import {
   saveExpenseCategoryAction,
   savePosSettingsAction,
   saveReceiptSettingsAction,
+  saveStockSettingsAction,
   saveStoreSettingsAction,
   type FormState,
 } from "./actions";
@@ -256,6 +257,35 @@ export function StoreSettingsForm({
         <label className={`${field} sm:col-span-2`}>
           <span className="font-semibold">ملاحظة للعميل عند التحويل (اختياري)</span>
           <Input name="bankakNote" defaultValue={initial.bankakNote} maxLength={200} />
+        </label>
+      </div>
+      <Button type="submit" disabled={pending} className="self-start">
+        حفظ
+      </Button>
+    </form>
+  );
+}
+
+/** تنبيهات المخزون في اللوحة (D-94). */
+export function StockSettingsForm({ initial }: { initial: StockSettings }) {
+  const [state, action, pending] = useActionState<FormState, FormData>(saveStockSettingsAction, {});
+  return (
+    <form action={action} className="flex flex-col gap-3">
+      <Messages state={state} />
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <label className={field}>
+          <span className="font-semibold">حد «قارب على النفاد» (قطعة)</span>
+          <Input name="lowStockQty" defaultValue={String(initial.lowStockQty)} inputMode="decimal" dir="ltr" />
+          <span className="text-xs text-muted-foreground">
+            الصنف الذي رصيده عند هذا الحد أو أقل يظهر في اللوحة. يمكن تغييره لمنتج بعينه من صفحته.
+          </span>
+        </label>
+        <label className={field}>
+          <span className="font-semibold">تنبيه الصلاحية قبل (يوم)</span>
+          <Input name="expiryAlertDays" defaultValue={String(initial.expiryAlertDays)} inputMode="numeric" dir="ltr" />
+          <span className="text-xs text-muted-foreground">
+            دفعات العطور والتجميل التي تنتهي صلاحيتها خلال هذه المدة.
+          </span>
         </label>
       </div>
       <Button type="submit" disabled={pending} className="self-start">
