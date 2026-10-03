@@ -113,6 +113,12 @@ export const productInput = z.object({
   isWebVisible: z.boolean(),
   /** المناسبات (D-92) — غير موجودة = لا تغيير (الإنشاء السريع والاستيراد). */
   occasionIds: z.array(z.string().min(1).max(40)).max(30).optional(),
+  /** حد «قارب على النفاد» لهذا المنتج (D-94) — غير موجود = لا تغيير، null = الحد العام. */
+  lowStockQty: z
+    .string()
+    .regex(/^\d{1,6}(\.\d{1,3})?$/)
+    .nullable()
+    .optional(),
   variants: z.array(variantInput),
 });
 export type ProductInput = z.infer<typeof productInput>;
@@ -196,6 +202,7 @@ function productData(input: ProductInput) {
     isActive: input.isActive,
     // مواد التغليف داخلية ولا تظهر في المتجر
     isWebVisible: input.type === "STOCK" && input.isWebVisible,
+    ...(input.lowStockQty !== undefined ? { lowStockQty: input.lowStockQty } : {}),
   };
 }
 

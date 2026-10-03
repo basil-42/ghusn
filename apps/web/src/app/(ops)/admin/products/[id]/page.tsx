@@ -7,6 +7,7 @@ import { listOccasionOptions } from "@/lib/occasions";
 import { PRODUCT_TYPE_LABELS, STOCK_UNIT_LABELS, getProduct, listCategoryOptions } from "@/lib/catalog";
 import { MAX_IMAGES_PER_PRODUCT, imageUrl } from "@/lib/product-images";
 import { formatDateTime } from "@/lib/format";
+import { plainNumber } from "@ghusn/core";
 import { archiveProductAction } from "../actions";
 import { ConfirmButton } from "../confirm-button";
 import { ProductForm } from "../product-form";
@@ -71,6 +72,7 @@ export default async function ProductPage({
           isActive: product.isActive,
           isWebVisible: product.isWebVisible,
           occasionIds: product.occasions.map((o) => o.occasionId),
+          lowStockQty: product.lowStockQty ? plainNumber(product.lowStockQty.toString()) : null,
           variants: product.variants.map((v) => ({
             key: v.id,
             id: v.id,

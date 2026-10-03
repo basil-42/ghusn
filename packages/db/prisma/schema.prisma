@@ -286,6 +286,8 @@ model Product {
   targetMargin  Decimal?    @db.Decimal(5, 4)
   minMargin     Decimal?    @db.Decimal(5, 4)
   // نص البحث الموحّد (normalizeArabic): الأسماء + SKU + الباركودات + القسم
+  // حد تنبيه «قارب على النفاد» لهذا المنتج؛ فارغ = الحد العام من الضبط (D-94)
+  lowStockQty   Decimal?    @db.Decimal(12, 3)
   searchText    String      @default("")
   createdBy     User?       @relation(fields: [createdById], references: [id])
   createdById   String?

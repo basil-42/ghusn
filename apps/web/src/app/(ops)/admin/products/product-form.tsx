@@ -63,6 +63,7 @@ export function ProductForm({
       ? initial.variants.map((v) => ({ ...v, barcode: null, currentBarcode: v.barcode ?? undefined }))
       : [newVariant()],
   );
+  const [lowStock, setLowStock] = useState(initial?.lowStockQty ?? "");
   const [occasionIds, setOccasionIds] = useState<string[]>(() => initial?.occasionIds ?? []);
   const [multi, setMulti] = useState(variants.length > 1 || variants.some((v) => v.size || v.color || v.volume));
 
@@ -79,6 +80,7 @@ export function ProductForm({
       descriptionAr: fields.descriptionAr || null,
       descriptionEn: initial?.descriptionEn ?? null,
       occasionIds,
+      lowStockQty: lowStock.trim() ? lowStock.trim() : null,
       variants: list.map(({ id, size, color, volume, barcode, isActive }) => ({
         id,
         size,
@@ -178,6 +180,17 @@ export function ProductForm({
             <Check checked={fields.isActive} onChange={(v) => set("isActive", v)}>
               نشط (يُباع ويظهر في القوائم)
             </Check>
+          </div>
+          <div className="flex min-w-0 flex-col gap-1.5">
+            <Label htmlFor="lowStockQty">حد تنبيه «قارب على النفاد» (اختياري)</Label>
+            <Input
+              id="lowStockQty"
+              dir="ltr"
+              inputMode="decimal"
+              value={lowStock}
+              onChange={(e) => setLowStock(e.target.value)}
+              placeholder="الحد العام من الضبط"
+            />
           </div>
           {!isMaterial && occasions.length ? (
             <fieldset className="flex flex-col gap-2 sm:col-span-2">

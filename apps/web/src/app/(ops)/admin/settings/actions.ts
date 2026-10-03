@@ -9,7 +9,9 @@ import {
   receiptSettingsSchema,
   savePosSettings,
   saveReceiptSettings,
+  saveStockSettings,
   saveStoreSettings,
+  stockSettingsSchema,
   storeSettingsSchema,
 } from "@/lib/settings";
 
@@ -94,4 +96,17 @@ export async function saveStoreSettingsAction(_prev: FormState, formData: FormDa
   await saveStoreSettings(parsed.data);
   revalidatePath("/admin/settings");
   return { success: "تم حفظ إعدادات المتجر." };
+}
+
+export async function saveStockSettingsAction(_prev: FormState, formData: FormData): Promise<FormState> {
+  await requirePermission({ settings: ["update"] });
+  const parsed = stockSettingsSchema.safeParse({
+    lowStockQty: numberOf(formData, "lowStockQty"),
+    expiryAlertDays: numberOf(formData, "expiryAlertDays"),
+  });
+  if (!parsed.success) return { error: "الحد رقم 0 أو أكثر، ومهلة الصلاحية بين 1 و365 يوماً." };
+  await saveStockSettings(parsed.data);
+  revalidatePath("/admin/settings");
+  revalidatePath("/admin");
+  return { success: "تم حفظ تنبيهات المخزون." };
 }

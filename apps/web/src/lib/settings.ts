@@ -103,6 +103,24 @@ export async function courierWallet(): Promise<string | null> {
     wallets.find((w) => w.id === courierWalletId)?.id ?? wallets.find((w) => w.name === "شركة التوصيل")?.id ?? null
   );
 }
+/** تنبيهات المخزون في اللوحة (D-94): حد «قارب على النفاد» العام، ومهلة تنبيه الصلاحية بالأيام. */
+export const stockSettingsSchema = z.object({
+  lowStockQty: z.number().min(0).max(100_000),
+  expiryAlertDays: z.number().int().min(1).max(365),
+});
+export type StockSettings = z.infer<typeof stockSettingsSchema>;
+const STOCK_DEFAULTS: StockSettings = { lowStockQty: 3, expiryAlertDays: 30 };
+export const getStockSettings = () => read("stock", stockSettingsSchema, STOCK_DEFAULTS);
+
+export async function saveStockSettings(value: StockSettings): Promise<void> {
+  const data = stockSettingsSchema.parse(value);
+  await prisma.setting.upsert({
+    where: { key: "stock" },
+    create: { key: "stock", value: data },
+    update: { value: data },
+  });
+}
+
 export const getReceiptSettings = () => read("receipt", receiptSettingsSchema, RECEIPT_DEFAULTS);
 
 export async function savePosSettings(value: PosSettings): Promise<void> {
