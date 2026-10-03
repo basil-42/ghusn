@@ -27,7 +27,7 @@ export async function StoreHeader() {
   return (
     <header className="sticky top-0 z-30 border-b border-line bg-card/95 backdrop-blur supports-[backdrop-filter]:bg-card/85">
       <div className="h-1 bg-sage" aria-hidden />
-      <div className="mx-auto flex max-w-6xl items-center gap-4 px-4 py-2.5 lg:gap-6">
+      <div className="mx-auto flex max-w-6xl items-center gap-3 px-4 py-2.5 md:gap-4 lg:gap-6">
         <Link href="/" aria-label={t("home")} className="shrink-0">
           <Image src={logo.src} alt={locale === "ar" ? "غصن" : "GHUSN"} width={logo.width} height={44} priority />
         </Link>
@@ -49,8 +49,13 @@ export async function StoreHeader() {
         ) : (
           <div className="hidden flex-1 lg:block" />
         )}
-        <SearchBox id="store-search" {...search} className="hidden w-64 lg:flex xl:w-72" />
-        <div className="ms-auto flex shrink-0 items-center gap-2 lg:ms-0">
+        {/* البحث في نفس الصف من عرض التابلت فما فوق؛ على الجوال صفه الخاص */}
+        <SearchBox
+          id="store-search"
+          {...search}
+          className="hidden max-w-md flex-1 md:flex lg:w-64 lg:flex-none xl:w-72"
+        />
+        <div className="ms-auto flex shrink-0 items-center gap-2 md:ms-0">
           <Suspense fallback={<span className="size-11" />}>
             <LanguageSwitch />
           </Suspense>
@@ -58,7 +63,7 @@ export async function StoreHeader() {
         </div>
       </div>
       <div className="mx-auto flex max-w-6xl flex-col gap-2 px-4 pb-2.5 lg:hidden">
-        <SearchBox id="store-search-mobile" {...search} />
+        <SearchBox id="store-search-mobile" {...search} className="md:hidden" />
         {categories.length ? (
           <nav aria-label={t("categories")}>
             <ul className="-mx-4 flex gap-2 overflow-x-auto px-4 [scrollbar-width:none]">

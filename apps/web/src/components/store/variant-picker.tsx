@@ -27,6 +27,35 @@ export function VariantPicker({ variants }: { variants: StoreVariant[] }) {
         ? t("color")
         : t("option");
 
+  const addRow = (withLabel: boolean) => (
+    <>
+      <label className="flex flex-col gap-1">
+        <span className={withLabel ? "text-sm font-semibold" : "sr-only"}>{t("qty")}</span>
+        <select
+          value={qty}
+          onChange={(e) => setQty(Number(e.target.value))}
+          className="min-h-12 rounded-xl border border-input bg-card px-3 tabular-nums"
+        >
+          {Array.from({ length: MAX_QTY }, (_, i) => i + 1).map((n) => (
+            <option key={n} value={n}>
+              {n}
+            </option>
+          ))}
+        </select>
+      </label>
+      <button
+        type="button"
+        onClick={() => {
+          addToCart(selected.id, qty);
+          setAdded(true);
+        }}
+        className="flex min-h-12 flex-1 items-center justify-center rounded-xl bg-primary px-6 font-semibold text-primary-foreground hover:bg-primary/90"
+      >
+        {t("addToCart")}
+      </button>
+    </>
+  );
+
   return (
     <div className="flex flex-col gap-4">
       <p className="text-2xl font-bold">
@@ -68,32 +97,11 @@ export function VariantPicker({ variants }: { variants: StoreVariant[] }) {
         </span>{" "}
         {t("available")}
       </p>
-      {/* على الجوال: الكمية والزر مثبّتان أسفل الشاشة (D-95) */}
-      <div className="fixed inset-x-0 bottom-0 z-20 flex items-end gap-3 border-t border-line bg-card/95 p-3 backdrop-blur md:static md:z-auto md:flex-wrap md:border-0 md:bg-transparent md:p-0 md:backdrop-blur-none">
-        <label className="flex flex-col gap-1">
-          <span className="sr-only text-sm font-semibold md:not-sr-only">{t("qty")}</span>
-          <select
-            value={qty}
-            onChange={(e) => setQty(Number(e.target.value))}
-            className="min-h-12 rounded-xl border border-input bg-card px-3 tabular-nums"
-          >
-            {Array.from({ length: MAX_QTY }, (_, i) => i + 1).map((n) => (
-              <option key={n} value={n}>
-                {n}
-              </option>
-            ))}
-          </select>
-        </label>
-        <button
-          type="button"
-          onClick={() => {
-            addToCart(selected.id, qty);
-            setAdded(true);
-          }}
-          className="flex min-h-12 flex-1 items-center justify-center rounded-xl bg-primary px-6 font-semibold text-primary-foreground hover:bg-primary/90"
-        >
-          {t("addToCart")}
-        </button>
+      {/* الكمية والزر: صف عادي على الشاشات المتوسطة فما فوق، وشريط مثبّت أسفل الشاشة على الجوال فقط.
+          عنصران منفصلان بدل عنصر واحد يتبدّل بين fixed وstatic — Safari لم يُعِده للتدفّق العادي (D-95) */}
+      <div className="hidden flex-wrap items-end gap-3 md:flex">{addRow(true)}</div>
+      <div className="fixed inset-x-0 bottom-0 z-20 flex items-end gap-3 border-t border-line bg-card p-3 shadow-[0_-4px_12px_rgb(0_0_0/0.06)] md:hidden">
+        {addRow(false)}
       </div>
       <div aria-hidden className="h-16 md:hidden" />
       {added ? (

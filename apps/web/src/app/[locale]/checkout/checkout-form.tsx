@@ -15,6 +15,7 @@ const CITIES = ["KHARTOUM", "BAHRI", "OMDURMAN"] as const;
 const input = "min-h-12 w-full rounded-xl border border-input bg-card px-3";
 const field = "flex min-w-0 flex-col gap-1";
 
+// عنوان المجموعة داخل الصندوق: legend عائم يصبح عنصراً عادياً بدل أن يُرسم على الحد (شكل المتصفح الافتراضي)
 /** إتمام الطلب كضيف (D-88). الخادم يعيد حساب كل شيء؛ الإجمالي المعروض يُرسل للتأكد أن السعر لم يتغيّر. */
 export function CheckoutForm({ bankakEnabled, wrapStyles }: { bankakEnabled: boolean; wrapStyles: StoreWrapStyle[] }) {
   const t = useTranslations("checkout");
@@ -87,7 +88,7 @@ export function CheckoutForm({ bankakEnabled, wrapStyles }: { bankakEnabled: boo
     <form action={submit} className="grid gap-6 md:grid-cols-[1fr_20rem]">
       <div className="flex flex-col gap-6">
         <fieldset className="flex flex-col gap-3 rounded-2xl border border-line bg-card p-4">
-          <legend className="px-1 font-display text-xl font-bold">{t("you")}</legend>
+          <legend className="float-start w-full font-display text-xl font-bold">{t("you")}</legend>
           <label className={field}>
             <span className="font-semibold">{t("name")}</span>
             <input name="customerName" required minLength={2} maxLength={80} autoComplete="name" className={input} />
@@ -108,7 +109,7 @@ export function CheckoutForm({ bankakEnabled, wrapStyles }: { bankakEnabled: boo
         </fieldset>
 
         <fieldset className="flex flex-col gap-3 rounded-2xl border border-line bg-card p-4">
-          <legend className="px-1 font-display text-xl font-bold">{t("receive")}</legend>
+          <legend className="float-start w-full font-display text-xl font-bold">{t("receive")}</legend>
           {(["DELIVERY", "PICKUP"] as const).map((f) => (
             <label
               key={f}
@@ -176,7 +177,7 @@ export function CheckoutForm({ bankakEnabled, wrapStyles }: { bankakEnabled: boo
         </fieldset>
 
         <fieldset className="flex flex-col gap-3 rounded-2xl border border-line bg-card p-4">
-          <legend className="px-1 font-display text-xl font-bold">{t("giftTitle")}</legend>
+          <legend className="float-start w-full font-display text-xl font-bold">{t("giftTitle")}</legend>
           {wrapStyles.length ? (
             <div className="grid gap-2 sm:grid-cols-2">
               {[null, ...wrapStyles].map((w) => (
