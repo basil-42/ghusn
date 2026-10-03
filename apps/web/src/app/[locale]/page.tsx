@@ -33,11 +33,11 @@ export default async function StoreHome({ params }: { params: Promise<{ locale: 
 
   return (
     <>
-      {/* البانر: النص على أخضر الغابة، والصورة (ترفعها المديرة، أو صورة الموسم) أو نقش الهوية */}
-      {/* النص يصطف مع حاوية الصفحة (72rem)، والصورة تمتد حتى حافة الشاشة */}
+      {/* البانر (D-95): خلفية أخضر الغابة بعرض الشاشة، والنص والصورة داخل حاوية الصفحة نفسها —
+          نفس محاذاة الرأس وبقية الأقسام في كل المتصفحات (بلا حسابات 100vw) */}
       <section className="bg-forest text-ivory">
-        <div className="grid md:grid-cols-2">
-          <div className="flex flex-col items-start justify-center gap-5 px-4 py-12 md:py-16 md:ps-[max(1rem,calc((100vw-72rem)/2+1rem))] md:pe-10">
+        <div className="mx-auto grid max-w-6xl items-center gap-8 px-4 py-10 md:grid-cols-2 md:py-14">
+          <div className="flex flex-col items-start gap-5">
             {season ? (
               <span className="rounded-full bg-gold/20 px-3 py-1 text-sm font-semibold text-sand">{t("season")}</span>
             ) : (
@@ -54,22 +54,19 @@ export default async function StoreHome({ params }: { params: Promise<{ locale: 
               {season ? t("shopSeason") : t("shop")}
             </Link>
           </div>
-          <div className="relative min-h-56 overflow-hidden md:min-h-[26rem]">
+          <div className="relative aspect-[4/3] overflow-hidden rounded-3xl bg-sage/30">
             {heroImage ? (
               <Image
                 src={heroImage}
                 alt=""
                 fill
                 priority
-                sizes="(min-width: 768px) 50vw, 100vw"
+                sizes="(min-width: 1152px) 560px, (min-width: 768px) 50vw, 100vw"
                 className="object-cover"
                 unoptimized
               />
             ) : (
-              <div
-                aria-hidden
-                className="absolute inset-0 bg-sage/30 bg-[url('/brand/pattern-sage.svg')] bg-[length:280px]"
-              />
+              <div aria-hidden className="absolute inset-0 bg-[url('/brand/pattern-sage.svg')] bg-[length:280px]" />
             )}
           </div>
         </div>
@@ -77,7 +74,7 @@ export default async function StoreHome({ params }: { params: Promise<{ locale: 
 
       {/* المزايا — معلومات صحيحة من النظام (التوصيل، الدفع، التغليف، صورة الهدية) */}
       <section aria-label={t("trustLabel")} className="border-b border-line bg-card">
-        <ul className="mx-auto grid max-w-6xl grid-cols-2 gap-4 px-4 py-5 lg:grid-cols-4">
+        <ul className="mx-auto grid max-w-6xl grid-cols-2 gap-4 px-4 py-5 md:grid-cols-4">
           {trust.map(({ icon: Icon, title, text }) => (
             <li key={title} className="flex items-start gap-3">
               <span className="flex size-10 shrink-0 items-center justify-center rounded-full bg-muted text-forest">
@@ -96,7 +93,7 @@ export default async function StoreHome({ params }: { params: Promise<{ locale: 
         {categories.length ? (
           <section className="flex flex-col gap-5">
             <SectionHeader title={t("categories")} locale={locale} />
-            <ul className="grid grid-cols-2 gap-3 sm:grid-cols-[repeat(auto-fit,minmax(12rem,1fr))]">
+            <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5">
               {categories.map((c) => (
                 <li key={c.slug}>
                   <Link
