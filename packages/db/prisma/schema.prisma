@@ -1150,3 +1150,39 @@ model ProductOccasion {
   @@id([productId, occasionId])
   @@index([occasionId])
 }
+
+/// وجهة زر البانر (D-101)
+enum BannerLink {
+  PRODUCTS // كل المنتجات
+  CATEGORY // قسم (linkTarget = slug)
+  OCCASION // مناسبة (linkTarget = slug)
+  PRODUCT // منتج (linkTarget = id)
+  GIFT // صفحة «صمّم هديتك»
+}
+
+/// بانرات الرئيسية (D-101): حتى 3 تظهر بالترتيب، بصورة للكمبيوتر وأخرى اختيارية للجوال ومدة اختيارية
+model Banner {
+  id             String     @id @default(cuid())
+  titleAr        String
+  titleEn        String
+  textAr         String?
+  textEn         String?
+  ctaAr          String
+  ctaEn          String
+  badgeAr        String?
+  badgeEn        String?
+  linkType       BannerLink @default(PRODUCTS)
+  linkTarget     String?
+  imageKey       String
+  mobileImageKey String?
+  /// أيام المحل (شاملة)؛ فارغ = بلا حد
+  startsOn       DateTime?  @db.Date
+  endsOn         DateTime?  @db.Date
+  isActive       Boolean    @default(true)
+  sortOrder      Int        @default(0)
+  createdAt      DateTime   @default(now())
+  updatedAt      DateTime   @updatedAt
+  deletedAt      DateTime?
+
+  @@index([isActive, deletedAt, sortOrder])
+}

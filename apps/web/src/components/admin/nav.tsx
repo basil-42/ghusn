@@ -4,22 +4,23 @@ import {
   ArrowLeftRight,
   BadgeDollarSign,
   ChartColumn,
-  Wallet,
   Container,
   FolderTree,
+  GalleryHorizontal,
   Gift,
-  PartyPopper,
+  Landmark,
   LayoutDashboard,
   Package,
+  PartyPopper,
   Receipt,
   Settings,
+  ShoppingBag,
   ShoppingCart,
   Tags,
-  Warehouse,
-  Landmark,
-  ShoppingBag,
   Truck,
   Users,
+  Wallet,
+  Warehouse,
   type LucideIcon,
 } from "lucide-react";
 import Link from "next/link";
@@ -46,6 +47,7 @@ const ICONS = {
   users: Users,
   wrapping: Gift,
   occasions: PartyPopper,
+  banners: GalleryHorizontal,
 } satisfies Record<string, LucideIcon>;
 
 export type NavItem = { href: string; label: string; icon: keyof typeof ICONS };
