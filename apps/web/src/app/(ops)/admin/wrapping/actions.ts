@@ -44,8 +44,11 @@ export async function saveWrapStyleAction(_prev: FormState, formData: FormData):
   });
   if (!parsed.success) return { error: "راجعي الحقول: الاسم بحرفين على الأقل، والسعر رقم صحيح، والكميات أرقام." };
   try {
+    const image = formData.get("image");
     await saveWrapStyle({
       ...parsed.data,
+      image: image instanceof File ? image : null,
+      removeImage: formData.get("removeImage") === "on",
       descriptionAr: parsed.data.descriptionAr || null,
       descriptionEn: parsed.data.descriptionEn || null,
     });
@@ -54,5 +57,6 @@ export async function saveWrapStyleAction(_prev: FormState, formData: FormData):
     throw e;
   }
   revalidatePath("/admin/wrapping");
+  revalidatePath("/", "layout");
   return { success: "تم الحفظ." };
 }

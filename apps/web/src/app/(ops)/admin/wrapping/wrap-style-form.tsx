@@ -1,6 +1,7 @@
 "use client";
 
 import { useActionState, useState } from "react";
+import { ImageInput } from "@/components/image-input";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input, NativeSelect } from "@/components/ui/input";
@@ -16,6 +17,7 @@ export interface WrapStyleFormValue {
   descriptionEn: string;
   priceSdg: string;
   isActive: boolean;
+  imageUrl: string | null;
   materials: { variantId: string; qty: string }[];
 }
 
@@ -61,6 +63,27 @@ export function WrapStyleForm({
             inputMode="numeric"
             dir="ltr"
           />
+        </label>
+        <label className={`${field} sm:col-span-2`}>
+          <span className="text-sm font-semibold">صورة النمط (تظهر للعميل عند اختيار التغليف)</span>
+          <ImageInput
+            name="image"
+            accept="image/jpeg,image/png,image/webp"
+            className="text-sm file:me-3 file:min-h-11 file:rounded-xl file:border-0 file:bg-muted file:px-4 file:font-semibold"
+          />
+          {initial.imageUrl ? (
+            <span className="flex items-center gap-3">
+              {/* eslint-disable-next-line @next/next/no-img-element -- معاينة صغيرة */}
+              <img src={initial.imageUrl} alt="" className="h-16 w-24 rounded-lg object-cover" />
+              <span className="flex items-center gap-2 text-sm">
+                <input type="checkbox" name="removeImage" className="size-5 accent-forest" /> حذف الصورة
+              </span>
+            </span>
+          ) : (
+            <span className="text-xs text-muted-foreground">
+              صورة هدية مغلّفة بهذا النمط. بلا صورة يظهر لون الهوية.
+            </span>
+          )}
         </label>
         <label className="flex min-h-11 items-center gap-2 self-end">
           <input type="checkbox" name="isActive" defaultChecked={initial.isActive} className="size-5 accent-forest" />
