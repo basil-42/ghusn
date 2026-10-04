@@ -11,14 +11,6 @@ import { OrderActions } from "../order-actions";
 
 export const metadata: Metadata = { title: "طلب | غصن" };
 
-const PHOTO_LABELS = {
-  PENDING: "بانتظار رد العميل",
-  APPROVED: "وافق العميل",
-  CHANGES: "طلب تعديلاً",
-  AUTO_APPROVED: "موافقة ضمنية (لم يرد خلال ساعة)",
-  STAFF_APPROVED: "وافق على واتساب",
-};
-
 const PAYMENT_LABELS = { COD: "عند الاستلام (مع شركة التوصيل)", IN_SHOP: "في المحل عند الاستلام", BANKAK: "بنكك" };
 
 export default async function OrderPage({ params }: { params: Promise<{ id: string }> }) {
@@ -150,7 +142,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
             </dl>
           </Card>
 
-          {o.cardMessage || o.photos.length || o.wrapName ? (
+          {o.cardMessage || o.wrapName ? (
             <Card>
               <CardHeader>
                 <CardTitle>الهدية</CardTitle>
@@ -170,54 +162,6 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
               ) : (
                 <p className="text-sm text-muted-foreground">بلا بطاقة.</p>
               )}
-              {o.status === "AWAITING_PHOTO_APPROVAL" && o.photoDueAt ? (
-                <p className="mt-3 text-sm">
-                  بانتظار رد العميل حتى <span className="font-semibold">{formatDateTime(o.photoDueAt)}</span> — بعدها
-                  يصبح «جاهزاً» تلقائياً.
-                </p>
-              ) : null}
-              {o.photoLink ? (
-                <a
-                  href={o.photoLink}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="mt-3 inline-flex min-h-11 items-center rounded-xl border border-primary px-4 font-semibold text-primary hover:bg-muted"
-                >
-                  إرسال رابط الصورة على واتساب
-                </a>
-              ) : null}
-              {o.photos.length ? (
-                <ul className="mt-3 flex flex-col gap-3">
-                  {o.photos.map((p) => (
-                    <li key={p.id} className="flex flex-col gap-2 rounded-xl border border-border p-3 text-sm">
-                      <a href={`/admin/orders/${o.id}/photo/${p.id}`} target="_blank" rel="noreferrer">
-                        {/* eslint-disable-next-line @next/next/no-img-element -- صورة خاصة من مسار بصلاحية */}
-                        <img
-                          src={`/admin/orders/${o.id}/photo/${p.id}`}
-                          alt="صورة الهدية"
-                          className="max-h-80 rounded-lg border border-border"
-                        />
-                      </a>
-                      <span className="text-muted-foreground">
-                        {formatDateTime(p.at)}
-                        {p.by ? ` · ${p.by}` : ""}
-                      </span>
-                      <span
-                        className={
-                          p.decision === "CHANGES"
-                            ? "font-semibold text-destructive"
-                            : p.decision
-                              ? "font-semibold text-primary"
-                              : "font-semibold"
-                        }
-                      >
-                        {PHOTO_LABELS[p.decision ?? "PENDING"]}
-                        {p.feedback ? ` · ${p.feedback}` : ""}
-                      </span>
-                    </li>
-                  ))}
-                </ul>
-              ) : null}
             </Card>
           ) : null}
 
@@ -345,8 +289,6 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
               canReviewPayment={canSeeProofs}
               pendingProofId={o.proofs.find((p) => !p.reviewedAt)?.id ?? null}
               paid={o.payments.some((p) => !p.amountSdg.startsWith("-"))}
-              wrapped={!!o.wrapName}
-              photoAgain={o.photos[0]?.decision === "CHANGES"}
             />
           </aside>
         ) : null}

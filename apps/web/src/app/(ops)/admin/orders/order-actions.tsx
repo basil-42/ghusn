@@ -4,8 +4,7 @@ import { useActionState } from "react";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input, NativeSelect } from "@/components/ui/input";
-import { transitionAction, uploadPhotoAction, type FormState } from "./actions";
-import { ImageInput } from "@/components/image-input";
+import { transitionAction, type FormState } from "./actions";
 
 type Status =
   | "NEW"
@@ -57,33 +56,6 @@ function Step({
   );
 }
 
-/** رفع صورة الهدية الجاهزة — تنتقل الحالة إلى «بانتظار موافقة الصورة». */
-function PhotoStep({ id, again }: { id: string; again: boolean }) {
-  const [state, action, pending] = useActionState<FormState, FormData>(uploadPhotoAction, {});
-  return (
-    <form action={action} className="flex flex-col gap-2 rounded-xl border border-border p-3">
-      {state.error ? <Alert variant="destructive">{state.error}</Alert> : null}
-      <input type="hidden" name="id" value={id} />
-      <label className={field}>
-        <span className="text-sm font-semibold">{again ? "صورة الهدية بعد التعديل" : "صورة الهدية الجاهزة"}</span>
-        <ImageInput
-          name="image"
-          required
-          accept="image/jpeg,image/png,image/webp"
-          capture="environment"
-          className="text-sm file:me-3 file:min-h-11 file:rounded-xl file:border-0 file:bg-muted file:px-4 file:font-semibold"
-        />
-      </label>
-      <p className="text-xs text-muted-foreground">
-        تظهر للعميل في صفحة طلبه ليوافق أو يطلب تعديلاً. عدم الرد خلال ساعة = موافقة.
-      </p>
-      <Button type="submit" disabled={pending} className="self-start">
-        {pending ? "جارٍ الرفع…" : "إرسال الصورة للعميل"}
-      </Button>
-    </form>
-  );
-}
-
 const Reason = ({ placeholder }: { placeholder: string }) => (
   <label className={field}>
     <span className="text-sm font-semibold">السبب</span>
@@ -99,8 +71,6 @@ export function OrderActions({
   canReviewPayment,
   pendingProofId,
   paid,
-  wrapped,
-  photoAgain,
 }: {
   id: string;
   status: Status;
@@ -111,10 +81,6 @@ export function OrderActions({
   pendingProofId: string | null;
   /** مدفوع مسبقاً (بنكك) — الإلغاء يسجّل رد المبلغ. */
   paid: boolean;
-  /** هدية مغلّفة: صورة قبل «جاهز» (D-13). */
-  wrapped: boolean;
-  /** طلب العميل تعديلاً على صورة سابقة. */
-  photoAgain: boolean;
 }) {
   const stockOut = ["PREPARING", "AWAITING_PHOTO_APPROVAL", "READY", "OUT_FOR_DELIVERY"].includes(status);
   const cancel = canCancel ? (
@@ -188,18 +154,9 @@ export function OrderActions({
           <p className="text-sm text-muted-foreground">تُخصم الأصناف من المخزون الآن، ولا يُعدَّل الطلب بعدها.</p>
         </Step>
       ) : null}
-      {status === "PREPARING" && !wrapped ? <Step id={id} to="READY" label="الطلب جاهز" /> : null}
-      {status === "PREPARING" && wrapped ? <PhotoStep id={id} again={photoAgain} /> : null}
-      {status === "AWAITING_PHOTO_APPROVAL" ? (
-        <>
-          <Step id={id} to="READY" label="وافق العميل (واتساب) — جاهز" variant="outline" />
-          <Step id={id} to="PREPARING" label="طلب العميل تعديلاً" variant="outline">
-            <label className={field}>
-              <span className="text-sm font-semibold">التعديل المطلوب</span>
-              <Input name="reason" required maxLength={300} placeholder="مثال: شريط ذهبي بدل الأبيض" />
-            </label>
-          </Step>
-        </>
+      {/* «بانتظار موافقة الصورة» حالة ملغاة (D-99): طلب قديم فيها يُكمَل مباشرة */}
+      {status === "PREPARING" || status === "AWAITING_PHOTO_APPROVAL" ? (
+        <Step id={id} to="READY" label="الطلب جاهز" />
       ) : null}
       {status === "READY" && fulfillment === "DELIVERY" ? (
         <Step id={id} to="OUT_FOR_DELIVERY" label="سُلِّم لشركة التوصيل">

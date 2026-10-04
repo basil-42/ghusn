@@ -972,7 +972,7 @@ model Order {
   wrapPriceSdg   Decimal?           @db.Decimal(18, 2)
   wrapCostUsd    Decimal?           @db.Decimal(18, 2)
   cardMessage    String?
-  // صورة الهدية: عدم الرد خلال ساعة = موافقة (D-13)
+  // موعد رد العميل على صورة الهدية — ميزة ملغاة (D-99)، يبقى للطلبات القديمة فقط
   photoDueAt     DateTime?
   createdAt      DateTime           @default(now())
   updatedAt      DateTime           @updatedAt
@@ -1104,7 +1104,7 @@ enum GiftPhotoDecision {
   STAFF_APPROVED // وصلت الموافقة على واتساب
 }
 
-// صورة الهدية قبل التسليم (D-13، D-91) — جولة لكل صورة
+// صورة الهدية قبل التسليم (D-13، D-91) — أُلغيت الميزة (D-99): الجدول باقٍ للسجلات القديمة فقط ولا يُكتب فيه
 model GiftPhoto {
   id           String             @id @default(cuid())
   order        Order              @relation(fields: [orderId], references: [id])

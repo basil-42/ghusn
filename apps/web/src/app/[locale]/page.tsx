@@ -1,4 +1,4 @@
-import { ArrowLeft, ArrowRight, Camera, Gift, Truck, Wallet } from "lucide-react";
+import { ArrowLeft, ArrowRight, Gift, Truck, Wallet } from "lucide-react";
 import Image from "next/image";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { ProductCard } from "@/components/store/product-card";
@@ -36,7 +36,6 @@ export default async function StoreHome({ params }: { params: Promise<{ locale: 
     { icon: Truck, title: t("trustDelivery"), text: t("trustDeliveryText") },
     { icon: Wallet, title: t("trustPayment"), text: t("trustPaymentText") },
     { icon: Gift, title: t("trustWrap"), text: t("trustWrapText") },
-    { icon: Camera, title: t("trustPhoto"), text: t("trustPhotoText") },
   ];
 
   return (
@@ -109,7 +108,7 @@ export default async function StoreHome({ params }: { params: Promise<{ locale: 
       </section>
 
       <section aria-label={t("trustLabel")} className="-mt-4">
-        <ul className="grid grid-cols-2 gap-3 rounded-xl border border-line bg-card px-4 py-3.5 md:grid-cols-4">
+        <ul className="grid gap-3 rounded-xl border border-line bg-card px-4 py-3.5 sm:grid-cols-3">
           {trust.map(({ icon: Icon, title, text }) => (
             <li key={title} className="flex items-center gap-2">
               <Icon aria-hidden className="size-[18px] shrink-0 text-gold" strokeWidth={1.8} />

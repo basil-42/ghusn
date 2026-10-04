@@ -26,61 +26,48 @@ describe("order state machine", () => {
   });
   it("delivery goes through the courier; pickup is handed over from READY", () => {
     expect(() =>
-      assertTransition("READY", "OUT_FOR_DELIVERY", { fulfillment: "DELIVERY", payment: "COD", wrapped: false }),
+      assertTransition("READY", "OUT_FOR_DELIVERY", { fulfillment: "DELIVERY", payment: "COD" }),
     ).not.toThrow();
     expect(() =>
-      assertTransition("READY", "OUT_FOR_DELIVERY", { fulfillment: "PICKUP", payment: "IN_SHOP", wrapped: false }),
+      assertTransition("READY", "OUT_FOR_DELIVERY", { fulfillment: "PICKUP", payment: "IN_SHOP" }),
     ).toThrow();
+    expect(() => assertTransition("READY", "DELIVERED", { fulfillment: "PICKUP", payment: "IN_SHOP" })).not.toThrow();
+    expect(() => assertTransition("READY", "DELIVERED", { fulfillment: "DELIVERY", payment: "COD" })).toThrow();
     expect(() =>
-      assertTransition("READY", "DELIVERED", { fulfillment: "PICKUP", payment: "IN_SHOP", wrapped: false }),
-    ).not.toThrow();
-    expect(() =>
-      assertTransition("READY", "DELIVERED", { fulfillment: "DELIVERY", payment: "COD", wrapped: false }),
-    ).toThrow();
-    expect(() =>
-      assertTransition("OUT_FOR_DELIVERY", "READY", { fulfillment: "DELIVERY", payment: "COD", wrapped: false }),
+      assertTransition("OUT_FOR_DELIVERY", "READY", { fulfillment: "DELIVERY", payment: "COD" }),
     ).not.toThrow();
   });
   it("bankak orders are confirmed only through proof review (D-90)", () => {
-    expect(() =>
-      assertTransition("NEW", "CONFIRMED", { fulfillment: "DELIVERY", payment: "BANKAK", wrapped: false }),
-    ).toThrow();
+    expect(() => assertTransition("NEW", "CONFIRMED", { fulfillment: "DELIVERY", payment: "BANKAK" })).toThrow();
     expect(() =>
       assertTransition("AWAITING_PAYMENT", "PAYMENT_REVIEW", {
         fulfillment: "DELIVERY",
         payment: "BANKAK",
-        wrapped: false,
       }),
     ).not.toThrow();
     expect(() =>
-      assertTransition("PAYMENT_REVIEW", "CONFIRMED", { fulfillment: "PICKUP", payment: "BANKAK", wrapped: false }),
+      assertTransition("PAYMENT_REVIEW", "CONFIRMED", { fulfillment: "PICKUP", payment: "BANKAK" }),
     ).not.toThrow();
     expect(() =>
       assertTransition("PAYMENT_REVIEW", "AWAITING_PAYMENT", {
         fulfillment: "PICKUP",
         payment: "BANKAK",
-        wrapped: false,
       }),
     ).not.toThrow();
     expect(() =>
-      assertTransition("AWAITING_PAYMENT", "CONFIRMED", { fulfillment: "PICKUP", payment: "BANKAK", wrapped: false }),
+      assertTransition("AWAITING_PAYMENT", "CONFIRMED", { fulfillment: "PICKUP", payment: "BANKAK" }),
     ).toThrow();
-    expect(() =>
-      assertTransition("NEW", "AWAITING_PAYMENT", { fulfillment: "DELIVERY", payment: "COD", wrapped: false }),
-    ).toThrow();
-    expect(() =>
-      assertTransition("NEW", "CONFIRMED", { fulfillment: "PICKUP", payment: "IN_SHOP", wrapped: false }),
-    ).not.toThrow();
+    expect(() => assertTransition("NEW", "AWAITING_PAYMENT", { fulfillment: "DELIVERY", payment: "COD" })).toThrow();
+    expect(() => assertTransition("NEW", "CONFIRMED", { fulfillment: "PICKUP", payment: "IN_SHOP" })).not.toThrow();
   });
-  it("a wrapped gift is photographed before it is ready (D-13)", () => {
-    const wrapped = { fulfillment: "DELIVERY", payment: "COD", wrapped: true } as const;
-    const plain = { ...wrapped, wrapped: false };
-    expect(() => assertTransition("PREPARING", "READY", wrapped)).toThrow();
-    expect(() => assertTransition("PREPARING", "AWAITING_PHOTO_APPROVAL", wrapped)).not.toThrow();
-    expect(() => assertTransition("AWAITING_PHOTO_APPROVAL", "READY", wrapped)).not.toThrow();
-    expect(() => assertTransition("AWAITING_PHOTO_APPROVAL", "PREPARING", wrapped)).not.toThrow();
-    expect(() => assertTransition("PREPARING", "READY", plain)).not.toThrow();
-    expect(() => assertTransition("PREPARING", "AWAITING_PHOTO_APPROVAL", plain)).toThrow();
+  it("no photo approval step: a wrapped gift goes straight to ready (D-99)", () => {
+    const order = { fulfillment: "DELIVERY", payment: "COD" } as const;
+    expect(() => assertTransition("PREPARING", "READY", order)).not.toThrow();
+    expect(() => assertTransition("PREPARING", "AWAITING_PHOTO_APPROVAL", order)).toThrow();
+    // طلب قديم عالق في الحالة الملغاة يمكن إكماله أو إلغاؤه فقط
+    expect(() => assertTransition("AWAITING_PHOTO_APPROVAL", "READY", order)).not.toThrow();
+    expect(() => assertTransition("AWAITING_PHOTO_APPROVAL", "CANCELLED", order)).not.toThrow();
+    expect(() => assertTransition("AWAITING_PHOTO_APPROVAL", "PREPARING", order)).toThrow();
   });
   it("adds the wrap service to the total", () => {
     const t = orderTotals([{ key: "a", qty: 2, unitPriceSdg: "45000" }], "15000");

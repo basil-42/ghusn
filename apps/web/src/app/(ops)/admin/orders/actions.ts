@@ -4,7 +4,7 @@ import { ORDER_STATUSES } from "@ghusn/core";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requirePermission } from "@/lib/auth/session";
-import { OrderActionError, transitionOrder, uploadGiftPhoto } from "@/lib/orders";
+import { OrderActionError, transitionOrder } from "@/lib/orders";
 
 export type FormState = { error?: string; success?: string };
 
@@ -60,20 +60,4 @@ export async function transitionAction(_prev: FormState, formData: FormData): Pr
   revalidatePath("/admin/orders", "layout");
   revalidatePath("/admin");
   return { success: "تم." };
-}
-
-/** صورة الهدية الجاهزة (D-13، D-91): تُرسل للعميل في صفحة المتابعة. */
-export async function uploadPhotoAction(_prev: FormState, formData: FormData): Promise<FormState> {
-  const session = await requirePermission({ order: ["update"] });
-  const id = String(formData.get("id") ?? "");
-  const image = formData.get("image");
-  if (!id || !(image instanceof File) || image.size === 0) return { error: "اختاري صورة الهدية." };
-  try {
-    await uploadGiftPhoto(id, image, session.user.id);
-  } catch (e) {
-    if (e instanceof OrderActionError) return { error: e.message };
-    throw e;
-  }
-  revalidatePath("/admin/orders", "layout");
-  return { success: "أُرسلت الصورة للعميل." };
 }
