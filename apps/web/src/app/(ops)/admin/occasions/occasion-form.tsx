@@ -5,6 +5,7 @@ import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { saveOccasionAction, type FormState } from "./actions";
+import { ImageInput } from "@/components/image-input";
 
 const field = "flex min-w-0 flex-col gap-1";
 
@@ -66,8 +67,7 @@ export function OccasionForm({ initial }: { initial: OccasionFormValue }) {
         </label>
         <label className={`${field} sm:col-span-2`}>
           <span className="text-sm font-semibold">الصورة (اختياري)</span>
-          <input
-            type="file"
+          <ImageInput
             name="image"
             accept="image/jpeg,image/png,image/webp"
             className="text-sm file:me-3 file:min-h-11 file:rounded-xl file:border-0 file:bg-muted file:px-4 file:font-semibold"

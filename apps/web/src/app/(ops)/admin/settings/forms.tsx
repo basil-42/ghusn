@@ -14,6 +14,7 @@ import {
   saveStoreSettingsAction,
   type FormState,
 } from "./actions";
+import { ImageInput } from "@/components/image-input";
 
 function Messages({ state }: { state: FormState }) {
   return (
@@ -313,8 +314,7 @@ export function HeroImageForm({ imageUrl }: { imageUrl: string | null }) {
           </span>
         )}
         <div className="flex flex-col gap-2">
-          <input
-            type="file"
+          <ImageInput
             name="image"
             accept="image/jpeg,image/png,image/webp"
             className="text-sm file:me-3 file:min-h-11 file:rounded-xl file:border-0 file:bg-muted file:px-4 file:font-semibold"

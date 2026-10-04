@@ -5,6 +5,7 @@ import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input, NativeSelect } from "@/components/ui/input";
 import { createExpenseAction, voidExpenseAction, type FormState } from "./actions";
+import { ImageInput } from "@/components/image-input";
 
 type Option = { value: string; label: string };
 const field = "flex min-w-0 flex-col gap-1";
@@ -87,9 +88,8 @@ export function ExpenseForm({
       </label>
       <label className={field}>
         <span className="font-semibold">صورة الفاتورة (اختيارية)</span>
-        <input
+        <ImageInput
           name="attachment"
-          type="file"
           accept="image/*"
           capture="environment"
           className="min-h-11 rounded-xl border border-input bg-card p-2 text-sm"

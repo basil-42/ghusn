@@ -218,7 +218,8 @@
     "sendChanges": "Send change request",
     "back": "Back",
     "whatsapp": "Contact us on WhatsApp",
-    "whatsappText": "Hello Ghusn, I'm asking about my order {number}"
+    "whatsappText": "Hello Ghusn, I'm asking about my order {number}",
+    "preparingImage": "Preparing the image…"
   },
   "occasion": {
     "empty": "No products are available for this occasion right now."

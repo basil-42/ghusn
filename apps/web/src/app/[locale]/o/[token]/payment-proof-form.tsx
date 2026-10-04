@@ -4,6 +4,7 @@ import { useTranslations } from "next-intl";
 import { useActionState, useEffect } from "react";
 import { useRouter } from "@/i18n/navigation";
 import { submitProofAction, type ProofResult } from "../../store-actions";
+import { ImageInput } from "@/components/image-input";
 
 const input = "min-h-12 w-full rounded-xl border border-input bg-card px-3";
 const MAX_BYTES = 10 * 1024 * 1024;
@@ -36,9 +37,10 @@ export function PaymentProofForm({ token }: { token: string }) {
       <input type="hidden" name="token" value={token} />
       <label className="flex flex-col gap-1">
         <span className="font-semibold">{t("proofImage")}</span>
-        <input
-          type="file"
+        <ImageInput
           name="image"
+          tooLargeMessage={te("IMAGE_TOO_LARGE")}
+          preparingMessage={t("preparingImage")}
           required
           accept="image/jpeg,image/png,image/webp"
           className="text-sm file:me-3 file:min-h-11 file:rounded-xl file:border-0 file:bg-muted file:px-4 file:font-semibold"
