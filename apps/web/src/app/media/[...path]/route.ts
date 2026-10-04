@@ -10,7 +10,10 @@ export async function GET(_request: Request, { params }: { params: Promise<{ pat
   if (!isSafeKey(key) || !key.endsWith(".webp") || key.startsWith("private/")) {
     return new Response("Not found", { status: 404 });
   }
-  const body = await storage.get(key);
+  // المقاس المتوسط (D-101) يُولَّد للبانرات المرفوعة بعده فقط؛ صورة أقدم تُقدَّم بمقاسها الكبير
+  const body =
+    (await storage.get(key)) ??
+    (key.endsWith("-800.webp") ? await storage.get(key.replace(/-800\.webp$/, "-1200.webp")) : null);
   if (!body) return new Response("Not found", { status: 404 });
   return new Response(new Uint8Array(body), {
     headers: {

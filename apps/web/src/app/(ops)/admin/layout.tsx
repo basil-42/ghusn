@@ -24,6 +24,7 @@ const NAV: (NavItem & { permission?: Permissions })[] = [
   { href: "/admin/stock", label: "المخزون", icon: "stock", permission: { stock: ["read"] } },
   { href: "/admin/pricing", label: "الأسعار", icon: "pricing", permission: { price: ["approve"] } },
   { href: "/admin/labels", label: "الملصقات", icon: "labels", permission: { product: ["read"] } },
+  { href: "/admin/banners", label: "البانرات", icon: "banners", permission: { settings: ["update"] } },
   { href: "/admin/wrapping", label: "التغليف", icon: "wrapping", permission: { settings: ["update"] } },
   { href: "/admin/occasions", label: "المناسبات", icon: "occasions", permission: { category: ["update"] } },
   { href: "/admin/categories", label: "الأقسام", icon: "categories", permission: { category: ["update"] } },

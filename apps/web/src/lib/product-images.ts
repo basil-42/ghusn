@@ -8,8 +8,11 @@ export const MAX_IMAGES_PER_PRODUCT = 12;
 export { MAX_UPLOAD_BYTES };
 const MAX_PIXELS = 50_000_000; // حماية من صور ضخمة مصمَّمة لاستهلاك الذاكرة
 
-/** مقاسات WebP المولَّدة: كبيرة للعرض والمتجر، وصغيرة للقوائم (§2.2: صفحات خفيفة على 3G). */
-export const IMAGE_SIZES = { full: 1200, thumb: 400 } as const;
+/**
+ * مقاسات WebP المولَّدة: كبيرة للعرض والمتجر، وصغيرة للقوائم (§2.2: صفحات خفيفة على 3G). «medium» للبانرات
+ * على الجوال فقط (D-101) — لا يُولَّد لغيرها.
+ */
+export const IMAGE_SIZES = { full: 1200, medium: 800, thumb: 400 } as const;
 export type ImageSize = keyof typeof IMAGE_SIZES;
 
 export const imageFileKey = (key: string, size: ImageSize) => `${key}-${IMAGE_SIZES[size]}.webp`;
@@ -17,10 +20,15 @@ export const imageUrl = (key: string, size: ImageSize) => `/media/${imageFileKey
 
 export class ImageError extends Error {}
 
-/** WebP بمقاسين (1200/400) بعد تصحيح الاتجاه وحذف البيانات الوصفية، ثم الحفظ تحت المفتاح. */
-async function renderAndStore(input: Buffer, key: string): Promise<{ width: number; height: number }> {
+/** WebP بمقاسين (1200/400) — ومقاس متوسط عند الطلب — بعد تصحيح الاتجاه وحذف البيانات الوصفية. */
+async function renderAndStore(
+  input: Buffer,
+  key: string,
+  withMedium = false,
+): Promise<{ width: number; height: number }> {
   let full: { data: Buffer; info: OutputInfo };
   let thumb: Buffer;
+  let medium: Buffer | null = null;
   try {
     const base = sharp(input, { limitInputPixels: MAX_PIXELS, failOn: "error" }).rotate();
     full = await base
@@ -33,21 +41,34 @@ async function renderAndStore(input: Buffer, key: string): Promise<{ width: numb
       .resize({ width: IMAGE_SIZES.thumb, height: IMAGE_SIZES.thumb, fit: "inside", withoutEnlargement: true })
       .webp({ quality: 75 })
       .toBuffer();
+    if (withMedium) {
+      medium = await base
+        .clone()
+        .resize({
+          width: IMAGE_SIZES.medium,
+          height: IMAGE_SIZES.medium * 1.5,
+          fit: "inside",
+          withoutEnlargement: true,
+        })
+        .webp({ quality: 78 })
+        .toBuffer();
+    }
   } catch {
     throw new ImageError("تعذّرت قراءة الصورة. استخدمي صورة JPG أو PNG أو WebP.");
   }
   await storage.put(imageFileKey(key, "full"), full.data, "image/webp");
   await storage.put(imageFileKey(key, "thumb"), thumb, "image/webp");
+  if (medium) await storage.put(imageFileKey(key, "medium"), medium, "image/webp");
   return { width: full.info.width, height: full.info.height };
 }
 
 /** صورة عامة لغير المنتجات (مثل المناسبات) بنفس المعالجة؛ المفتاح من المحتوى. */
-export async function savePublicImage(file: File, prefix: string): Promise<string> {
+export async function savePublicImage(file: File, prefix: string, opts: { medium?: boolean } = {}): Promise<string> {
   if (file.size === 0) throw new ImageError("الملف فارغ.");
   if (file.size > MAX_UPLOAD_BYTES) throw new ImageError("الصورة أكبر من 10 ميغابايت.");
   const input = Buffer.from(await file.arrayBuffer());
   const key = `${prefix}/${createHash("sha256").update(input).digest("hex").slice(0, 20)}`;
-  await renderAndStore(input, key);
+  await renderAndStore(input, key, opts.medium);
   return key;
 }
 

@@ -1,16 +1,15 @@
 import { prisma } from "@ghusn/db";
 import type { Metadata } from "next";
+import Link from "next/link";
 import { Receipt } from "@/components/receipt";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { requirePermission } from "@/lib/auth/session";
-import { imageUrl } from "@/lib/product-images";
 import { getPosSettings, getReceiptSettings, getStockSettings, getStoreSettings } from "@/lib/settings";
 import { listExpenseCategories } from "@/lib/expenses";
 import {
   ExpenseCategoryForm,
   PosSettingsForm,
   ReceiptSettingsForm,
-  HeroImageForm,
   StockSettingsForm,
   StoreSettingsForm,
 } from "./forms";
@@ -63,7 +62,13 @@ export default async function SettingsPage() {
           <CardDescription>التوصيل عبر شركة توصيل، ورسومه يدفعها العميل لها (D-88).</CardDescription>
         </CardHeader>
         <StoreSettingsForm initial={store} wallets={wallets.map((w) => ({ value: w.id, label: w.name }))} />
-        <HeroImageForm imageUrl={store.heroImageKey ? imageUrl(store.heroImageKey, "thumb") : null} />
+        <p className="border-t border-border pt-4 text-sm text-muted-foreground">
+          بانرات الرئيسية (الصور والنصوص والمدة) من صفحة{" "}
+          <Link href="/admin/banners" className="font-semibold text-primary underline">
+            البانرات
+          </Link>
+          .
+        </p>
       </Card>
       <Card>
         <CardHeader>

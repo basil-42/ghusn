@@ -199,7 +199,10 @@ export interface StoreOccasion {
   slug: string;
   name: string;
   description: string | null;
+  /** صورة صغيرة (دوائر المناسبات). */
   imageUrl: string | null;
+  /** الصورة الكبيرة (بطاقة المناسبة في الرئيسية). */
+  coverUrl: string | null;
 }
 
 /** المناسبات الظاهرة التي فيها منتج متاح واحد على الأقل (D-92). */
@@ -227,6 +230,7 @@ export async function listStoreOccasions(locale: Locale): Promise<StoreOccasion[
         name: locale === "en" ? o.nameEn : o.nameAr,
         description: locale === "en" ? (o.descriptionEn ?? o.descriptionAr) : (o.descriptionAr ?? o.descriptionEn),
         imageUrl: cover ? imageUrl(cover, "thumb") : null,
+        coverUrl: cover ? imageUrl(cover, "full") : null,
       };
     });
 }
@@ -239,6 +243,7 @@ export async function getStoreOccasion(locale: Locale, slug: string): Promise<St
     name: locale === "en" ? o.nameEn : o.nameAr,
     description: locale === "en" ? (o.descriptionEn ?? o.descriptionAr) : (o.descriptionAr ?? o.descriptionEn),
     imageUrl: o.imageKey ? imageUrl(o.imageKey, "full") : null,
+    coverUrl: o.imageKey ? imageUrl(o.imageKey, "full") : null,
   };
 }
 
@@ -258,6 +263,7 @@ export async function getSeasonBanner(locale: Locale, now = new Date()): Promise
     name: locale === "en" ? o.nameEn : o.nameAr,
     description: locale === "en" ? (o.descriptionEn ?? o.descriptionAr) : (o.descriptionAr ?? o.descriptionEn),
     imageUrl: o.imageKey ? imageUrl(o.imageKey, "full") : null,
+    coverUrl: o.imageKey ? imageUrl(o.imageKey, "full") : null,
   };
 }
 

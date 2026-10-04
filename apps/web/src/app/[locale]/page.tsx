@@ -1,11 +1,11 @@
 import { ArrowLeft, ArrowRight, Gift, Truck, Wallet } from "lucide-react";
 import Image from "next/image";
 import { getTranslations, setRequestLocale } from "next-intl/server";
+import { HeroCarousel } from "@/components/store/hero-carousel";
 import { ProductCard } from "@/components/store/product-card";
 import { Link } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
-import { imageUrl } from "@/lib/product-images";
-import { getStoreSettings } from "@/lib/settings";
+import { listStoreBanners } from "@/lib/banners";
 import { getSeasonBanner, listStoreCategories, listStoreOccasions, listStoreProducts } from "@/lib/storefront";
 
 export const dynamic = "force-dynamic";
@@ -20,17 +20,16 @@ export default async function StoreHome({ params }: { params: Promise<{ locale: 
   const locale = (await params).locale as Locale;
   setRequestLocale(locale);
   const t = await getTranslations("home");
-  const [categories, latest, occasions, season, settings] = await Promise.all([
+  const [categories, latest, occasions, season, banners] = await Promise.all([
     listStoreCategories(locale),
     listStoreProducts(locale, { take: 10 }),
     listStoreOccasions(locale),
     getSeasonBanner(locale),
-    getStoreSettings(),
+    listStoreBanners(locale),
   ]);
   // بطاقة المناسبة: مناسبة الموسم إن كانت مفعّلة، وإلا أول مناسبة فيها منتجات
   const featured = season ?? occasions[0] ?? null;
   const featuredProducts = featured ? await listStoreProducts(locale, { occasionSlug: featured.slug, take: 5 }) : [];
-  const heroImage = settings.heroImageKey ? imageUrl(settings.heroImageKey, "full") : null;
   const Arrow = locale === "ar" ? ArrowLeft : ArrowRight;
   const trust = [
     { icon: Truck, title: t("trustDelivery"), text: t("trustDeliveryText") },
@@ -41,51 +40,61 @@ export default async function StoreHome({ params }: { params: Promise<{ locale: 
   return (
     <div className="mx-auto flex max-w-[1240px] flex-col gap-10 px-4 md:px-6 pb-4 pt-5">
       <section className="grid gap-4 lg:grid-cols-[2fr_1fr]">
-        <div className="grid overflow-hidden rounded-[14px] bg-forest text-ivory md:grid-cols-2">
-          <div className="flex flex-col justify-center gap-3 p-6 md:p-9">
-            <h1 className="font-display text-3xl font-bold leading-tight md:text-[42px]">{t("tagline")}</h1>
-            <p className="text-[15px] leading-relaxed text-ivory/85">{t("intro")}</p>
-            <Link
-              href={categories[0] ? `/c/${categories[0].slug}` : "/products"}
-              className="mt-1 inline-flex min-h-[46px] self-start items-center rounded-[10px] bg-ivory px-6 text-sm font-bold text-forest hover:bg-sand"
-            >
-              {t("shop")}
-            </Link>
+        {banners.length ? (
+          <div>
+            <h1 className="sr-only">{t("tagline")}</h1>
+            <HeroCarousel
+              banners={banners}
+              locale={locale}
+              labels={{
+                region: t("bannersLabel"),
+                prev: t("bannerPrev"),
+                next: t("bannerNext"),
+                slide: t("bannerSlide", { n: "{n}", total: "{total}" }),
+              }}
+            />
           </div>
-          <div className="relative order-first min-h-48 md:order-none md:min-h-[340px]">
-            {heroImage ? (
-              <Image
-                src={heroImage}
-                alt=""
-                fill
-                priority
-                sizes="(min-width: 1024px) 380px, (min-width: 768px) 50vw, 100vw"
-                className="object-cover"
-                unoptimized
-              />
-            ) : (
-              <div
-                aria-hidden
-                className="absolute inset-0 bg-sage/25 bg-[url('/brand/pattern-sage.svg')] bg-[length:240px]"
-              />
-            )}
+        ) : (
+          // بلا بانر مفعّل (D-101): بانر الهوية
+          <div className="grid overflow-hidden rounded-[14px] bg-forest text-ivory md:grid-cols-2">
+            <div className="flex flex-col justify-center gap-3 p-6 md:p-9">
+              <h1 className="font-display text-3xl font-bold leading-tight md:text-[42px]">{t("tagline")}</h1>
+              <p className="text-[15px] leading-relaxed text-ivory/85">{t("intro")}</p>
+              <Link
+                href="/products"
+                className="mt-1 inline-flex min-h-[46px] self-start items-center rounded-[10px] bg-ivory px-6 text-sm font-bold text-forest hover:bg-sand"
+              >
+                {t("shop")}
+              </Link>
+            </div>
+            <div
+              aria-hidden
+              className="relative order-first min-h-48 bg-sage/25 bg-[url('/brand/pattern-sage.svg')] bg-[length:240px] md:order-none md:min-h-[340px]"
+            />
           </div>
-        </div>
+        )}
         <div className="grid grid-cols-2 gap-4 lg:grid-cols-1 lg:grid-rows-2">
           {featured ? (
             <Link
               href={`/occasion/${featured.slug}`}
-              className="relative flex min-h-32 flex-col justify-end gap-0.5 overflow-hidden rounded-[14px] bg-sand p-5 text-forest"
+              className={`relative isolate flex min-h-32 flex-col justify-end gap-0.5 overflow-hidden rounded-[14px] p-5 ${featured.coverUrl ? "bg-forest text-ivory" : "bg-sand text-forest"}`}
             >
-              {featured.imageUrl ? (
-                <Image
-                  src={featured.imageUrl}
-                  alt=""
-                  fill
-                  sizes="380px"
-                  className="object-cover opacity-30"
-                  unoptimized
-                />
+              {featured.coverUrl ? (
+                <>
+                  <Image
+                    src={featured.coverUrl}
+                    alt=""
+                    fill
+                    sizes="(min-width: 1024px) 400px, 50vw"
+                    className="-z-20 object-cover"
+                    unoptimized
+                  />
+                  {/* الصورة كاملة وتدرج من الأسفل للنص (D-101) */}
+                  <span
+                    aria-hidden
+                    className="absolute inset-0 -z-10 bg-linear-to-t from-forest/85 to-forest/10 to-70%"
+                  />
+                </>
               ) : null}
               <span className="relative text-[13px]">{season ? t("season") : t("occasionTile")}</span>
               <b className="relative font-display text-lg">{featured.name}</b>
