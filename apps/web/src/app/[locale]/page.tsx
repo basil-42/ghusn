@@ -10,7 +10,7 @@ import { getSeasonBanner, listStoreCategories, listStoreOccasions, listStoreProd
 
 export const dynamic = "force-dynamic";
 
-const grid = "grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5";
+const grid = "grid grid-cols-2 gap-3 sm:grid-cols-3 lg:gap-3.5 lg:grid-cols-4 xl:grid-cols-5";
 
 /**
  * الرئيسية — النموذج ب المعتمد (D-96): بانر رئيسي وبجانبه بطاقتان (مناسبة الموسم، صمّم هديتك)، شريط
@@ -40,7 +40,7 @@ export default async function StoreHome({ params }: { params: Promise<{ locale: 
   ];
 
   return (
-    <div className="mx-auto flex max-w-6xl flex-col gap-10 px-4 pb-4 pt-5">
+    <div className="mx-auto flex max-w-[1240px] flex-col gap-10 px-4 md:px-6 pb-4 pt-5">
       <section className="grid gap-4 lg:grid-cols-[2fr_1fr]">
         <div className="grid overflow-hidden rounded-[14px] bg-forest text-ivory md:grid-cols-2">
           <div className="flex flex-col justify-center gap-3 p-6 md:p-9">
@@ -125,7 +125,7 @@ export default async function StoreHome({ params }: { params: Promise<{ locale: 
       {categories.length ? (
         <section className="flex flex-col gap-4">
           <h2 className="text-[22px] font-bold">{t("categories")}</h2>
-          <ul className="-mx-4 flex gap-3 overflow-x-auto px-4 pb-1 [scrollbar-width:none] lg:mx-0 lg:grid lg:grid-cols-8 lg:px-0">
+          <ul className="-mx-4 flex gap-3 overflow-x-auto px-4 pb-1 [scrollbar-width:none] md:-mx-6 md:px-6 lg:mx-0 lg:grid lg:grid-cols-8 lg:px-0">
             {categories.map((c) => (
               <li key={c.slug} className="w-[76px] shrink-0 lg:w-auto">
                 <Link

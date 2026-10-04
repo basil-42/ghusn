@@ -23,7 +23,7 @@ export async function StoreFooter() {
   const whatsapp = whatsappLink(receipt.whatsapp, t("footer.whatsappText"));
   return (
     <footer className="mt-16 bg-forest text-ivory">
-      <div className="mx-auto grid max-w-6xl grid-cols-2 gap-x-6 gap-y-10 px-4 py-12 lg:grid-cols-[1.4fr_1fr_1fr_1.4fr]">
+      <div className="mx-auto grid max-w-[1240px] grid-cols-2 gap-x-6 gap-y-10 px-4 md:px-6 py-12 lg:grid-cols-[1.4fr_1fr_1fr_1.4fr]">
         <div className="col-span-2 flex flex-col gap-3 lg:col-span-1">
           <Image src="/brand/logo-horizontal-cream.svg" alt="غصن GHUSN" width={220} height={112} />
           <p className="font-display text-xl">{t("home.tagline")}</p>

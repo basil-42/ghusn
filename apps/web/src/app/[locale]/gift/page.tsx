@@ -24,7 +24,7 @@ export default async function GiftPage({ params }: { params: Promise<{ locale: s
   const Arrow = locale === "ar" ? ArrowLeft : ArrowRight;
   const steps = [t("step1"), t("step2"), t("step3")];
   return (
-    <div className="mx-auto flex max-w-6xl flex-col gap-8 px-4 py-10">
+    <div className="mx-auto flex max-w-[1240px] flex-col gap-8 px-4 md:px-6 py-10">
       <header className="flex max-w-2xl flex-col gap-2">
         <h1 className="font-display text-4xl font-bold">{t("title")}</h1>
         <p className="text-muted-foreground">{t("intro")}</p>

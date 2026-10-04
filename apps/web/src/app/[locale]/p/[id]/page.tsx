@@ -69,7 +69,7 @@ export default async function ProductPage({ params }: Props) {
   };
 
   return (
-    <div className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-8">
+    <div className="mx-auto flex max-w-[1240px] flex-col gap-6 px-4 md:px-6 py-8">
       <script
         type="application/ld+json"
         // نص من قاعدة البيانات: «<» يُهرَّب حتى لا يُغلق الوسم
