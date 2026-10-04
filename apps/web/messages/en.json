@@ -35,8 +35,6 @@
     "trustPaymentText": "On delivery or with Bankak",
     "trustWrap": "Wrapping worthy of your gift",
     "trustWrapText": "Three styles and a gift card",
-    "trustPhoto": "A photo before delivery",
-    "trustPhotoText": "Approve your gift before it arrives",
     "occasionTile": "Shop by occasion",
     "giftTile": "Design your gift",
     "giftTileTitle": "Wrapping & gift card",
@@ -135,7 +133,6 @@
     "bankakHint": "We hold your order and its price for 24 hours; transfer the amount and upload the receipt from the order page.",
     "giftTitle": "Design your gift",
     "noWrap": "No wrapping",
-    "photoPromise": "We'll send you a photo of the gift to approve before delivery.",
     "card": "Gift card (optional)",
     "cardPlaceholder": "Write your message as you'd like it on the card",
     "cardCount": "{used} / {max}",
@@ -154,7 +151,6 @@
     "show": "Show",
     "hide": "Hide",
     "trustConfirm": "We call you to confirm before preparing",
-    "trustPhoto": "A photo of the gift before delivery",
     "wrapCard": "Wrapping and gift card",
     "giftHint": "We deliver in their name and contact them for delivery."
   },
@@ -181,8 +177,6 @@
     "IMAGE_UNREADABLE": "We couldn't read the image. Please use a JPG or PNG.",
     "WRAP_UNAVAILABLE": "The selected wrapping is no longer available. Please choose another.",
     "CARD_TOO_LONG": "The card message is longer than 150 characters.",
-    "PHOTO_CLOSED": "This photo is no longer awaiting your reply. Please refresh the page.",
-    "FEEDBACK_REQUIRED": "Please describe the change you'd like.",
     "TRACK_NOT_FOUND": "We couldn't find an order with this number and phone. Check the details or contact us."
   },
   "order": {
@@ -202,7 +196,7 @@
       "PAYMENT_REVIEW": "Reviewing your payment",
       "CONFIRMED": "Your order is confirmed",
       "PREPARING": "We're preparing your gift",
-      "AWAITING_PHOTO_APPROVAL": "Awaiting your approval of the gift photo",
+      "AWAITING_PHOTO_APPROVAL": "We're preparing your gift",
       "READY": "Your order is ready",
       "OUT_FOR_DELIVERY": "On the way with the courier",
       "DELIVERED": "Delivered — thank you for choosing GHUSN",
@@ -226,14 +220,6 @@
     "unpaidExpired": "This order was cancelled because payment didn't arrive in time. You're welcome to order again.",
     "wrap": "Wrapping",
     "card": "Card message",
-    "photoTitle": "Your gift photo",
-    "photoIntro": "Here's your gift before delivery. Approve it or ask for a change.",
-    "photoDue": "If we don't hear from you by {time}, we'll take it as approved.",
-    "approvePhoto": "Approve, send it",
-    "requestChanges": "I'd like a change",
-    "changesLabel": "What would you like changed?",
-    "sendChanges": "Send change request",
-    "back": "Back",
     "whatsapp": "Contact us on WhatsApp",
     "whatsappText": "Hello Ghusn, I'm asking about my order {number}",
     "preparingImage": "Preparing the image…"
@@ -258,10 +244,10 @@
   },
   "gift": {
     "title": "Design your gift",
-    "intro": "Pick your gifts, then at checkout choose a wrapping style and write your card — we'll send you a photo of the gift to approve before delivery.",
+    "intro": "Pick your gifts, then at checkout choose a wrapping style and write your card — we prepare it with care.",
     "step1": "Add the gifts you want to your cart.",
     "step2": "At checkout, choose a wrapping style and write your card (up to 150 characters).",
-    "step3": "We prepare your gift and post its photo on your order page for your approval before delivery.",
+    "step3": "We wrap your gift in the style you chose and print your card, then deliver it or you collect it from the shop.",
     "styles": "Wrapping styles",
     "cta": "Start shopping"
   }

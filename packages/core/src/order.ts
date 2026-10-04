@@ -25,8 +25,9 @@ const TRANSITIONS: Record<OrderStatus, readonly OrderStatus[]> = {
   AWAITING_PAYMENT: ["PAYMENT_REVIEW", "CANCELLED"],
   PAYMENT_REVIEW: ["CONFIRMED", "AWAITING_PAYMENT", "CANCELLED"],
   CONFIRMED: ["PREPARING", "CANCELLED"],
-  PREPARING: ["AWAITING_PHOTO_APPROVAL", "READY", "CANCELLED"],
-  AWAITING_PHOTO_APPROVAL: ["READY", "PREPARING", "CANCELLED"],
+  PREPARING: ["READY", "CANCELLED"],
+  // ملغاة (D-99): لا يدخلها طلب جديد؛ تبقى في قاعدة البيانات ومخرجها فقط لأي طلب قديم عالق فيها
+  AWAITING_PHOTO_APPROVAL: ["READY", "CANCELLED"],
   READY: ["OUT_FOR_DELIVERY", "DELIVERED", "CANCELLED"],
   // تعذّر التسليم ← يعود جاهزاً بموعد جديد؛ رفض الاستلام ← إلغاء ويعود للمخزون
   OUT_FOR_DELIVERY: ["DELIVERED", "READY", "CANCELLED"],
@@ -72,29 +73,21 @@ const PAYMENT_STAGES: readonly OrderStatus[] = ["AWAITING_PAYMENT", "PAYMENT_REV
 export function assertTransition(
   from: OrderStatus,
   to: OrderStatus,
-  order: { fulfillment: Fulfillment; payment: OrderPaymentMethod; wrapped: boolean },
+  order: { fulfillment: Fulfillment; payment: OrderPaymentMethod },
 ): void {
-  const { fulfillment, payment, wrapped } = order;
+  const { fulfillment, payment } = order;
   const bankak = payment === "BANKAK";
   const ok =
     canTransition(from, to) &&
     !(to === "OUT_FOR_DELIVERY" && fulfillment !== "DELIVERY") &&
     !(from === "READY" && to === "DELIVERED" && fulfillment !== "PICKUP") &&
     !(bankak && from === "NEW" && to === "CONFIRMED") &&
-    !(!bankak && PAYMENT_STAGES.includes(to)) &&
-    // الهدية المغلّفة لا تصبح «جاهزة» قبل صورتها (D-13، D-91)
-    !(wrapped && from === "PREPARING" && to === "READY") &&
-    !(!wrapped && to === "AWAITING_PHOTO_APPROVAL");
+    !(!bankak && PAYMENT_STAGES.includes(to));
   if (!ok) {
-    throw new CoreError(
-      "INVALID_TRANSITION",
-      `Order cannot go from ${from} to ${to} (${fulfillment}, ${payment}, wrapped=${wrapped})`,
-    );
+    throw new CoreError("INVALID_TRANSITION", `Order cannot go from ${from} to ${to} (${fulfillment}, ${payment})`);
   }
 }
 
-/** صورة الهدية: عدم رد العميل خلال ساعة = موافقة (D-13). */
-export const PHOTO_APPROVAL_MINUTES = 60;
 /** نص بطاقة الإهداء (customer-journey §3). */
 export const CARD_MESSAGE_MAX = 150;
 

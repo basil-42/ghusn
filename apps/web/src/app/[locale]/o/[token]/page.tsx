@@ -4,11 +4,10 @@ import { notFound } from "next/navigation";
 import { Price } from "@/components/store/price";
 import { Link } from "@/i18n/navigation";
 import { formatDateTime } from "@/lib/format";
-import { approveOverduePhotos, expireUnpaidOrders, getOrderByToken } from "@/lib/orders";
+import { expireUnpaidOrders, getOrderByToken } from "@/lib/orders";
 import { bankakAccount, getReceiptSettings } from "@/lib/settings";
 import { whatsappLink } from "@/lib/site";
 import { PaymentProofForm } from "./payment-proof-form";
-import { PhotoDecision } from "./photo-decision";
 
 export const dynamic = "force-dynamic";
 
@@ -36,10 +35,6 @@ export default async function OrderStatusPage({ params }: Props) {
   if (!o) notFound();
   if (o.status === "AWAITING_PAYMENT" && o.paymentDueAt && o.paymentDueAt <= new Date()) {
     await expireUnpaidOrders();
-    o = (await getOrderByToken(token, locale)) ?? o;
-  }
-  if (o.status === "AWAITING_PHOTO_APPROVAL" && o.photoDueAt && o.photoDueAt <= new Date()) {
-    await approveOverduePhotos();
     o = (await getOrderByToken(token, locale)) ?? o;
   }
   const account = o.status === "AWAITING_PAYMENT" ? await bankakAccount() : null;
@@ -140,29 +135,6 @@ export default async function OrderStatusPage({ params }: Props) {
             <p className="text-sm font-semibold">{t("dueBy", { time: formatDateTime(o.paymentDueAt) })}</p>
           ) : null}
           <PaymentProofForm token={token} />
-        </section>
-      ) : null}
-
-      {o.photo && o.status !== "CANCELLED" ? (
-        <section
-          className={`flex flex-col gap-4 rounded-2xl bg-card p-4 ${o.photo.pending ? "border-2 border-gold" : "border border-line"}`}
-        >
-          <h2 className="font-display text-2xl font-bold">{t("photoTitle")}</h2>
-          {/* eslint-disable-next-line @next/next/no-img-element -- صورة خاصة برابط الطلب */}
-          <img
-            src={`/api/v1/gift-photo/${token}/${o.photo.id}`}
-            alt={t("photoTitle")}
-            className="max-h-[28rem] w-full rounded-xl object-contain"
-          />
-          {o.photo.pending ? (
-            <>
-              <p className="text-sm">{t("photoIntro")}</p>
-              {o.photoDueAt ? (
-                <p className="text-sm font-semibold">{t("photoDue", { time: formatDateTime(o.photoDueAt) })}</p>
-              ) : null}
-              <PhotoDecision token={token} photoId={o.photo.id} />
-            </>
-          ) : null}
         </section>
       ) : null}
 

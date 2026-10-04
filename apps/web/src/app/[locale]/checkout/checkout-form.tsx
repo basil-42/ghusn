@@ -276,7 +276,6 @@ export function CheckoutForm({ bankakEnabled, wrapStyles }: { bankakEnabled: boo
               ))}
             </fieldset>
           ) : null}
-          {wrapStyleId ? <p className={hint}>{t("photoPromise")}</p> : null}
           <label className={field}>
             <span className={label}>{t("card")}</span>
             <textarea
@@ -351,11 +350,6 @@ export function CheckoutForm({ bankakEnabled, wrapStyles }: { bankakEnabled: boo
           <li className="flex items-center gap-1.5">
             <Check aria-hidden className="size-3.5 text-sage" /> {t("trustConfirm")}
           </li>
-          {wrapStyleId ? (
-            <li className="flex items-center gap-1.5">
-              <Check aria-hidden className="size-3.5 text-sage" /> {t("trustPhoto")}
-            </li>
-          ) : null}
         </ul>
       </aside>
 

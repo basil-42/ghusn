@@ -11,7 +11,6 @@ import {
   MAX_ORDER_LINES,
   OrderError,
   createWebOrder,
-  decideGiftPhoto,
   findOrderToken,
   quoteCart,
   submitPaymentProof,
@@ -124,30 +123,6 @@ export async function submitProofAction(_prev: ProofResult | null, formData: For
     throw e;
   }
   revalidatePath("/[locale]/o/[token]", "page");
-  return { ok: true };
-}
-
-const photoLimiter = new SlidingWindowLimiter(20, 10 * 60 * 1000);
-
-/** قرار العميل على صورة الهدية (D-13): موافقة، أو تعديل بملاحظة. */
-export async function decidePhotoAction(_prev: ProofResult | null, formData: FormData): Promise<ProofResult> {
-  const token = String(formData.get("token") ?? "");
-  const photoId = String(formData.get("photoId") ?? "");
-  const approve = formData.get("decision") === "approve";
-  const feedback = String(formData.get("feedback") ?? "");
-  if (!/^[A-Za-z0-9_-]{20,40}$/.test(token) || !/^[a-z0-9]{10,40}$/.test(photoId)) {
-    return { ok: false, code: "PHOTO_CLOSED" };
-  }
-  if (!approve && feedback.trim().length < 2) return { ok: false, code: "FEEDBACK_REQUIRED" };
-  const ip = clientIp(await headers());
-  if (photoLimiter.isLimited(ip)) return { ok: false, code: "RATE_LIMIT" };
-  photoLimiter.hit(ip);
-  try {
-    await decideGiftPhoto(token, photoId, approve, feedback);
-  } catch (e) {
-    if (e instanceof OrderError) return { ok: false, code: e.code };
-    throw e;
-  }
   return { ok: true };
 }
 

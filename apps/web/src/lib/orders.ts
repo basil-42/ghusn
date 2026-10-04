@@ -9,7 +9,6 @@ import {
   CARD_MESSAGE_MAX,
   orderTotals,
   PAYMENT_WINDOW_HOURS,
-  PHOTO_APPROVAL_MINUTES,
   paymentDueAfterRejection,
   RESERVING_STATUSES,
   roundMoney,
@@ -19,7 +18,7 @@ import {
   type Decimal,
   type OrderStatus,
 } from "@ghusn/core";
-import { Prisma, prisma, type DeliveryCity, type Fulfillment, type GiftPhotoDecision } from "@ghusn/db";
+import { Prisma, prisma, type DeliveryCity, type Fulfillment } from "@ghusn/db";
 import { nextDocumentNumber } from "./documents";
 import { formatAmount } from "./format";
 import { localePath, siteUrl } from "./site";
@@ -56,8 +55,7 @@ export class OrderError extends Error {
       | "IMAGE_TOO_LARGE"
       | "IMAGE_UNREADABLE"
       | "WRAP_UNAVAILABLE"
-      | "CARD_TOO_LONG"
-      | "PHOTO_CLOSED",
+      | "CARD_TOO_LONG",
     readonly params: Record<string, string> = {},
   ) {
     super(code);
@@ -370,10 +368,6 @@ export interface TransitionOptions {
   proofId?: string | null;
   /** إشعار جديد من العميل (صفحة المتابعة). */
   proof?: { imageKey: string; reference: string } | null;
-  /** صورة الهدية الجاهزة (قيد التجهيز ← بانتظار موافقة الصورة). */
-  photo?: { imageKey: string } | null;
-  /** قرار الصورة: الموافقة الضمنية بعد ساعة تُمرَّر صراحة. */
-  photoDecision?: GiftPhotoDecision | null;
 }
 
 /** سبب الإلغاء التلقائي — صفحة العميل تعرضه بلغته. */
@@ -532,7 +526,6 @@ async function applyTransition(
       lines: { orderBy: { sortOrder: "asc" } },
       payments: true,
       paymentProofs: { orderBy: { createdAt: "desc" }, take: 1 },
-      giftPhotos: { orderBy: { createdAt: "desc" }, take: 1 },
     },
   });
   if (!order) throw new OrderActionError("الطلب غير موجود.");
@@ -541,7 +534,6 @@ async function applyTransition(
     assertTransition(from, to, {
       fulfillment: order.fulfillment,
       payment: order.paymentMethod,
-      wrapped: !!order.wrapStyleId,
     });
   } catch {
     throw new OrderActionError("لا يمكن نقل الطلب لهذه الحالة الآن — حدّثي الصفحة.");
@@ -634,28 +626,8 @@ async function applyTransition(
     data.preparedAt = now;
   }
 
-  if (to === "AWAITING_PHOTO_APPROVAL") {
-    // صورة الهدية للعميل: يوافق أو يطلب تعديلاً، وعدم الرد خلال ساعة = موافقة (D-13)
-    if (!opts.photo) throw new OrderActionError("ارفعي صورة الهدية أولاً.");
-    await tx.giftPhoto.create({
-      data: { orderId: order.id, imageKey: opts.photo.imageKey, uploadedById: actorId, createdAt: now },
-    });
-    data.photoDueAt = new Date(now.getTime() + PHOTO_APPROVAL_MINUTES * 60_000);
-  }
-
-  if (from === "AWAITING_PHOTO_APPROVAL") {
-    const photo = order.giftPhotos[0];
-    if (to === "PREPARING" && !reason) throw new OrderActionError("اكتبي التعديل المطلوب.");
-    if (photo && !photo.decision && to !== "CANCELLED") {
-      const decision: GiftPhotoDecision =
-        to === "PREPARING" ? "CHANGES" : (opts.photoDecision ?? (actorId ? "STAFF_APPROVED" : "APPROVED"));
-      await tx.giftPhoto.update({
-        where: { id: photo.id },
-        data: { decision, decidedAt: now, feedback: to === "PREPARING" ? reason : null },
-      });
-    }
-    data.photoDueAt = null;
-  }
+  // طلب قديم في حالة «بانتظار موافقة الصورة» الملغاة (D-99): يُفرَّغ موعدها عند خروجه منها
+  if (from === "AWAITING_PHOTO_APPROVAL") data.photoDueAt = null;
 
   if (to === "CANCELLED") {
     data.cancelledAt = now;
@@ -836,83 +808,6 @@ export function paymentReminderLink(o: {
   return `https://wa.me/${o.phone.replace(/\D/g, "")}?text=${encodeURIComponent(text)}`;
 }
 
-/** صورة الهدية الجاهزة من الموظفة (D-13): تُرسل للعميل في صفحة المتابعة ويبدأ عدّ الساعة. */
-export async function uploadGiftPhoto(orderId: string, file: File, actorId: string): Promise<void> {
-  let imageKey: string;
-  try {
-    imageKey = await savePrivateImage(file, "gifts");
-  } catch (e) {
-    if (e instanceof PrivateImageError) {
-      throw new OrderActionError(
-        e.code === "TOO_LARGE" ? "الصورة أكبر من 10 ميغابايت." : "تعذّرت قراءة الصورة. استخدمي JPG أو PNG.",
-      );
-    }
-    throw e;
-  }
-  await transitionOrder(orderId, "AWAITING_PHOTO_APPROVAL", actorId, { photo: { imageKey } });
-}
-
-/** قرار العميل على صورة الهدية من صفحة المتابعة: موافقة ← جاهز، أو تعديل ← يعود للتجهيز. */
-export async function decideGiftPhoto(
-  token: string,
-  photoId: string,
-  approve: boolean,
-  feedback: string | null,
-): Promise<void> {
-  const order = await prisma.order.findUnique({
-    where: { trackingToken: token },
-    select: {
-      id: true,
-      status: true,
-      giftPhotos: { orderBy: { createdAt: "desc" }, take: 1, select: { id: true, decision: true } },
-    },
-  });
-  const photo = order?.giftPhotos[0];
-  if (!order || order.status !== "AWAITING_PHOTO_APPROVAL" || photo?.id !== photoId || photo.decision) {
-    throw new OrderError("PHOTO_CLOSED");
-  }
-  const note = feedback?.trim().slice(0, 300) || null;
-  if (!approve && !note) throw new OrderError("INVALID");
-  try {
-    await transitionOrder(order.id, approve ? "READY" : "PREPARING", null, {
-      reason: approve ? null : note,
-      photoDecision: approve ? "APPROVED" : "CHANGES",
-    });
-  } catch (e) {
-    if (e instanceof OrderActionError) throw new OrderError("PHOTO_CLOSED");
-    throw e;
-  }
-}
-
-/** الموافقة الضمنية: صورة بلا رد بعد ساعة ← «جاهز» (D-13). يعمل مع العامل الدوري وعند فتح الصفحات. */
-export async function approveOverduePhotos(now = new Date()): Promise<number> {
-  const due = await prisma.order.findMany({
-    where: { status: "AWAITING_PHOTO_APPROVAL", photoDueAt: { lte: now } },
-    select: { id: true },
-    take: 200,
-  });
-  let n = 0;
-  for (const o of due) {
-    try {
-      await transitionOrder(o.id, "READY", null, { photoDecision: "AUTO_APPROVED" });
-      n++;
-    } catch (e) {
-      if (!(e instanceof OrderActionError || e instanceof OrderError)) throw e;
-    }
-  }
-  return n;
-}
-
-/** رابط واتساب يرسل للعميل رابط صورة هديته. */
-export function giftPhotoLink(o: { phone: string; number: string; trackingToken: string; locale: string }) {
-  const url = `${siteUrl()}${localePath(o.locale, `/o/${o.trackingToken}`)}`;
-  const text =
-    o.locale === "en"
-      ? `Hello from Ghusn 🌿 Your gift for order ${o.number} is ready! See the photo and approve it here (no reply within an hour counts as approval): ${url}`
-      : `مرحباً من غصن 🌿 هديتك في الطلب ${o.number} جاهزة! شاهد الصورة ووافق عليها من هنا (عدم الرد خلال ساعة يعني الموافقة): ${url}`;
-  return `https://wa.me/${o.phone.replace(/\D/g, "")}?text=${encodeURIComponent(text)}`;
-}
-
 /**
  * «تتبّع طلبك» (D-93): رقم الطلب (كاملاً أو أرقامه الأخيرة) + هاتف الطلب ← رابط المتابعة. الهاتف شرط
  * دائماً، فلا يكفي تخمين الرقم؛ وحد المحاولات في الإجراء.
@@ -940,7 +835,7 @@ export const ORDER_STATUS_LABELS: Record<OrderStatus, string> = {
   PAYMENT_REVIEW: "إشعار قيد المراجعة",
   CONFIRMED: "مؤكد",
   PREPARING: "قيد التجهيز",
-  AWAITING_PHOTO_APPROVAL: "بانتظار موافقة الصورة",
+  AWAITING_PHOTO_APPROVAL: "قيد التجهيز (قديم)",
   READY: "جاهز",
   OUT_FOR_DELIVERY: "مع شركة التوصيل",
   DELIVERED: "تم التسليم",
@@ -1043,7 +938,6 @@ export async function getOrderForStaff(id: string) {
       history: { orderBy: { createdAt: "asc" }, include: { actor: { select: { name: true } } } },
       payments: { orderBy: { receivedAt: "asc" }, include: { wallet: { select: { name: true } } } },
       paymentProofs: { orderBy: { createdAt: "desc" }, include: { reviewedBy: { select: { name: true } } } },
-      giftPhotos: { orderBy: { createdAt: "desc" }, include: { uploadedBy: { select: { name: true } } } },
     },
   });
   if (!o) return null;
@@ -1069,16 +963,6 @@ export async function getOrderForStaff(id: string) {
     wrapPriceSdg: o.wrapPriceSdg?.toString() ?? null,
     subtotalSdg: o.subtotalSdg.toString(),
     cardMessage: o.cardMessage,
-    photoDueAt: o.photoDueAt,
-    photoLink: o.status === "AWAITING_PHOTO_APPROVAL" ? giftPhotoLink({ ...o, phone: o.customer.phone }) : null,
-    photos: o.giftPhotos.map((p) => ({
-      id: p.id,
-      at: p.createdAt,
-      by: p.uploadedBy?.name ?? null,
-      decision: p.decision,
-      decidedAt: p.decidedAt,
-      feedback: p.feedback,
-    })),
     reminderLink:
       o.status === "AWAITING_PAYMENT"
         ? paymentReminderLink({ ...o, phone: o.customer.phone, totalSdg: o.totalSdg.toFixed(0) })
@@ -1131,14 +1015,12 @@ export async function getOrderByToken(token: string, locale: string) {
         include: { variant: { include: { product: { select: { nameAr: true, nameEn: true } } } } },
       },
       paymentProofs: { orderBy: { createdAt: "desc" }, take: 1 },
-      giftPhotos: { orderBy: { createdAt: "desc" }, take: 1 },
       wrapStyle: { select: { nameAr: true, nameEn: true } },
       history: { orderBy: { createdAt: "asc" }, select: { id: true, toStatus: true, createdAt: true } },
     },
   });
   if (!o) return null;
   const proof = o.paymentProofs[0];
-  const photo = o.giftPhotos[0];
   return {
     number: o.number,
     status: o.status as OrderStatus,
@@ -1161,14 +1043,8 @@ export async function getOrderByToken(token: string, locale: string) {
         }
       : null,
     cardMessage: o.cardMessage,
-    photoDueAt: o.photoDueAt,
     /** الخط الزمني للعميل: كل مرحلة ووقتها (بلا أسباب ولا أسماء الموظفين). */
     timeline: o.history.map((h) => ({ id: h.id, status: h.toStatus as OrderStatus, at: h.createdAt })),
-    /** آخر صورة للهدية: تنتظر القرار، أو موافَق عليها (تبقى للذكرى). */
-    photo:
-      photo && (photo.decision === null || photo.decision !== "CHANGES")
-        ? { id: photo.id, pending: o.status === "AWAITING_PHOTO_APPROVAL" && photo.decision === null }
-        : null,
     lines: o.lines.map((l) => ({
       id: l.id,
       name: locale === "en" && l.variant.product.nameEn ? l.variant.product.nameEn : l.variant.product.nameAr,
