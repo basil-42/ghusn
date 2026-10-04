@@ -233,7 +233,12 @@
     "title": "Search",
     "resultsFor": "Results for “{q}”",
     "noResults": "No results. Try another word or browse the categories.",
-    "prompt": "Type what you're looking for in the search box."
+    "prompt": "Type what you're looking for in the search box.",
+    "products": "Products",
+    "categories": "Categories",
+    "occasions": "Occasions",
+    "viewAll": "See all results for “{q}”",
+    "suggestNone": "No results for “{q}”"
   },
   "track": {
     "title": "Track your order",

@@ -1,4 +1,4 @@
-import { dec, isBannerDay, searchTerms, shopDay } from "@ghusn/core";
+import { dec, isBannerDay, normalizeArabic, searchTerms, shopDay } from "@ghusn/core";
 import { prisma, type Prisma } from "@ghusn/db";
 import type { Locale } from "@/i18n/routing";
 import { availableVariantIds } from "./orders";
@@ -94,6 +94,8 @@ export async function listStoreProducts(
       variants: { some: sellable },
     },
     orderBy: { createdAt: "desc" },
+    // بلا ترتيب بالسعر: الترتيب من قاعدة البيانات، فالحد يُطبَّق هناك (الاقتراحات، الصفوف)
+    ...(opts.take && !opts.sort ? { take: opts.take } : {}),
     select: {
       id: true,
       nameAr: true,
@@ -256,5 +258,52 @@ export async function getSeasonBanner(locale: Locale, now = new Date()): Promise
     name: locale === "en" ? o.nameEn : o.nameAr,
     description: locale === "en" ? (o.descriptionEn ?? o.descriptionAr) : (o.descriptionAr ?? o.descriptionEn),
     imageUrl: o.imageKey ? imageUrl(o.imageKey, "full") : null,
+  };
+}
+
+export interface SearchSuggestions {
+  products: { id: string; name: string; category: string; priceSdg: string; imageUrl: string | null }[];
+  categories: { slug: string; name: string }[];
+  occasions: { slug: string; name: string }[];
+}
+
+/** كل كلمات البحث موجودة في الاسم (بالعربي أو الإنجليزي) بعد التوحيد. */
+const matchesAll = (terms: string[], ...names: (string | null | undefined)[]) => {
+  const text = normalizeArabic(names.filter(Boolean).join(" "));
+  return terms.every((t) => text.includes(t));
+};
+
+/**
+ * اقتراحات البحث أثناء الكتابة (D-100): حتى 6 منتجات، و3 أقسام، و3 مناسبات — بنفس منطق صفحة البحث
+ * (كل كلمة بعد توحيد الهمزات والتاء المربوطة). بلا تكلفة ولا كميات.
+ */
+export async function searchSuggestions(locale: Locale, q: string): Promise<SearchSuggestions> {
+  const terms = searchTerms(q);
+  if (terms.length === 0) return { products: [], categories: [], occasions: [] };
+  const [products, categories, occasions] = await Promise.all([
+    listStoreProducts(locale, { q, take: 6 }),
+    prisma.category.findMany({
+      where: { isActive: true },
+      orderBy: { sortOrder: "asc" },
+      select: { slug: true, nameAr: true, nameEn: true },
+    }),
+    listStoreOccasions(locale),
+  ]);
+  return {
+    products: products.map(({ id, name, category, priceSdg, imageUrl }) => ({
+      id,
+      name,
+      category,
+      priceSdg,
+      imageUrl,
+    })),
+    categories: categories
+      .filter((c) => matchesAll(terms, c.nameAr, c.nameEn))
+      .slice(0, 3)
+      .map((c) => ({ slug: c.slug, name: locale === "en" ? c.nameEn : c.nameAr })),
+    occasions: occasions
+      .filter((o) => matchesAll(terms, o.name))
+      .slice(0, 3)
+      .map((o) => ({ slug: o.slug, name: o.name })),
   };
 }
