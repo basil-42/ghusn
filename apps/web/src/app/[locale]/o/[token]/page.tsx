@@ -8,6 +8,7 @@ import { expireUnpaidOrders, getOrderByToken } from "@/lib/orders";
 import { bankakAccount, getReceiptSettings } from "@/lib/settings";
 import { whatsappLink } from "@/lib/site";
 import { PaymentProofForm } from "./payment-proof-form";
+import { CopyButton } from "@/components/store/copy-button";
 
 export const dynamic = "force-dynamic";
 
@@ -109,23 +110,27 @@ export default async function OrderStatusPage({ params }: Props) {
           ) : null}
           <p className="text-sm">{t("payIntro")}</p>
           {account ? (
-            <dl className="grid gap-2 rounded-xl bg-muted p-3 sm:grid-cols-3">
+            <dl className="flex flex-col divide-y divide-line rounded-xl bg-muted px-4">
               {account.name ? (
-                <div>
-                  <dt className="text-xs text-muted-foreground">{t("accountName")}</dt>
-                  <dd className="font-semibold">{account.name}</dd>
+                <div className="flex min-h-14 items-center justify-between gap-3 py-2.5">
+                  <dt className="text-sm text-muted-foreground">{t("accountName")}</dt>
+                  <dd className="text-end font-semibold">{account.name}</dd>
                 </div>
               ) : null}
-              <div>
-                <dt className="text-xs text-muted-foreground">{t("accountNumber")}</dt>
-                <dd dir="ltr" className="select-all text-start text-lg font-bold tabular-nums">
-                  {account.number}
+              <div className="flex min-h-14 items-center justify-between gap-3 py-2.5">
+                <dt className="text-sm text-muted-foreground">{t("accountNumber")}</dt>
+                <dd className="flex items-center gap-2">
+                  <bdi dir="ltr" className="select-all text-lg font-bold tabular-nums">
+                    {account.number}
+                  </bdi>
+                  <CopyButton value={account.number} label={t("accountNumber")} />
                 </dd>
               </div>
-              <div>
-                <dt className="text-xs text-muted-foreground">{t("amount")}</dt>
-                <dd className="text-lg font-bold">
-                  <Price value={o.totalSdg} locale={locale} />
+              <div className="flex min-h-14 items-center justify-between gap-3 py-2.5">
+                <dt className="text-sm text-muted-foreground">{t("amount")}</dt>
+                <dd className="flex items-center gap-2">
+                  <Price value={o.totalSdg} locale={locale} className="text-lg font-bold" />
+                  <CopyButton value={o.totalSdg} label={t("amount")} />
                 </dd>
               </div>
             </dl>
