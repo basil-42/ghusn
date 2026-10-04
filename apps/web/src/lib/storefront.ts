@@ -205,7 +205,8 @@ export async function getStoreProduct(locale: Locale, id: string): Promise<Store
   return {
     id: p.id,
     name: nameOf(locale, p.nameAr, p.nameEn),
-    description: locale === "en" ? (p.descriptionEn ?? p.descriptionAr) : (p.descriptionAr ?? p.descriptionEn),
+    // كل لغة بوصفها فقط — لا نص عربي في الصفحة الإنجليزية (D-104)
+    description: (locale === "en" ? p.descriptionEn : p.descriptionAr) || null,
     category: { slug: p.category.slug, name: locale === "en" ? p.category.nameEn : p.category.nameAr },
     occasions: p.occasions.map(({ occasion: o }) => ({ slug: o.slug, name: locale === "en" ? o.nameEn : o.nameAr })),
     images: p.images.map((i) => ({
