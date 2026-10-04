@@ -14,7 +14,7 @@ const grid = "grid grid-cols-2 gap-3 sm:grid-cols-3 lg:gap-3.5 lg:grid-cols-4 xl
 
 /**
  * الرئيسية — النموذج ب المعتمد (D-96): بانر رئيسي وبجانبه بطاقتان (مناسبة الموسم، صمّم هديتك)، شريط
- * المزايا، الأقسام دوائر في صف، وصل حديثاً بخمسة منتجات في الصف، ثم منتجات المناسبة.
+ * المزايا، الأقسام ثم المناسبات دوائر في صف، وصل حديثاً بخمسة منتجات في الصف، ثم منتجات المناسبة.
  */
 export default async function StoreHome({ params }: { params: Promise<{ locale: string }> }) {
   const locale = (await params).locale as Locale;
@@ -122,39 +122,8 @@ export default async function StoreHome({ params }: { params: Promise<{ locale: 
         </ul>
       </section>
 
-      {categories.length ? (
-        <section className="flex flex-col gap-4">
-          <h2 className="text-[22px] font-bold">{t("categories")}</h2>
-          <ul className="-mx-4 flex gap-3 overflow-x-auto px-4 pb-1 [scrollbar-width:none] md:-mx-6 md:px-6 lg:mx-0 lg:grid lg:grid-cols-8 lg:px-0">
-            {categories.map((c) => (
-              <li key={c.slug} className="w-[76px] shrink-0 lg:w-auto">
-                <Link
-                  href={`/c/${c.slug}`}
-                  className="group flex flex-col items-center gap-2 text-center text-[13px] font-semibold"
-                >
-                  <span className="relative size-[68px] overflow-hidden rounded-full border border-line bg-card lg:size-[84px]">
-                    {c.imageUrl ? (
-                      <Image
-                        src={c.imageUrl}
-                        alt=""
-                        fill
-                        sizes="84px"
-                        className="object-cover transition-transform duration-500 group-hover:scale-105"
-                        unoptimized
-                      />
-                    ) : (
-                      <span className="absolute inset-0 flex items-center justify-center">
-                        <Image src="/brand/leaves-sage.svg" alt="" width={30} height={30} className="opacity-50" />
-                      </span>
-                    )}
-                  </span>
-                  {c.name}
-                </Link>
-              </li>
-            ))}
-          </ul>
-        </section>
-      ) : null}
+      <CircleRow title={t("categories")} items={categories.map((c) => ({ ...c, href: `/c/${c.slug}` }))} />
+      <CircleRow title={t("occasions")} items={occasions.map((o) => ({ ...o, href: `/occasion/${o.slug}` }))} />
 
       <ProductRow
         title={t("latest")}
@@ -218,6 +187,50 @@ function ProductRow({
       ) : (
         <p className="rounded-xl border border-line bg-card p-6 text-muted-foreground">{empty}</p>
       )}
+    </section>
+  );
+}
+
+/** صف دوائر (الأقسام، المناسبات): 8 في الصف على الكمبيوتر، ويُسحب أفقياً على الجوال. */
+function CircleRow({
+  title,
+  items,
+}: {
+  title: string;
+  items: { slug: string; name: string; imageUrl: string | null; href: string }[];
+}) {
+  if (!items.length) return null;
+  return (
+    <section className="flex flex-col gap-4">
+      <h2 className="text-[22px] font-bold">{title}</h2>
+      <ul className="-mx-4 flex gap-3 overflow-x-auto px-4 pb-1 [scrollbar-width:none] md:-mx-6 md:px-6 lg:mx-0 lg:grid lg:grid-cols-8 lg:px-0">
+        {items.map((item) => (
+          <li key={item.slug} className="w-[76px] shrink-0 lg:w-auto">
+            <Link
+              href={item.href}
+              className="group flex flex-col items-center gap-2 text-center text-[13px] font-semibold"
+            >
+              <span className="relative size-[68px] overflow-hidden rounded-full border border-line bg-card lg:size-[84px]">
+                {item.imageUrl ? (
+                  <Image
+                    src={item.imageUrl}
+                    alt=""
+                    fill
+                    sizes="84px"
+                    className="object-cover transition-transform duration-500 group-hover:scale-105"
+                    unoptimized
+                  />
+                ) : (
+                  <span className="absolute inset-0 flex items-center justify-center">
+                    <Image src="/brand/leaves-sage.svg" alt="" width={30} height={30} className="opacity-50" />
+                  </span>
+                )}
+              </span>
+              {item.name}
+            </Link>
+          </li>
+        ))}
+      </ul>
     </section>
   );
 }

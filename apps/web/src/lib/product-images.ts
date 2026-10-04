@@ -2,9 +2,10 @@ import { createHash } from "node:crypto";
 import { prisma } from "@ghusn/db";
 import sharp, { type OutputInfo } from "sharp";
 import { storage } from "./storage";
+import { MAX_UPLOAD_BYTES } from "./client-image";
 
 export const MAX_IMAGES_PER_PRODUCT = 12;
-export const MAX_UPLOAD_BYTES = 10 * 1024 * 1024;
+export { MAX_UPLOAD_BYTES };
 const MAX_PIXELS = 50_000_000; // حماية من صور ضخمة مصمَّمة لاستهلاك الذاكرة
 
 /** مقاسات WebP المولَّدة: كبيرة للعرض والمتجر، وصغيرة للقوائم (§2.2: صفحات خفيفة على 3G). */

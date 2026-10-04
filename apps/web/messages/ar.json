@@ -218,7 +218,8 @@
     "sendChanges": "إرسال التعديل",
     "back": "رجوع",
     "whatsapp": "تواصل معنا على واتساب",
-    "whatsappText": "مرحباً غصن، أستفسر عن طلبي {number}"
+    "whatsappText": "مرحباً غصن، أستفسر عن طلبي {number}",
+    "preparingImage": "جارٍ تجهيز الصورة…"
   },
   "occasion": {
     "empty": "لا منتجات متاحة لهذه المناسبة الآن."

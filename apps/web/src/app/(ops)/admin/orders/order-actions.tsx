@@ -5,6 +5,7 @@ import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input, NativeSelect } from "@/components/ui/input";
 import { transitionAction, uploadPhotoAction, type FormState } from "./actions";
+import { ImageInput } from "@/components/image-input";
 
 type Status =
   | "NEW"
@@ -65,8 +66,7 @@ function PhotoStep({ id, again }: { id: string; again: boolean }) {
       <input type="hidden" name="id" value={id} />
       <label className={field}>
         <span className="text-sm font-semibold">{again ? "صورة الهدية بعد التعديل" : "صورة الهدية الجاهزة"}</span>
-        <input
-          type="file"
+        <ImageInput
           name="image"
           required
           accept="image/jpeg,image/png,image/webp"
