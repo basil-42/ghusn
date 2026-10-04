@@ -46,9 +46,13 @@ export function pickSeasonTile(
   if (live >= 0) return { index: live, state: "live" };
   const horizon = addDays(today, soonDays);
   let soon = -1;
+  let soonStart = "";
   occasions.forEach((o, i) => {
     if (!o.start || !o.end || o.start > o.end || o.start <= today || o.start > horizon) return;
-    if (soon < 0 || o.start < occasions[soon]!.start!) soon = i;
+    if (soon < 0 || o.start < soonStart) {
+      soon = i;
+      soonStart = o.start;
+    }
   });
   if (soon >= 0) return { index: soon, state: "soon" };
   const first = occasions.findIndex((o) => o.hasProducts);
