@@ -11,7 +11,9 @@
     "menu": "Menu",
     "cart": "Cart",
     "search": "Search",
-    "searchPlaceholder": "Search…"
+    "searchPlaceholder": "Search flowers, perfumes, watches…",
+    "track": "Track order",
+    "giftBuilder": "Design your gift"
   },
   "home": {
     "tagline": "Gifts made to be remembered",
@@ -34,7 +36,11 @@
     "trustWrap": "Wrapping worthy of your gift",
     "trustWrapText": "Three styles and a gift card",
     "trustPhoto": "A photo before delivery",
-    "trustPhotoText": "Approve your gift before it arrives"
+    "trustPhotoText": "Approve your gift before it arrives",
+    "occasionTile": "Shop by occasion",
+    "giftTile": "Design your gift",
+    "giftTileTitle": "Wrapping & gift card",
+    "giftTileText": "Three styles"
   },
   "category": {
     "products": "{count, plural, =0 {No products} one {1 product} other {# products}}",
@@ -231,5 +237,14 @@
     "phone": "Phone number",
     "submit": "Show my order",
     "searching": "Searching…"
+  },
+  "gift": {
+    "title": "Design your gift",
+    "intro": "Pick your gifts, then at checkout choose a wrapping style and write your card — we'll send you a photo of the gift to approve before delivery.",
+    "step1": "Add the gifts you want to your cart.",
+    "step2": "At checkout, choose a wrapping style and write your card (up to 150 characters).",
+    "step3": "We prepare your gift and post its photo on your order page for your approval before delivery.",
+    "styles": "Wrapping styles",
+    "cta": "Start shopping"
   }
 }

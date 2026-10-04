@@ -22,25 +22,22 @@ export function SearchBox({
       action={locale === "en" ? "/en/search" : "/search"}
       method="get"
       role="search"
-      className={`flex min-w-0 items-center gap-1 rounded-full border border-line bg-background ps-4 pe-1 focus-within:border-forest focus-within:bg-card ${className}`}
+      className={`flex h-11 min-w-0 items-center gap-2 rounded-[10px] border border-input bg-background ps-3.5 pe-1 focus-within:border-forest focus-within:bg-card ${className}`}
     >
       <label htmlFor={id} className="sr-only">
         {label}
       </label>
+      <Search aria-hidden className="size-[18px] shrink-0 text-muted-foreground" strokeWidth={1.8} />
       <input
         id={id}
         name="q"
         type="search"
         maxLength={80}
         placeholder={placeholder}
-        className="min-h-11 w-full min-w-0 appearance-none bg-transparent p-0 text-sm outline-none placeholder:text-muted-foreground [&::-webkit-search-cancel-button]:appearance-none [&::-webkit-search-decoration]:appearance-none"
+        className="h-full w-full min-w-0 appearance-none bg-transparent p-0 text-sm outline-none placeholder:text-muted-foreground [&::-webkit-search-cancel-button]:appearance-none [&::-webkit-search-decoration]:appearance-none"
       />
-      <button
-        type="submit"
-        aria-label={label}
-        className="flex size-10 shrink-0 items-center justify-center rounded-full text-forest hover:bg-muted"
-      >
-        <Search aria-hidden className="size-5" />
+      <button type="submit" className="sr-only">
+        {label}
       </button>
     </form>
   );

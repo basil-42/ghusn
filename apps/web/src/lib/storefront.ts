@@ -69,6 +69,8 @@ export interface StoreProductCard {
   /** أقل سعر بين المتغيّرات المتاحة (بالجنيه، عدد صحيح كنص). */
   priceSdg: string;
   hasOptions: boolean;
+  /** المتغيّر الوحيد (أو الأرخص) — زر «+» في البطاقة يضيفه مباشرة إن لم تكن هناك خيارات. */
+  defaultVariantId: string;
   imageUrl: string | null;
   createdAt: Date;
 }
@@ -99,12 +101,13 @@ export async function listStoreProducts(
       createdAt: true,
       category: { select: { nameAr: true, nameEn: true } },
       images: { orderBy: { sortOrder: "asc" }, take: 1, select: { key: true } },
-      variants: { where: sellable, select: { priceSdg: true } },
+      variants: { where: sellable, select: { id: true, priceSdg: true } },
     },
   });
   const cards = products.map((p) => {
-    const prices = p.variants.map((v) => dec(v.priceSdg?.toString() ?? "0"));
-    const min = prices.reduce((a, b) => (b.lt(a) ? b : a));
+    const priced = p.variants.map((v) => ({ id: v.id, price: dec(v.priceSdg?.toString() ?? "0") }));
+    const cheapest = priced.reduce((a, b) => (b.price.lt(a.price) ? b : a));
+    const min = cheapest.price;
     const image = p.images[0];
     return {
       id: p.id,
@@ -112,6 +115,7 @@ export async function listStoreProducts(
       category: locale === "en" ? p.category.nameEn : p.category.nameAr,
       priceSdg: min.toFixed(0),
       hasOptions: p.variants.length > 1,
+      defaultVariantId: cheapest.id,
       imageUrl: image ? imageUrl(image.key, "thumb") : null,
       createdAt: p.createdAt,
     };

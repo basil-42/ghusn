@@ -56,7 +56,7 @@ export async function ProductListing({
         ) : null}
       </header>
       {products.length ? (
-        <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
+        <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
           {products.map((p) => (
             <li key={p.id} className="flex">
               <ProductCard product={p} />
