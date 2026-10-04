@@ -27,7 +27,7 @@ export async function StoreHeader() {
   const logo = LOGO[locale];
   return (
     <header className="border-b border-line bg-card">
-      <div className="mx-auto max-w-6xl px-4">
+      <div className="mx-auto max-w-[1240px] px-4 md:px-6">
         <div className="flex flex-wrap items-center gap-x-4 gap-y-2 py-3 md:h-[68px] md:flex-nowrap md:py-0">
           <Link href="/" aria-label={t("home")} className="shrink-0">
             <Image src={logo.src} alt={locale === "ar" ? "غصن" : "GHUSN"} width={logo.width} height={36} priority />
@@ -53,7 +53,10 @@ export async function StoreHeader() {
             <CartLink />
           </div>
         </div>
-        <nav aria-label={t("categories")} className="-mx-4 overflow-x-auto px-4 [scrollbar-width:none]">
+        <nav
+          aria-label={t("categories")}
+          className="-mx-4 overflow-x-auto px-4 md:-mx-6 md:px-6 [scrollbar-width:none]"
+        >
           <ul className="flex h-11 items-center gap-1 text-sm font-medium">
             {categories.map((c) => (
               <li key={c.slug} className="shrink-0">

@@ -31,7 +31,7 @@ export async function ProductListing({
 }) {
   const t = await getTranslations("category");
   return (
-    <div className="mx-auto flex max-w-6xl flex-col gap-6 px-4 py-10">
+    <div className="mx-auto flex max-w-[1240px] flex-col gap-6 px-4 md:px-6 py-10">
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div className="flex flex-col gap-1">
           <h1 className="font-display text-4xl font-bold">{title}</h1>
@@ -56,7 +56,7 @@ export async function ProductListing({
         ) : null}
       </header>
       {products.length ? (
-        <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4 xl:grid-cols-5">
+        <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:gap-3.5 lg:grid-cols-4 xl:grid-cols-5">
           {products.map((p) => (
             <li key={p.id} className="flex">
               <ProductCard product={p} />
