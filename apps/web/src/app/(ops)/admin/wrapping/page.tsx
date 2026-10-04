@@ -46,6 +46,7 @@ export default async function WrappingPage() {
                 descriptionEn: w.descriptionEn,
                 priceSdg: w.priceSdg,
                 isActive: w.isActive,
+                imageUrl: w.imageUrl,
                 materials: w.materials.map((m) => ({ variantId: m.variantId, qty: m.qty })),
               }}
               materialOptions={materialOptions}

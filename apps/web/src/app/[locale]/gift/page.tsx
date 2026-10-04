@@ -1,5 +1,6 @@
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import type { Metadata } from "next";
+import Image from "next/image";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { Price } from "@/components/store/price";
 import { Link } from "@/i18n/navigation";
@@ -44,11 +45,25 @@ export default async function GiftPage({ params }: { params: Promise<{ locale: s
           <h2 className="text-[22px] font-bold">{t("styles")}</h2>
           <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {styles.map((w) => (
-              <li key={w.id} className="flex flex-col gap-1 rounded-xl border border-line bg-card p-5">
-                <b className="font-display text-2xl">{w.name}</b>
-                {w.description ? <span className="text-sm text-muted-foreground">{w.description}</span> : null}
-                <span className="mt-2 font-bold">
-                  <Price value={w.priceSdg} locale={locale} />
+              <li key={w.id} className="flex flex-col overflow-hidden rounded-xl border border-line bg-card">
+                {w.imageUrl ? (
+                  <span className="relative aspect-[4/3] bg-muted">
+                    <Image
+                      src={w.imageUrl}
+                      alt=""
+                      fill
+                      sizes="(min-width: 1024px) 400px, 100vw"
+                      className="object-cover"
+                      unoptimized
+                    />
+                  </span>
+                ) : null}
+                <span className="flex flex-col gap-1 p-5">
+                  <b className="font-display text-2xl">{w.name}</b>
+                  {w.description ? <span className="text-sm text-muted-foreground">{w.description}</span> : null}
+                  <span className="mt-2 font-bold">
+                    <Price value={w.priceSdg} locale={locale} />
+                  </span>
                 </span>
               </li>
             ))}

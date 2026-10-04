@@ -1076,6 +1076,8 @@ model WrapStyle {
   descriptionAr String?
   descriptionEn String?
   priceSdg      Decimal             @default(0) @db.Decimal(18, 2)
+  /// صورة النمط في صفحة إتمام الطلب وصفحة «صمّم هديتك» (مفتاح التخزين، D-98)
+  imageKey      String?
   isActive      Boolean             @default(false)
   sortOrder     Int                 @default(0)
   createdAt     DateTime            @default(now())

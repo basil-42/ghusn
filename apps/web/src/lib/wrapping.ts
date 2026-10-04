@@ -1,5 +1,6 @@
 import { dec } from "@ghusn/core";
 import { prisma } from "@ghusn/db";
+import { ImageError, imageUrl, savePublicImage } from "./product-images";
 
 /**
  * أنماط التغليف (D-91): «غصن» و«ورقة» و«شجرة». لكل نمط سعر خدمة بالجنيه ووصفة مواد تغليف
@@ -15,6 +16,7 @@ export interface StoreWrapStyle {
   name: string;
   description: string | null;
   priceSdg: string;
+  imageUrl: string | null;
 }
 
 export async function listStoreWrapStyles(locale: string): Promise<StoreWrapStyle[]> {
@@ -28,6 +30,7 @@ export async function listStoreWrapStyles(locale: string): Promise<StoreWrapStyl
     name: locale === "en" ? w.nameEn : w.nameAr,
     description: locale === "en" ? (w.descriptionEn ?? w.descriptionAr) : (w.descriptionAr ?? w.descriptionEn),
     priceSdg: w.priceSdg.toFixed(0),
+    imageUrl: w.imageKey ? imageUrl(w.imageKey, "thumb") : null,
   }));
 }
 
@@ -64,6 +67,7 @@ export async function listWrapStylesForAdmin() {
     descriptionEn: w.descriptionEn ?? "",
     priceSdg: w.priceSdg.toFixed(0),
     isActive: w.isActive,
+    imageUrl: w.imageKey ? imageUrl(w.imageKey, "thumb") : null,
     materials: w.materials.map((m) => ({
       variantId: m.variantId,
       name: [m.variant.product.nameAr, m.variant.size, m.variant.color].filter(Boolean).join(" · "),
@@ -99,6 +103,8 @@ export interface WrapStyleInput {
   priceSdg: string;
   isActive: boolean;
   materials: { variantId: string; qty: string }[];
+  image?: File | null;
+  removeImage?: boolean;
 }
 
 export async function saveWrapStyle(input: WrapStyleInput): Promise<void> {
@@ -117,10 +123,23 @@ export async function saveWrapStyle(input: WrapStyleInput): Promise<void> {
     });
     if (ok !== seen.size) throw new WrapError("اختاري مواد تغليف فقط.");
   }
+  // الصورة تُحفظ قبل المعاملة (ملف) — المفتاح من المحتوى، فإعادة المحاولة لا تكرّرها
+  let imageKey: string | null | undefined;
+  if (input.image && input.image.size > 0) {
+    try {
+      imageKey = await savePublicImage(input.image, "wraps");
+    } catch (e) {
+      if (e instanceof ImageError) throw new WrapError(e.message);
+      throw e;
+    }
+  } else if (input.removeImage) {
+    imageKey = null;
+  }
   await prisma.$transaction([
     prisma.wrapStyle.update({
       where: { id: input.id },
       data: {
+        ...(imageKey !== undefined ? { imageKey } : {}),
         nameAr: input.nameAr,
         nameEn: input.nameEn,
         descriptionAr: input.descriptionAr,
