@@ -13,11 +13,11 @@ export function CartLink() {
     <Link
       href="/cart"
       aria-label={count ? `${t("cart")} (${count})` : t("cart")}
-      className="relative flex size-11 items-center justify-center rounded-full border border-line hover:bg-muted"
+      className="relative flex min-h-11 min-w-11 items-center justify-center gap-1.5 rounded-lg px-2 hover:bg-muted"
     >
-      <ShoppingBag aria-hidden className="size-5" />
+      <ShoppingBag aria-hidden className="size-5" strokeWidth={1.8} />
       {count ? (
-        <span className="absolute -end-1 -top-1 flex min-w-5 items-center justify-center rounded-full bg-gold px-1 text-xs font-bold text-forest tabular-nums">
+        <span className="flex h-[18px] min-w-[18px] items-center justify-center rounded-full bg-gold px-1 text-[11px] font-bold text-card tabular-nums">
           {count}
         </span>
       ) : null}

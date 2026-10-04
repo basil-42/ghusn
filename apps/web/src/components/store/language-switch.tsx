@@ -15,7 +15,7 @@ export function LanguageSwitch() {
       href={{ pathname, query }}
       locale={locale === "ar" ? "en" : "ar"}
       aria-label={t("switchLanguage")}
-      className="flex size-11 items-center justify-center rounded-full border border-line font-semibold hover:bg-muted"
+      className="flex min-h-11 min-w-11 items-center justify-center rounded-lg px-2 text-sm font-semibold hover:bg-muted"
     >
       {t("switchLanguageShort")}
     </Link>
