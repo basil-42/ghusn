@@ -8,6 +8,8 @@ import { saveOccasionAction, type FormState } from "./actions";
 import { ImageInput } from "@/components/image-input";
 
 const field = "flex min-w-0 flex-col gap-1";
+const fileClass =
+  "text-sm file:me-3 file:min-h-11 file:rounded-xl file:border-0 file:bg-muted file:px-4 file:font-semibold";
 
 export interface OccasionFormValue {
   id: string | null;
@@ -21,6 +23,7 @@ export interface OccasionFormValue {
   bannerStart: string;
   bannerEnd: string;
   imageUrl: string | null;
+  coverUrl: string | null;
 }
 
 /** مناسبة: الاسم والوصف، الرابط، الصورة، الترتيب، التفعيل، وفترة بانر الموسم. */
@@ -65,25 +68,45 @@ export function OccasionForm({ initial }: { initial: OccasionFormValue }) {
           <span className="text-sm font-semibold">إلى</span>
           <Input type="date" name="bannerEnd" defaultValue={initial.bannerEnd} dir="ltr" />
         </label>
-        <label className={`${field} sm:col-span-2`}>
-          <span className="text-sm font-semibold">الصورة (اختياري)</span>
-          <ImageInput
-            name="image"
-            accept="image/jpeg,image/png,image/webp"
-            className="text-sm file:me-3 file:min-h-11 file:rounded-xl file:border-0 file:bg-muted file:px-4 file:font-semibold"
-          />
-          {initial.imageUrl ? (
-            <span className="flex items-center gap-3">
-              {/* eslint-disable-next-line @next/next/no-img-element -- معاينة صغيرة */}
-              <img src={initial.imageUrl} alt="" className="h-16 w-24 rounded-lg object-cover" />
-              <span className="flex items-center gap-2 text-sm">
-                <input type="checkbox" name="removeImage" className="size-5 accent-forest" /> حذف الصورة
-              </span>
-            </span>
-          ) : (
-            <span className="text-xs text-muted-foreground">بلا صورة تُستخدم صورة أول منتج في المناسبة.</span>
-          )}
-        </label>
+        <div className={`${field} sm:col-span-2`}>
+          <span className="text-sm font-semibold">الأيقونة (دائرية، اختيارية)</span>
+          <span className="flex flex-wrap items-center gap-3">
+            <ImageInput
+              name="image"
+              accept="image/jpeg,image/png,image/webp"
+              preview={{ shape: "circle", current: initial.imageUrl }}
+              className={fileClass}
+            />
+            {initial.imageUrl ? (
+              <label className="flex items-center gap-2 text-sm">
+                <input type="checkbox" name="removeImage" className="size-5 accent-forest" /> حذفها
+              </label>
+            ) : null}
+          </span>
+          <span className="text-xs text-muted-foreground">
+            صورة مربعة 600×600، الهدية في الوسط وبلا كتابة. تظهر في «تسوّق حسب المناسبة». بدونها تُستخدم صورة أول منتج.
+          </span>
+        </div>
+        <div className={`${field} sm:col-span-2`}>
+          <span className="text-sm font-semibold">الغلاف (عريض، اختياري)</span>
+          <span className="flex flex-wrap items-center gap-3">
+            <ImageInput
+              name="cover"
+              accept="image/jpeg,image/png,image/webp"
+              preview={{ shape: "wide", current: initial.coverUrl }}
+              className={fileClass}
+            />
+            {initial.coverUrl ? (
+              <label className="flex items-center gap-2 text-sm">
+                <input type="checkbox" name="removeCover" className="size-5 accent-forest" /> حذفه
+              </label>
+            ) : null}
+          </span>
+          <span className="text-xs text-muted-foreground">
+            1200×600، اتركي جهة النص (اليمين) هادئة. يظهر في بطاقة «هدايا الموسم» بالرئيسية وأعلى صفحة المناسبة. بدونه
+            تظهر البطاقة بلون الهوية.
+          </span>
+        </div>
         <label className="flex min-h-11 items-center gap-2">
           <input type="checkbox" name="isActive" defaultChecked={initial.isActive} className="size-5 accent-forest" />
           <span className="font-semibold">تظهر في المتجر</span>

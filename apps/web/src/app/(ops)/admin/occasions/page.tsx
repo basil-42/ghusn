@@ -37,7 +37,13 @@ export default async function OccasionsPage() {
               </CardTitle>
               <CardDescription>{o.products} منتج</CardDescription>
             </CardHeader>
-            <OccasionForm initial={{ ...o, imageUrl: o.imageKey ? imageUrl(o.imageKey, "thumb") : null }} />
+            <OccasionForm
+              initial={{
+                ...o,
+                imageUrl: o.imageKey ? imageUrl(o.imageKey, "thumb") : null,
+                coverUrl: o.coverKey ? imageUrl(o.coverKey, "thumb") : null,
+              }}
+            />
           </Card>
         ))}
         <Card>
@@ -57,6 +63,7 @@ export default async function OccasionsPage() {
               bannerStart: "",
               bannerEnd: "",
               imageUrl: null,
+              coverUrl: null,
             }}
           />
         </Card>

@@ -1128,7 +1128,10 @@ model Occasion {
   nameEn        String
   descriptionAr String?
   descriptionEn String?
+  /// الأيقونة: صورة مربعة لدوائر «تسوّق حسب المناسبة»
   imageKey      String?
+  /// الغلاف: صورة عريضة 2:1 لبطاقة الموسم وأعلى صفحة المناسبة (D-102)
+  coverKey      String?
   isActive      Boolean           @default(true)
   sortOrder     Int               @default(0)
   // بانر الرئيسية: من بداية يوم البداية حتى نهاية يوم النهاية (بتوقيت الخرطوم)

@@ -1,4 +1,12 @@
-import { dec, isBannerDay, normalizeArabic, searchTerms, shopDay } from "@ghusn/core";
+import {
+  dec,
+  isBannerDay,
+  normalizeArabic,
+  pickSeasonTile,
+  searchTerms,
+  shopDay,
+  type SeasonTileState,
+} from "@ghusn/core";
 import { prisma, type Prisma } from "@ghusn/db";
 import type { Locale } from "@/i18n/routing";
 import { availableVariantIds } from "./orders";
@@ -199,9 +207,9 @@ export interface StoreOccasion {
   slug: string;
   name: string;
   description: string | null;
-  /** صورة صغيرة (دوائر المناسبات). */
+  /** الأيقونة المربعة (دوائر المناسبات)، أو صورة أول منتج. */
   imageUrl: string | null;
-  /** الصورة الكبيرة (بطاقة المناسبة في الرئيسية). */
+  /** الغلاف العريض 2:1 (بطاقة الموسم، أعلى صفحة المناسبة) — بلا بديل (D-102). */
   coverUrl: string | null;
 }
 
@@ -224,13 +232,13 @@ export async function listStoreOccasions(locale: Locale): Promise<StoreOccasion[
   return rows
     .filter((o) => o.products.length > 0)
     .map((o) => {
-      const cover = o.imageKey ?? o.products[0]?.product.images[0]?.key ?? null;
+      const icon = o.imageKey ?? o.products[0]?.product.images[0]?.key ?? null;
       return {
         slug: o.slug,
         name: locale === "en" ? o.nameEn : o.nameAr,
         description: locale === "en" ? (o.descriptionEn ?? o.descriptionAr) : (o.descriptionAr ?? o.descriptionEn),
-        imageUrl: cover ? imageUrl(cover, "thumb") : null,
-        coverUrl: cover ? imageUrl(cover, "full") : null,
+        imageUrl: icon ? imageUrl(icon, "thumb") : null,
+        coverUrl: o.coverKey ? imageUrl(o.coverKey, "full") : null,
       };
     });
 }
@@ -243,7 +251,7 @@ export async function getStoreOccasion(locale: Locale, slug: string): Promise<St
     name: locale === "en" ? o.nameEn : o.nameAr,
     description: locale === "en" ? (o.descriptionEn ?? o.descriptionAr) : (o.descriptionAr ?? o.descriptionEn),
     imageUrl: o.imageKey ? imageUrl(o.imageKey, "full") : null,
-    coverUrl: o.imageKey ? imageUrl(o.imageKey, "full") : null,
+    coverUrl: o.coverKey ? imageUrl(o.coverKey, "full") : null,
   };
 }
 
@@ -263,7 +271,55 @@ export async function getSeasonBanner(locale: Locale, now = new Date()): Promise
     name: locale === "en" ? o.nameEn : o.nameAr,
     description: locale === "en" ? (o.descriptionEn ?? o.descriptionAr) : (o.descriptionAr ?? o.descriptionEn),
     imageUrl: o.imageKey ? imageUrl(o.imageKey, "full") : null,
-    coverUrl: o.imageKey ? imageUrl(o.imageKey, "full") : null,
+    coverUrl: o.coverKey ? imageUrl(o.coverKey, "full") : null,
+  };
+}
+
+export interface SeasonTile {
+  state: SeasonTileState;
+  slug: string;
+  name: string;
+  coverUrl: string | null;
+  /** أيام المحل (YYYY-MM-DD) — للشارة «حتى …» أو «من …». */
+  start: string | null;
+  end: string | null;
+  /** عدد الهدايا المتاحة وأقل سعر — للسطر تحت الاسم (0 = لا يظهر). */
+  count: number;
+  minPriceSdg: string | null;
+}
+
+/**
+ * بطاقة «هدايا الموسم» في الرئيسية (D-102): موسم فعّال ← أو يبدأ خلال 14 يوماً («قريباً») ← أو أول
+ * مناسبة فيها منتجات. ثابتة بلا تبديل.
+ */
+export async function getSeasonTile(locale: Locale, now = new Date()): Promise<SeasonTile | null> {
+  const sellable = await sellableVariant();
+  const rows = await prisma.occasion.findMany({
+    where: { isActive: true },
+    orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
+    include: {
+      _count: { select: { products: { where: { product: { ...visibleProduct, variants: { some: sellable } } } } } },
+    },
+  });
+  const days = rows.map((o) => ({
+    start: o.bannerStart ? shopDay(o.bannerStart) : null,
+    end: o.bannerEnd ? shopDay(o.bannerEnd) : null,
+    hasProducts: o._count.products > 0,
+  }));
+  const pick = pickSeasonTile(shopDay(now), days);
+  if (!pick) return null;
+  const o = rows[pick.index]!;
+  const products = o._count.products ? await listStoreProducts(locale, { occasionSlug: o.slug }) : [];
+  const min = products.reduce<string | null>((m, p) => (m === null || dec(p.priceSdg).lt(m) ? p.priceSdg : m), null);
+  return {
+    state: pick.state,
+    slug: o.slug,
+    name: locale === "en" ? o.nameEn : o.nameAr,
+    coverUrl: o.coverKey ? imageUrl(o.coverKey, "medium") : null,
+    start: days[pick.index]!.start,
+    end: days[pick.index]!.end,
+    count: products.length,
+    minPriceSdg: min,
   };
 }
 

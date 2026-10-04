@@ -3,7 +3,10 @@ import { Badge } from "@/components/ui/badge";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { requirePermission } from "@/lib/auth/session";
 import { formatAmount } from "@/lib/format";
+import { imageUrl } from "@/lib/product-images";
+import { getStoreSettings } from "@/lib/settings";
 import { listMaterialOptions, listWrapStylesForAdmin } from "@/lib/wrapping";
+import { GiftTileForm } from "./gift-tile-form";
 import { WrapStyleForm } from "./wrap-style-form";
 
 export const metadata: Metadata = { title: "التغليف | غصن" };
@@ -11,7 +14,11 @@ export const metadata: Metadata = { title: "التغليف | غصن" };
 /** أنماط التغليف في «صمّم هديتك» (D-91): السعر، والتفعيل، ووصفة المواد. */
 export default async function WrappingPage() {
   await requirePermission({ settings: ["update"] });
-  const [styles, materialOptions] = await Promise.all([listWrapStylesForAdmin(), listMaterialOptions()]);
+  const [styles, materialOptions, store] = await Promise.all([
+    listWrapStylesForAdmin(),
+    listMaterialOptions(),
+    getStoreSettings(),
+  ]);
 
   return (
     <div className="flex flex-col gap-6">
@@ -22,6 +29,13 @@ export default async function WrappingPage() {
           الطلب.
         </p>
       </header>
+      <Card>
+        <CardHeader>
+          <CardTitle>صورة بطاقة «صمّم هديتك» في الرئيسية</CardTitle>
+          <CardDescription>تظهر بجانب البانرات وتفتح صفحة «صمّم هديتك».</CardDescription>
+        </CardHeader>
+        <GiftTileForm imageUrl={store.giftTileImageKey ? imageUrl(store.giftTileImageKey, "thumb") : null} />
+      </Card>
       <div className="grid gap-4 xl:grid-cols-2">
         {styles.map((w) => (
           <Card key={w.id}>

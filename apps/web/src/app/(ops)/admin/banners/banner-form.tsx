@@ -49,25 +49,28 @@ export function BannerForm({ initial, links }: { initial: AdminBanner | null; li
       <div className="grid gap-3 sm:grid-cols-2">
         <div className={field}>
           <span className={label}>صورة الكمبيوتر{initial ? "" : " *"}</span>
-          {initial ? (
-            // eslint-disable-next-line @next/next/no-img-element -- معاينة صغيرة
-            <img src={initial.imageUrl} alt="" className="h-20 w-36 rounded-lg object-cover" />
-          ) : null}
-          <ImageInput name="image" required={!initial} accept="image/jpeg,image/png,image/webp" className={fileClass} />
+          <ImageInput
+            name="image"
+            required={!initial}
+            accept="image/jpeg,image/png,image/webp"
+            preview={{ shape: "wide", current: initial?.imageUrl }}
+            className={fileClass}
+          />
           <span className={hint}>عريضة، 1600×800 أو أكبر. {initial ? "اختاري صورة لاستبدالها." : ""}</span>
         </div>
         <div className={field}>
           <span className={label}>صورة الجوال (اختيارية)</span>
+          <ImageInput
+            name="mobileImage"
+            accept="image/jpeg,image/png,image/webp"
+            preview={{ shape: "tall", current: initial?.mobileImageUrl }}
+            className={fileClass}
+          />
           {initial?.mobileImageUrl ? (
-            <span className="flex items-center gap-3">
-              {/* eslint-disable-next-line @next/next/no-img-element -- معاينة صغيرة */}
-              <img src={initial.mobileImageUrl} alt="" className="h-20 w-16 rounded-lg object-cover" />
-              <span className="flex items-center gap-2 text-sm">
-                <input type="checkbox" name="removeMobileImage" className="size-5 accent-forest" /> حذفها
-              </span>
-            </span>
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" name="removeMobileImage" className="size-5 accent-forest" /> حذفها
+            </label>
           ) : null}
-          <ImageInput name="mobileImage" accept="image/jpeg,image/png,image/webp" className={fileClass} />
           <span className={hint}>طولية 800×1000. بدونها تُستخدم صورة الكمبيوتر.</span>
         </div>
 

@@ -1,12 +1,24 @@
+import { dec } from "@ghusn/core";
 import { ArrowLeft, ArrowRight, Gift, Truck, Wallet } from "lucide-react";
+import type { ReactNode } from "react";
 import Image from "next/image";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { HeroCarousel } from "@/components/store/hero-carousel";
+import { Price } from "@/components/store/price";
 import { ProductCard } from "@/components/store/product-card";
 import { Link } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
 import { listStoreBanners } from "@/lib/banners";
-import { getSeasonBanner, listStoreCategories, listStoreOccasions, listStoreProducts } from "@/lib/storefront";
+import { imageUrl } from "@/lib/product-images";
+import { getStoreSettings } from "@/lib/settings";
+import { listStoreWrapStyles } from "@/lib/wrapping";
+import {
+  getSeasonBanner,
+  getSeasonTile,
+  listStoreCategories,
+  listStoreOccasions,
+  listStoreProducts,
+} from "@/lib/storefront";
 
 export const dynamic = "force-dynamic";
 
@@ -20,15 +32,25 @@ export default async function StoreHome({ params }: { params: Promise<{ locale: 
   const locale = (await params).locale as Locale;
   setRequestLocale(locale);
   const t = await getTranslations("home");
-  const [categories, latest, occasions, season, banners] = await Promise.all([
+  const [categories, latest, occasions, season, banners, tile, wraps, store] = await Promise.all([
     listStoreCategories(locale),
     listStoreProducts(locale, { take: 10 }),
     listStoreOccasions(locale),
     getSeasonBanner(locale),
     listStoreBanners(locale),
+    getSeasonTile(locale),
+    listStoreWrapStyles(locale),
+    getStoreSettings(),
   ]);
-  // بطاقة المناسبة: مناسبة الموسم إن كانت مفعّلة، وإلا أول مناسبة فيها منتجات
+  // صف منتجات المناسبة أسفل الصفحة: الموسم الفعّال، وإلا أول مناسبة فيها منتجات
   const featured = season ?? occasions[0] ?? null;
+  const dayLabel = (day: string) =>
+    new Intl.DateTimeFormat(locale === "ar" ? "ar-u-nu-latn" : "en-GB", {
+      day: "numeric",
+      month: "long",
+      timeZone: "UTC",
+    }).format(new Date(`${day}T00:00:00Z`));
+  const wrapMin = wraps.reduce<string | null>((m, w) => (m === null || dec(w.priceSdg).lt(m) ? w.priceSdg : m), null);
   const featuredProducts = featured ? await listStoreProducts(locale, { occasionSlug: featured.slug, take: 5 }) : [];
   const Arrow = locale === "ar" ? ArrowLeft : ArrowRight;
   const trust = [
@@ -73,46 +95,51 @@ export default async function StoreHome({ params }: { params: Promise<{ locale: 
             />
           </div>
         )}
-        <div className="grid grid-cols-2 gap-4 lg:grid-cols-1 lg:grid-rows-2">
-          {featured ? (
-            <Link
-              href={`/occasion/${featured.slug}`}
-              className={`relative isolate flex min-h-32 flex-col justify-end gap-0.5 overflow-hidden rounded-[14px] p-5 ${featured.coverUrl ? "bg-forest text-ivory" : "bg-sand text-forest"}`}
-            >
-              {featured.coverUrl ? (
-                <>
-                  <Image
-                    src={featured.coverUrl}
-                    alt=""
-                    fill
-                    sizes="(min-width: 1024px) 400px, 50vw"
-                    className="-z-20 object-cover"
-                    unoptimized
-                  />
-                  {/* الصورة كاملة وتدرج من الأسفل للنص (D-101) */}
-                  <span
-                    aria-hidden
-                    className="absolute inset-0 -z-10 bg-linear-to-t from-forest/85 to-forest/10 to-70%"
-                  />
-                </>
-              ) : null}
-              <span className="relative text-[13px]">{season ? t("season") : t("occasionTile")}</span>
-              <b className="relative font-display text-lg">{featured.name}</b>
-              <span className="relative flex items-center gap-1 text-[13px]">
-                {t("shopSeason")} <Arrow aria-hidden className="size-3.5" />
-              </span>
-            </Link>
+        <div className="grid gap-4 sm:grid-cols-2 lg:grid-cols-1 lg:grid-rows-2">
+          {tile ? (
+            <PhotoTile
+              href={`/occasion/${tile.slug}`}
+              image={tile.coverUrl}
+              eyebrow={
+                tile.state === "live" ? t("season") : tile.state === "soon" ? t("seasonSoon") : t("occasionTile")
+              }
+              title={tile.name}
+              badge={
+                tile.state === "live" && tile.end
+                  ? t("seasonUntil", { date: dayLabel(tile.end) })
+                  : tile.state === "soon" && tile.start
+                    ? t("seasonFrom", { date: dayLabel(tile.start) })
+                    : null
+              }
+              meta={
+                tile.count && tile.minPriceSdg ? (
+                  <>
+                    {t("giftsCount", { count: tile.count })} · {t("fromPrice")}{" "}
+                    <Price value={tile.minPriceSdg} locale={locale} />
+                  </>
+                ) : null
+              }
+              cta={tile.state === "soon" ? t("seasonSoonCta") : t("shopSeason")}
+              Arrow={Arrow}
+            />
           ) : null}
-          <Link
+          <PhotoTile
             href="/gift"
-            className={`flex min-h-32 flex-col justify-end gap-0.5 rounded-[14px] border border-line bg-card p-5 ${featured ? "" : "col-span-2 lg:col-span-1"}`}
-          >
-            <span className="text-[13px] text-muted-foreground">{t("giftTile")}</span>
-            <b className="font-display text-lg">{t("giftTileTitle")}</b>
-            <span className="flex items-center gap-1 text-[13px]">
-              {t("giftTileText")} <Arrow aria-hidden className="size-3.5" />
-            </span>
-          </Link>
+            image={store.giftTileImageKey ? imageUrl(store.giftTileImageKey, "medium") : null}
+            eyebrow={t("giftTile")}
+            title={t("giftTileTitle")}
+            meta={
+              wraps.length && wrapMin ? (
+                <>
+                  {t("wrapStylesCount", { count: wraps.length })} {t("fromPrice")}{" "}
+                  <Price value={wrapMin} locale={locale} />
+                </>
+              ) : null
+            }
+            cta={t("giftTile")}
+            Arrow={Arrow}
+            wide={!tile}
+          />
         </div>
       </section>
 
@@ -240,5 +267,72 @@ function CircleRow({
         ))}
       </ul>
     </section>
+  );
+}
+
+/**
+ * بطاقة جانبية بجانب البانرات (D-102): صورة عريضة 2:1 كاملة وتدرج من جهة النص؛ بلا صورة بطاقة بيضاء
+ * بالنص. ثابتة بلا تبديل.
+ */
+function PhotoTile({
+  href,
+  image,
+  eyebrow,
+  title,
+  badge = null,
+  meta,
+  cta,
+  Arrow,
+  wide = false,
+}: {
+  href: string;
+  image: string | null;
+  eyebrow: string;
+  title: string;
+  badge?: string | null;
+  meta: ReactNode;
+  cta: string;
+  Arrow: typeof ArrowLeft;
+  wide?: boolean;
+}) {
+  return (
+    <Link
+      href={href}
+      className={`relative isolate flex aspect-[2/1] flex-col justify-end gap-0.5 overflow-hidden rounded-[14px] p-5 lg:aspect-auto lg:min-h-[172px] ${
+        image ? "bg-forest text-ivory" : "border border-line bg-card"
+      } ${wide ? "sm:col-span-2 lg:col-span-1" : ""}`}
+    >
+      {image ? (
+        <>
+          <Image
+            src={image}
+            alt=""
+            fill
+            sizes="(min-width: 1024px) 400px, 100vw"
+            className="-z-20 object-cover"
+            unoptimized
+          />
+          <span
+            aria-hidden
+            className="absolute inset-0 -z-10 bg-linear-to-l from-forest/90 via-forest/55 via-45% to-forest/15 ltr:bg-linear-to-r"
+          />
+        </>
+      ) : null}
+      {badge ? (
+        <span
+          className={`absolute start-4 top-3 rounded-full border px-2.5 py-0.5 text-[11px] font-semibold ${
+            image ? "border-ivory/35 bg-ivory/15" : "border-line bg-muted"
+          }`}
+        >
+          {badge}
+        </span>
+      ) : null}
+      <span className={`text-[13px] ${image ? "text-ivory/90" : "text-muted-foreground"}`}>{eyebrow}</span>
+      <b className="font-display text-xl leading-snug">{title}</b>
+      {meta ? <span className={`text-xs ${image ? "text-ivory/85" : "text-muted-foreground"}`}>{meta}</span> : null}
+      <span className="mt-0.5 flex items-center gap-1 text-[13px] font-semibold">
+        {cta} <Arrow aria-hidden className="size-3.5" />
+      </span>
+    </Link>
   );
 }
