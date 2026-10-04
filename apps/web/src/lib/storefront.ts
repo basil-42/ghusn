@@ -1,6 +1,7 @@
 import {
   dec,
   isBannerDay,
+  isLowStock,
   normalizeArabic,
   pickSeasonTile,
   searchTerms,
@@ -9,8 +10,9 @@ import {
 } from "@ghusn/core";
 import { prisma, type Prisma } from "@ghusn/db";
 import type { Locale } from "@/i18n/routing";
-import { availableVariantIds } from "./orders";
+import { availableQtyByVariant, availableVariantIds } from "./orders";
 import { imageUrl } from "./product-images";
+import { getStockSettings } from "./settings";
 
 /**
  * بيانات المتجر العام. ما يظهر: منتج بضاعة نشط «ظاهر في المتجر» في قسم نشط، وله متغيّر واحد
@@ -83,6 +85,37 @@ export interface StoreProductCard {
   createdAt: Date;
 }
 
+/** حقول البطاقة من قاعدة البيانات — مشتركة بين القوائم و«قد يعجبك أيضاً». */
+function cardSelect(sellable: Prisma.ProductVariantWhereInput) {
+  return {
+    id: true,
+    nameAr: true,
+    nameEn: true,
+    createdAt: true,
+    category: { select: { nameAr: true, nameEn: true } },
+    images: { orderBy: { sortOrder: "asc" }, take: 1, select: { key: true } },
+    variants: { where: sellable, select: { id: true, priceSdg: true } },
+  } satisfies Prisma.ProductSelect;
+}
+
+type CardRow = Prisma.ProductGetPayload<{ select: ReturnType<typeof cardSelect> }>;
+
+function toCard(locale: Locale, p: CardRow): StoreProductCard {
+  const priced = p.variants.map((v) => ({ id: v.id, price: dec(v.priceSdg?.toString() ?? "0") }));
+  const cheapest = priced.reduce((a, b) => (b.price.lt(a.price) ? b : a));
+  const image = p.images[0];
+  return {
+    id: p.id,
+    name: nameOf(locale, p.nameAr, p.nameEn),
+    category: locale === "en" ? p.category.nameEn : p.category.nameAr,
+    priceSdg: cheapest.price.toFixed(0),
+    hasOptions: p.variants.length > 1,
+    defaultVariantId: cheapest.id,
+    imageUrl: image ? imageUrl(image.key, "thumb") : null,
+    createdAt: p.createdAt,
+  };
+}
+
 export type StoreSort = "newest" | "price-asc" | "price-desc";
 
 export async function listStoreProducts(
@@ -104,32 +137,9 @@ export async function listStoreProducts(
     orderBy: { createdAt: "desc" },
     // بلا ترتيب بالسعر: الترتيب من قاعدة البيانات، فالحد يُطبَّق هناك (الاقتراحات، الصفوف)
     ...(opts.take && !opts.sort ? { take: opts.take } : {}),
-    select: {
-      id: true,
-      nameAr: true,
-      nameEn: true,
-      createdAt: true,
-      category: { select: { nameAr: true, nameEn: true } },
-      images: { orderBy: { sortOrder: "asc" }, take: 1, select: { key: true } },
-      variants: { where: sellable, select: { id: true, priceSdg: true } },
-    },
+    select: cardSelect(sellable),
   });
-  const cards = products.map((p) => {
-    const priced = p.variants.map((v) => ({ id: v.id, price: dec(v.priceSdg?.toString() ?? "0") }));
-    const cheapest = priced.reduce((a, b) => (b.price.lt(a.price) ? b : a));
-    const min = cheapest.price;
-    const image = p.images[0];
-    return {
-      id: p.id,
-      name: nameOf(locale, p.nameAr, p.nameEn),
-      category: locale === "en" ? p.category.nameEn : p.category.nameAr,
-      priceSdg: min.toFixed(0),
-      hasOptions: p.variants.length > 1,
-      defaultVariantId: cheapest.id,
-      imageUrl: image ? imageUrl(image.key, "thumb") : null,
-      createdAt: p.createdAt,
-    };
-  });
+  const cards = products.map((p) => toCard(locale, p));
   if (opts.sort === "price-asc") cards.sort((a, b) => dec(a.priceSdg).comparedTo(b.priceSdg));
   if (opts.sort === "price-desc") cards.sort((a, b) => dec(b.priceSdg).comparedTo(a.priceSdg));
   return opts.take ? cards.slice(0, opts.take) : cards;
@@ -150,6 +160,8 @@ export interface StoreVariant {
   color: string | null;
   volume: string | null;
   priceSdg: string;
+  /** «كمية محدودة»: المتاح عند حد التنبيه أو أقل (D-103). العدد نفسه لا يُرسل. */
+  limited: boolean;
 }
 
 export interface StoreProduct {
@@ -157,6 +169,7 @@ export interface StoreProduct {
   name: string;
   description: string | null;
   category: { slug: string; name: string };
+  occasions: { slug: string; name: string }[];
   images: { full: string; thumb: string; width: number; height: number }[];
   variants: StoreVariant[];
 }
@@ -171,7 +184,13 @@ export async function getStoreProduct(locale: Locale, id: string): Promise<Store
       nameEn: true,
       descriptionAr: true,
       descriptionEn: true,
+      lowStockQty: true,
       category: { select: { slug: true, nameAr: true, nameEn: true } },
+      occasions: {
+        where: { occasion: { isActive: true } },
+        orderBy: { occasion: { sortOrder: "asc" } },
+        select: { occasion: { select: { slug: true, nameAr: true, nameEn: true } } },
+      },
       images: { orderBy: { sortOrder: "asc" }, select: { key: true, width: true, height: true } },
       variants: {
         where: sellable,
@@ -181,11 +200,14 @@ export async function getStoreProduct(locale: Locale, id: string): Promise<Store
     },
   });
   if (!p) return null;
+  const available = await availableQtyByVariant(p.variants.map((v) => v.id));
+  const { lowStockQty } = await getStockSettings();
   return {
     id: p.id,
     name: nameOf(locale, p.nameAr, p.nameEn),
     description: locale === "en" ? (p.descriptionEn ?? p.descriptionAr) : (p.descriptionAr ?? p.descriptionEn),
     category: { slug: p.category.slug, name: locale === "en" ? p.category.nameEn : p.category.nameAr },
+    occasions: p.occasions.map(({ occasion: o }) => ({ slug: o.slug, name: locale === "en" ? o.nameEn : o.nameAr })),
     images: p.images.map((i) => ({
       full: imageUrl(i.key, "full"),
       thumb: imageUrl(i.key, "thumb"),
@@ -199,8 +221,44 @@ export async function getStoreProduct(locale: Locale, id: string): Promise<Store
       color: v.color,
       volume: v.volume,
       priceSdg: dec(v.priceSdg?.toString() ?? "0").toFixed(0),
+      limited: isLowStock(available.get(v.id) ?? 0, p.lowStockQty?.toString() ?? null, lowStockQty),
     })),
   };
+}
+
+/**
+ * «قد يعجبك أيضاً» (D-103): منتجات من نفس القسم (الأحدث)، ثم تكملة من مناسبات المنتج نفسه.
+ */
+export async function listRelatedProducts(
+  locale: Locale,
+  product: Pick<StoreProduct, "id" | "category" | "occasions">,
+  take = 5,
+): Promise<StoreProductCard[]> {
+  const sellable = await sellableVariant();
+  const base = { ...visibleProduct, id: { not: product.id }, variants: { some: sellable } };
+  const sameCategory = await prisma.product.findMany({
+    where: { ...base, category: { isActive: true, slug: product.category.slug } },
+    orderBy: { createdAt: "desc" },
+    take,
+    select: cardSelect(sellable),
+  });
+  const rows = [...sameCategory];
+  const slugs = product.occasions.map((o) => o.slug);
+  if (rows.length < take && slugs.length) {
+    rows.push(
+      ...(await prisma.product.findMany({
+        where: {
+          ...base,
+          id: { notIn: [product.id, ...rows.map((r) => r.id)] },
+          occasions: { some: { occasion: { slug: { in: slugs }, isActive: true } } },
+        },
+        orderBy: { createdAt: "desc" },
+        take: take - rows.length,
+        select: cardSelect(sellable),
+      })),
+    );
+  }
+  return rows.map((r) => toCard(locale, r));
 }
 
 export interface StoreOccasion {
