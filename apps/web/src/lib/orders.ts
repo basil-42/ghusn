@@ -96,6 +96,16 @@ export async function availableVariantIds(): Promise<string[]> {
   return rows.map((r) => r.id);
 }
 
+/** المتاح لكل متغيّر (الرصيد − المحجوز) — للخادم فقط؛ المتجر يعرض «متوفر» و«كمية محدودة» دون العدد. */
+export async function availableQtyByVariant(variantIds: string[]): Promise<Map<string, Decimal>> {
+  if (variantIds.length === 0) return new Map();
+  const [levels, reserved] = await Promise.all([
+    prisma.stockLevel.findMany({ where: { variantId: { in: variantIds } }, select: { variantId: true, qty: true } }),
+    reservedByVariant(prisma, variantIds),
+  ]);
+  return new Map(levels.map((l) => [l.variantId, dec(l.qty.toString()).minus(reserved.get(l.variantId) ?? 0)]));
+}
+
 /** المنتجات الظاهرة في المتجر (نفس شروط lib/storefront). */
 const webVisible = {
   deletedAt: null,

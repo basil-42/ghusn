@@ -1,8 +1,10 @@
 "use client";
 
+import { Minus, Plus } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
 import { useState } from "react";
 import { Link } from "@/i18n/navigation";
+import { formatAmount } from "@/lib/format";
 import { MAX_QTY, addToCart } from "./cart-store";
 import type { StoreVariant } from "@/lib/storefront";
 import { Price } from "./price";
@@ -27,40 +29,57 @@ export function VariantPicker({ variants }: { variants: StoreVariant[] }) {
         ? t("color")
         : t("option");
 
-  const addRow = (withLabel: boolean) => (
-    <>
-      <label className="flex flex-col gap-1">
-        <span className={withLabel ? "text-sm font-semibold" : "sr-only"}>{t("qty")}</span>
-        <select
-          value={qty}
-          onChange={(e) => setQty(Number(e.target.value))}
-          className="min-h-12 rounded-xl border border-input bg-card px-3 tabular-nums"
-        >
-          {Array.from({ length: MAX_QTY }, (_, i) => i + 1).map((n) => (
-            <option key={n} value={n}>
-              {n}
-            </option>
-          ))}
-        </select>
-      </label>
+  const price = <Price value={selected.priceSdg} locale={locale} />;
+  const stepBtn =
+    "flex size-11 items-center justify-center rounded-[10px] text-forest hover:bg-muted disabled:opacity-35 disabled:hover:bg-transparent";
+  // عداد − ١ + بأزرار 44px (D-103)
+  const stepper = (
+    <div
+      role="group"
+      aria-label={t("qty")}
+      className="flex min-h-12 shrink-0 items-center rounded-xl border border-line bg-card px-0.5"
+    >
       <button
         type="button"
-        onClick={() => {
-          addToCart(selected.id, qty);
-          setAdded(true);
-        }}
-        className="flex min-h-12 flex-1 items-center justify-center rounded-xl bg-primary px-6 font-semibold text-primary-foreground hover:bg-primary/90"
+        onClick={() => setQty((q) => Math.max(1, q - 1))}
+        disabled={qty <= 1}
+        aria-label={t("decrease")}
+        className={stepBtn}
       >
-        {t("addToCart")}
+        <Minus aria-hidden className="size-4" />
       </button>
-    </>
+      <output aria-live="polite" className="min-w-7 text-center font-bold tabular-nums">
+        {qty}
+      </output>
+      <button
+        type="button"
+        onClick={() => setQty((q) => Math.min(MAX_QTY, q + 1))}
+        disabled={qty >= MAX_QTY}
+        aria-label={t("increase")}
+        className={stepBtn}
+      >
+        <Plus aria-hidden className="size-4" />
+      </button>
+    </div>
+  );
+  const addButton = (withPrice: boolean) => (
+    <button
+      type="button"
+      onClick={() => {
+        addToCart(selected.id, qty);
+        setAdded(true);
+      }}
+      className="flex min-h-12 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-xl bg-primary px-3 font-semibold whitespace-nowrap text-primary-foreground hover:bg-primary/90"
+    >
+      {t("addToCart")}
+      {/* الجوال: الرقم فقط بجانب النص حتى يبقى الزر سطراً واحداً — العملة ظاهرة في السعر أعلى الصفحة */}
+      {withPrice ? <span className="font-bold tabular-nums">· {formatAmount(selected.priceSdg, 0)}</span> : null}
+    </button>
   );
 
   return (
     <div className="flex flex-col gap-4">
-      <p className="text-2xl font-bold">
-        <Price value={selected.priceSdg} locale={locale} />
-      </p>
+      <p className="text-[26px] font-bold">{price}</p>
       {variants.length > 1 ? (
         <fieldset className="flex flex-col gap-2">
           <legend className="mb-2 font-semibold">
@@ -91,17 +110,24 @@ export function VariantPicker({ variants }: { variants: StoreVariant[] }) {
           </div>
         </fieldset>
       ) : null}
-      <p className="text-sm font-semibold">
-        <span aria-hidden className="text-sage">
-          ●
-        </span>{" "}
-        {t("available")}
+      <p className="flex flex-wrap items-center gap-2 text-sm font-semibold">
+        <span className="flex items-center gap-1.5">
+          <span aria-hidden className="size-2 rounded-full bg-sage" />
+          {t("available")}
+        </span>
+        {selected.limited ? (
+          <span className="rounded-full bg-sand/35 px-2.5 py-0.5 text-xs font-bold text-forest">{t("limited")}</span>
+        ) : null}
       </p>
       {/* الكمية والزر: صف عادي على الشاشات المتوسطة فما فوق، وشريط مثبّت أسفل الشاشة على الجوال فقط.
           عنصران منفصلان بدل عنصر واحد يتبدّل بين fixed وstatic — Safari لم يُعِده للتدفّق العادي (D-95) */}
-      <div className="hidden flex-wrap items-end gap-3 md:flex">{addRow(true)}</div>
-      <div className="fixed inset-x-0 bottom-0 z-20 flex items-end gap-3 border-t border-line bg-card p-3 shadow-[0_-4px_12px_rgb(0_0_0/0.06)] md:hidden">
-        {addRow(false)}
+      <div className="hidden items-stretch gap-3 md:flex">
+        {stepper}
+        {addButton(false)}
+      </div>
+      <div className="fixed inset-x-0 bottom-0 z-20 flex items-stretch gap-2.5 border-t border-line bg-card p-3 shadow-[0_-4px_12px_rgb(0_0_0/0.06)] md:hidden">
+        {stepper}
+        {addButton(true)}
       </div>
       <div aria-hidden className="h-16 md:hidden" />
       {added ? (
