@@ -51,6 +51,7 @@ export function ProductForm({
     nameAr: initial?.nameAr ?? "",
     nameEn: initial?.nameEn ?? "",
     descriptionAr: initial?.descriptionAr ?? "",
+    descriptionEn: initial?.descriptionEn ?? "",
     categoryId: initial?.categoryId ?? "",
     type: initial?.type ?? ("STOCK" as ProductInput["type"]),
     unit: initial?.unit ?? ("PIECE" as ProductInput["unit"]),
@@ -78,7 +79,7 @@ export function ProductForm({
       ...fields,
       nameEn: fields.nameEn || null,
       descriptionAr: fields.descriptionAr || null,
-      descriptionEn: initial?.descriptionEn ?? null,
+      descriptionEn: fields.descriptionEn || null,
       occasionIds,
       lowStockQty: lowStock.trim() ? lowStock.trim() : null,
       variants: list.map(({ id, size, color, volume, barcode, isActive }) => ({
@@ -158,13 +159,25 @@ export function ProductForm({
               </NativeSelect>
             </div>
           ) : null}
-          <div className="flex min-w-0 flex-col gap-1.5 sm:col-span-2">
-            <Label htmlFor="descriptionAr">الوصف (اختياري)</Label>
+          {/* الوصف باللغتين: صفحة المنتج الإنجليزية تعرض الإنجليزي فقط (D-104) */}
+          <div className="flex min-w-0 flex-col gap-1.5">
+            <Label htmlFor="descriptionAr">الوصف بالعربي (اختياري)</Label>
             <textarea
               id="descriptionAr"
-              rows={3}
+              rows={4}
               value={fields.descriptionAr}
               onChange={(e) => set("descriptionAr", e.target.value)}
+              className="w-full min-w-0 rounded-xl border border-input bg-card px-4 py-3 text-base outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30"
+            />
+          </div>
+          <div className="flex min-w-0 flex-col gap-1.5">
+            <Label htmlFor="descriptionEn">الوصف بالإنجليزي (اختياري — للمتجر)</Label>
+            <textarea
+              id="descriptionEn"
+              dir="ltr"
+              rows={4}
+              value={fields.descriptionEn}
+              onChange={(e) => set("descriptionEn", e.target.value)}
               className="w-full min-w-0 rounded-xl border border-input bg-card px-4 py-3 text-base outline-none focus-visible:border-ring focus-visible:ring-2 focus-visible:ring-ring/30"
             />
           </div>

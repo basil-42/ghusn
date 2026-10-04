@@ -122,7 +122,7 @@ export default async function ProductPage({ params }: Props) {
             close: t("close"),
             prev: t("prevImage"),
             next: t("nextImage"),
-            image: t("imageOf"),
+            image: t("imageOf", { n: "{n}", total: "{total}" }),
           }}
         />
         <div className="flex min-w-0 flex-col gap-5">
