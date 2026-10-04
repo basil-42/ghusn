@@ -21,7 +21,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
         title: occasion.name,
         description: occasion.description ?? undefined,
         alternates: alternates(locale, `/occasion/${slug}`),
-        openGraph: occasion.imageUrl ? { images: [occasion.imageUrl] } : undefined,
+        openGraph:
+          occasion.coverUrl || occasion.imageUrl ? { images: [(occasion.coverUrl ?? occasion.imageUrl)!] } : undefined,
       }
     : {};
 }
@@ -38,6 +39,7 @@ export default async function OccasionPage({ params, searchParams }: Props) {
   const products = await listStoreProducts(locale, { occasionSlug: slug, sort });
   return (
     <ProductListing
+      cover={occasion.coverUrl}
       title={occasion.name}
       subtitle={occasion.description}
       pathname={`/occasion/${slug}`}

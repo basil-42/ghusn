@@ -3,6 +3,8 @@
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requirePermission } from "@/lib/auth/session";
+import { ImageError, savePublicImage } from "@/lib/product-images";
+import { getStoreSettings, saveStoreSettings } from "@/lib/settings";
 import { WrapError, saveWrapStyle } from "@/lib/wrapping";
 
 export type FormState = { error?: string; success?: string };
@@ -59,4 +61,25 @@ export async function saveWrapStyleAction(_prev: FormState, formData: FormData):
   revalidatePath("/admin/wrapping");
   revalidatePath("/", "layout");
   return { success: "تم الحفظ." };
+}
+
+/** صورة بطاقة «صمّم هديتك» في الرئيسية (D-102): رفع أو حذف؛ تُحفظ في إعدادات المتجر. */
+export async function saveGiftTileImageAction(_prev: FormState, formData: FormData): Promise<FormState> {
+  await requirePermission({ settings: ["update"] });
+  const current = await getStoreSettings();
+  const image = formData.get("image");
+  let giftTileImageKey = current.giftTileImageKey;
+  if (formData.get("remove") === "on") giftTileImageKey = null;
+  else if (image instanceof File && image.size > 0) {
+    try {
+      giftTileImageKey = await savePublicImage(image, "tiles", { medium: true });
+    } catch (e) {
+      if (e instanceof ImageError) return { error: e.message };
+      throw e;
+    }
+  } else return { error: "اختاري صورة." };
+  await saveStoreSettings({ ...current, giftTileImageKey });
+  revalidatePath("/admin/wrapping");
+  revalidatePath("/", "layout");
+  return { success: giftTileImageKey ? "تم حفظ الصورة." : "حُذفت الصورة — تظهر البطاقة بالنص." };
 }

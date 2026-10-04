@@ -26,6 +26,7 @@ export async function listOccasionsForAdmin() {
     descriptionAr: o.descriptionAr ?? "",
     descriptionEn: o.descriptionEn ?? "",
     imageKey: o.imageKey,
+    coverKey: o.coverKey,
     isActive: o.isActive,
     sortOrder: o.sortOrder,
     bannerStart: toDay(o.bannerStart),
@@ -55,6 +56,8 @@ export interface OccasionInput {
   bannerEnd: string | null;
   image: File | null;
   removeImage: boolean;
+  cover: File | null;
+  removeCover: boolean;
 }
 
 const DAY = /^\d{4}-\d{2}-\d{2}$/;
@@ -68,6 +71,16 @@ export async function saveOccasion(input: OccasionInput): Promise<void> {
   if (!!start !== !!end) throw new OccasionError("حددي تاريخ بداية البانر ونهايته معاً، أو اتركيهما فارغين.");
   if (start && end && start > end) throw new OccasionError("نهاية البانر قبل بدايته.");
 
+  const upload = async (file: File, medium = false) => {
+    try {
+      return await savePublicImage(file, "occasions", { medium });
+    } catch (e) {
+      if (e instanceof ImageError) throw new OccasionError(e.message);
+      throw e;
+    }
+  };
+  const coverKey =
+    input.cover && input.cover.size > 0 ? await upload(input.cover, true) : input.removeCover ? null : undefined;
   let imageKey: string | null | undefined;
   if (input.image && input.image.size > 0) {
     try {
@@ -91,6 +104,7 @@ export async function saveOccasion(input: OccasionInput): Promise<void> {
     bannerStart: start ? shopDayStart(start) : null,
     bannerEnd: end ? shopDayStart(end) : null,
     ...(imageKey !== undefined ? { imageKey } : {}),
+    ...(coverKey !== undefined ? { coverKey } : {}),
   };
   try {
     await prisma.$transaction(async (tx) => {

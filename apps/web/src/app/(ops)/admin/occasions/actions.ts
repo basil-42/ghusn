@@ -36,6 +36,7 @@ export async function saveOccasionAction(_prev: FormState, formData: FormData): 
   });
   if (!parsed.success) return { error: "راجعي الحقول: الاسمان بحرفين على الأقل، والرابط بالإنجليزي." };
   const image = formData.get("image");
+  const cover = formData.get("cover");
   try {
     await saveOccasion({
       ...parsed.data,
@@ -47,11 +48,14 @@ export async function saveOccasionAction(_prev: FormState, formData: FormData): 
       isActive: formData.get("isActive") === "on",
       image: image instanceof File ? image : null,
       removeImage: formData.get("removeImage") === "on",
+      cover: cover instanceof File ? cover : null,
+      removeCover: formData.get("removeCover") === "on",
     });
   } catch (e) {
     if (e instanceof OccasionError) return { error: e.message };
     throw e;
   }
   revalidatePath("/admin/occasions");
+  revalidatePath("/", "layout");
   return { success: "تم الحفظ." };
 }

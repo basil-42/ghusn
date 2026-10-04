@@ -1,3 +1,4 @@
+import Image from "next/image";
 import { getTranslations } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
 import type { StoreProductCard, StoreSort } from "@/lib/storefront";
@@ -20,7 +21,10 @@ export async function ProductListing({
   sort,
   products,
   empty,
+  cover = null,
 }: {
+  /** غلاف عريض أعلى الصفحة (صفحة المناسبة، D-102). */
+  cover?: string | null;
   title: string;
   subtitle?: string | null;
   pathname: string;
@@ -32,6 +36,19 @@ export async function ProductListing({
   const t = await getTranslations("category");
   return (
     <div className="mx-auto flex max-w-[1240px] flex-col gap-6 px-4 md:px-6 py-10">
+      {cover ? (
+        <div className="relative aspect-[2/1] overflow-hidden rounded-[14px] bg-muted md:aspect-[3/1]">
+          <Image
+            src={cover}
+            alt=""
+            fill
+            priority
+            sizes="(min-width: 1240px) 1200px, 100vw"
+            className="object-cover"
+            unoptimized
+          />
+        </div>
+      ) : null}
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div className="flex flex-col gap-1">
           <h1 className="font-display text-4xl font-bold">{title}</h1>
