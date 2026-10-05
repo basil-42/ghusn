@@ -6,13 +6,13 @@ import { useSyncExternalStore } from "react";
 /**
  * نغمات التنبيه (D-109) مولَّدة بالمتصفح (Web Audio) — بلا ملف صوتي ولا حقوق، وتعمل مع ضعف الشبكة.
  * المتصفحات تمنع الصوت قبل أول تفاعل: أول ضغطة في الصفحة تفعّله (unlockAudio).
- * تبويب واحد فقط يرنّ (Web Locks) حتى لا يرنّ كل تبويب مفتوح معاً.
+ * أي تبويب فُعّل فيه الصوت يرنّ، ووقت آخر رنّة مشترك بين التبويبات (localStorage) حتى لا يرنّ تبويبان
+ * لنفس الطلب. (كان «قفل رنين» لتبويب واحد — فإن وقع على تبويب لم يُضغط فيه لم يرنّ أحد.)
  */
 
 const MUTE_KEY = "ghusn-sound-muted";
+const SHARED_KEY = "ghusn-chime-last-urgent";
 let ctx: AudioContext | null = null;
-let leader = false;
-let leaderRequested = false;
 
 const NOTES: Record<Chime, [freq: number, at: number][]> = {
   // نوتتان صاعدتان مرتين — مميزة وواضحة في محل فيه ضجيج
@@ -70,24 +70,44 @@ export function unlockAudio(): void {
 
 export const audioReady = () => ctx?.state === "running";
 
-/** يطلب «قفل الرنين»: التبويب الذي يحصل عليه يرنّ، والبقية تنتظر حتى يُغلق. */
-export function claimChimeLeadership(): void {
-  if (leaderRequested) return;
-  leaderRequested = true;
-  if (!("locks" in navigator)) {
-    leader = true;
-    return;
+/** وقت آخر رنّة عاجلة في أي تبويب (ms)، أو null. */
+export function sharedLastUrgent(): number | null {
+  try {
+    const v = Number(localStorage.getItem(SHARED_KEY));
+    return Number.isFinite(v) && v > 0 ? v : null;
+  } catch {
+    return null;
   }
-  void navigator.locks.request("ghusn-chime", () => {
-    leader = true;
-    // يبقى القفل ما دام التبويب مفتوحاً
-    return new Promise<void>(() => {});
-  });
 }
 
-/** يشغّل النغمة إن كان الصوت مفعّلاً وهذا التبويب هو صاحب الرنين. يعيد هل رنّ فعلاً. */
+export function markUrgentChimed(at: number): void {
+  try {
+    localStorage.setItem(SHARED_KEY, String(at));
+  } catch {
+    // بلا تخزين: قد يرنّ تبويبان — أفضل من ألا يرنّ أحد
+  }
+}
+
+/**
+ * يشغّل النغمة إن كان الصوت مفعّلاً في هذا التبويب (ضُغط فيه بعد فتحه) وغير مكتوم. يعيد هل رنّ.
+ * Safari يعلّق الصوت أحياناً بعد إخفاء التبويب: نحاول استئنافه قبل الحكم.
+ */
 export function playChime(kind: Chime, force = false): boolean {
-  if (!ctx || ctx.state !== "running" || (!force && (isMuted() || !leader))) return false;
+  if (!ctx || (!force && isMuted())) return false;
+  if (ctx.state !== "running") {
+    // «suspended» أو «interrupted»: الاستئناف يعمل إن سبق تفعيل الصوت بضغطة
+    void ctx
+      .resume()
+      .then(() => ctx?.state === "running" && schedule(kind))
+      .catch(() => {});
+    return false;
+  }
+  schedule(kind);
+  return true;
+}
+
+function schedule(kind: Chime): void {
+  if (!ctx) return;
   const start = ctx.currentTime + 0.02;
   for (const [freq, at] of NOTES[kind]) {
     const osc = ctx.createOscillator();
@@ -102,5 +122,4 @@ export function playChime(kind: Chime, force = false): boolean {
     osc.start(t);
     osc.stop(t + 0.45);
   }
-  return true;
 }
