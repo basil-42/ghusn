@@ -23,7 +23,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { formatRelative } from "@/lib/format";
 import type { NotificationItem } from "@/lib/notifications";
 import { cn } from "@/lib/utils";
-import { audioReady, claimChimeLeadership, playChime, setMuted, unlockAudio, useMuted } from "./chime";
+import { audioReady, markUrgentChimed, playChime, setMuted, sharedLastUrgent, unlockAudio, useMuted } from "./chime";
 import { setPendingOrders } from "./pending-orders";
 
 const POLL_MS = 30_000;
@@ -125,15 +125,16 @@ export function NotificationBell() {
     setSummary(data);
     setPendingOrders(data.pendingOrders);
     const now = Date.now();
-    const chime = chimeToPlay(
-      { seen: seen.current, lastUrgentAt: lastUrgentAt.current },
-      data.items,
-      now,
-      firstPoll.current,
-    );
+    // آخر رنّة في هذا التبويب أو غيره — التكرار كل دقيقة لا يتضاعف بتعدد التبويبات
+    const shared = sharedLastUrgent();
+    const last = Math.max(lastUrgentAt.current ?? 0, shared ?? 0) || null;
+    let chime = chimeToPlay({ seen: seen.current, lastUrgentAt: last }, data.items, now, firstPoll.current);
+    // تبويب آخر رنّ لنفس الدفعة قبل لحظات
+    if (chime === "urgent" && shared !== null && now - shared < 20_000) chime = null;
     // ساعات الهدوء: العاجل فقط (D-109)
     if (chime && !(data.quiet && chime === "important") && playChime(chime) && chime === "urgent") {
       lastUrgentAt.current = now;
+      markUrgentChimed(now);
     }
     const freshUrgent = data.items.find((n) => !seen.current.has(n.id) && n.priority === "URGENT" && !n.read);
     if (freshUrgent && !firstPoll.current) setToast(freshUrgent);
@@ -143,7 +144,6 @@ export function NotificationBell() {
   }, []);
 
   useEffect(() => {
-    claimChimeLeadership();
     const unlock = () => {
       unlockAudio();
       setTimeout(() => setSoundOn(audioReady()), 50);
