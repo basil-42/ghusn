@@ -5,7 +5,7 @@ import Image from "next/image";
 import { useLocale } from "next-intl";
 import { useEffect, useRef, useState, type TouchEvent } from "react";
 
-export type GalleryImage = { full: string; thumb: string; width: number; height: number };
+export type GalleryImage = { full: string; medium: string; thumb: string; width: number; height: number };
 
 export interface GalleryLabels {
   empty: string;
@@ -108,15 +108,19 @@ export function Gallery({ images, alt, labels }: { images: GalleryImage[]; alt: 
           {...(many ? swipe : {})}
           className="group relative block aspect-square w-full cursor-zoom-in overflow-hidden rounded-2xl bg-muted"
         >
-          <Image
-            src={current.full}
-            alt={alt}
-            fill
-            sizes="(min-width: 1240px) 600px, (min-width: 768px) 50vw, 100vw"
-            className="object-cover"
-            priority
-            unoptimized
-          />
+          {/* الجوال يأخذ 800px أياً كانت كثافة الشاشة (نصف حجم 1200 تقريباً) — العارض بملء الشاشة يبقى بالكبيرة (D-105) */}
+          <picture>
+            <source media="(max-width: 767px)" srcSet={current.medium} />
+            <img
+              src={current.full}
+              alt={alt}
+              width={current.width}
+              height={current.height}
+              fetchPriority="high"
+              decoding="async"
+              className="absolute inset-0 size-full object-cover"
+            />
+          </picture>
           <span className="absolute end-3 bottom-3 flex items-center gap-1.5 rounded-full bg-card/90 px-3 py-1.5 text-xs font-semibold text-forest shadow-sm">
             <Expand aria-hidden className="size-3.5" />
             {labels.zoom}

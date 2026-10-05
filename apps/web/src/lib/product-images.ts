@@ -9,8 +9,8 @@ export { MAX_UPLOAD_BYTES };
 const MAX_PIXELS = 50_000_000; // حماية من صور ضخمة مصمَّمة لاستهلاك الذاكرة
 
 /**
- * مقاسات WebP المولَّدة: كبيرة للعرض والمتجر، وصغيرة للقوائم (§2.2: صفحات خفيفة على 3G). «medium» للبانرات
- * على الجوال فقط (D-101) — لا يُولَّد لغيرها.
+ * مقاسات WebP المولَّدة: كبيرة للعرض والمتجر، وصغيرة للقوائم (§2.2: صفحات خفيفة على 3G). «medium» للجوال:
+ * البانرات (D-101) وصور المنتجات (D-105) — لا يُولَّد لغيرها.
  */
 export const IMAGE_SIZES = { full: 1200, medium: 800, thumb: 400 } as const;
 export type ImageSize = keyof typeof IMAGE_SIZES;
@@ -88,7 +88,8 @@ export async function addProductImage(productId: string, file: File): Promise<vo
   const key = `products/${productId}/${hash}`;
   if (await prisma.productImage.findUnique({ where: { key } })) throw new ImageError("هذه الصورة مضافة من قبل.");
 
-  const full = await renderAndStore(input, key);
+  // المقاس المتوسط: الصورة الرئيسية في صفحة المنتج على الجوال (D-105)
+  const full = await renderAndStore(input, key, true);
   try {
     await prisma.productImage.create({
       data: { productId, key, width: full.width, height: full.height, sortOrder: count },
@@ -100,7 +101,7 @@ export async function addProductImage(productId: string, file: File): Promise<vo
 }
 
 async function deleteFiles(key: string) {
-  await Promise.all([storage.delete(imageFileKey(key, "full")), storage.delete(imageFileKey(key, "thumb"))]);
+  await Promise.all((["full", "medium", "thumb"] as const).map((size) => storage.delete(imageFileKey(key, size))));
 }
 
 export async function deleteProductImage(productId: string, imageId: string): Promise<void> {
