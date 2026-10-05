@@ -88,7 +88,7 @@ export function CheckoutForm({ bankakEnabled, wrapStyles }: { bankakEnabled: boo
         });
         if (r.ok) {
           clearCart();
-          router.push(`/o/${r.trackingToken}`);
+          router.push(`/o/${r.trackingToken}?new=1`);
           return;
         }
         const known = te.has(r.code) ? r.code : "INVALID";
