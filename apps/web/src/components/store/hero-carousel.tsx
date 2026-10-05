@@ -121,12 +121,13 @@ export function HeroCarousel({
               aria-hidden
               className="absolute inset-0 -z-10 bg-linear-to-t from-forest/95 via-forest/70 via-40% to-transparent to-75% md:bg-linear-to-l md:from-forest/90 md:via-forest/70 md:to-70% ltr:md:bg-linear-to-r"
             />
+            {/* الشارة في الزاوية العليا من جهة النص، بخلفية داكنة تُقرأ فوق أي صورة */}
+            {b.badge ? (
+              <span className="absolute start-4 top-4 rounded-full border border-ivory/25 bg-forest/75 px-3 py-1 text-xs font-semibold backdrop-blur-sm md:start-6 md:top-5">
+                {b.badge}
+              </span>
+            ) : null}
             <div className="flex w-full flex-col items-start gap-2.5 px-5 pt-6 pb-12 md:max-w-[56%] md:px-9 md:pb-12">
-              {b.badge ? (
-                <span className="rounded-full border border-ivory/30 bg-ivory/15 px-2.5 py-0.5 text-xs font-semibold">
-                  {b.badge}
-                </span>
-              ) : null}
               <h2 className="font-display text-3xl leading-tight font-bold text-balance md:text-[40px]">{b.title}</h2>
               {b.text ? <p className="text-[15px] leading-relaxed text-ivory/85">{b.text}</p> : null}
               <Link
