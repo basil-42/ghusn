@@ -138,6 +138,7 @@ export default async function ProductPage({ params }: Props) {
               href={whatsapp}
               target="_blank"
               rel="noreferrer"
+              data-umami-event="whatsapp_inquiry"
               className="flex min-h-12 items-center justify-center gap-2 rounded-xl border-[1.5px] border-forest bg-card px-4 font-semibold text-forest hover:bg-muted"
             >
               <MessageCircle aria-hidden className="size-5" />
