@@ -18,7 +18,8 @@
     "db:migrate": "pnpm --filter @ghusn/db migrate",
     "db:seed": "pnpm --filter @ghusn/db seed",
     "db:studio": "pnpm --filter @ghusn/db studio",
-    "owner:setup": "pnpm --filter @ghusn/web owner:setup"
+    "owner:setup": "pnpm --filter @ghusn/web owner:setup",
+    "push:keys": "pnpm --filter @ghusn/web push:keys"
   },
   "devDependencies": {
     "turbo": "2.11.5",

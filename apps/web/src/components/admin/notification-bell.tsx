@@ -5,6 +5,7 @@ import {
   Bell,
   Clock,
   CreditCard,
+  Settings,
   ShoppingBag,
   TriangleAlert,
   Volume2,
@@ -44,6 +45,7 @@ interface Summary {
   unread: number;
   items: NotificationItem[];
   pendingOrders: number | null;
+  quiet: boolean;
   now: string;
 }
 
@@ -118,7 +120,10 @@ export function NotificationBell() {
       now,
       firstPoll.current,
     );
-    if (chime && playChime(chime) && chime === "urgent") lastUrgentAt.current = now;
+    // ساعات الهدوء: العاجل فقط (D-109)
+    if (chime && !(data.quiet && chime === "important") && playChime(chime) && chime === "urgent") {
+      lastUrgentAt.current = now;
+    }
     const freshUrgent = data.items.find((n) => !seen.current.has(n.id) && n.priority === "URGENT" && !n.read);
     if (freshUrgent && !firstPoll.current) setToast(freshUrgent);
     for (const n of data.items) seen.current.add(n.id);
@@ -251,6 +256,14 @@ export function NotificationBell() {
               >
                 {muted ? <VolumeX aria-hidden className="size-5" /> : <Volume2 aria-hidden className="size-5" />}
               </button>
+              <Link
+                href="/admin/notifications/settings"
+                onClick={() => setOpen(false)}
+                aria-label="تفضيلات الإشعارات"
+                className="flex size-10 items-center justify-center rounded-lg text-muted-foreground hover:bg-muted"
+              >
+                <Settings aria-hidden className="size-5" />
+              </Link>
               {unread ? (
                 <button
                   type="button"

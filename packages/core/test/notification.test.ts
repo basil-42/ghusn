@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { URGENT_REPEAT_MS, chimeToPlay, isRinging } from "../src";
+import { DEFAULT_PUSH_TYPES, URGENT_REPEAT_MS, chimeToPlay, inQuietHours, isRinging, shouldPush } from "../src";
 
 const t0 = new Date("2026-10-05T10:00:00Z");
 const at = (ms: number) => new Date(t0.getTime() + ms);
@@ -57,5 +57,45 @@ describe("chimeToPlay (D-109)", () => {
 
   it("still rings on the first poll if an urgent order is waiting", () => {
     expect(chimeToPlay(none, [{ id: "a", priority: "URGENT", ringing: true }], 0, true)).toBe("urgent");
+  });
+});
+
+describe("inQuietHours (D-109, Khartoum time)", () => {
+  // الخرطوم = UTC+2
+  const k = (hhmm: string) => new Date(`2026-10-05T${hhmm}:00+02:00`);
+
+  it("spans midnight for 23:00–08:00", () => {
+    expect(inQuietHours(k("23:00"), "23:00", "08:00")).toBe(true);
+    expect(inQuietHours(k("03:15"), "23:00", "08:00")).toBe(true);
+    expect(inQuietHours(k("07:59"), "23:00", "08:00")).toBe(true);
+    expect(inQuietHours(k("08:00"), "23:00", "08:00")).toBe(false);
+    expect(inQuietHours(k("22:59"), "23:00", "08:00")).toBe(false);
+  });
+
+  it("handles a same-day window and disabled values", () => {
+    expect(inQuietHours(k("14:00"), "13:00", "15:00")).toBe(true);
+    expect(inQuietHours(k("15:00"), "13:00", "15:00")).toBe(false);
+    expect(inQuietHours(k("03:00"), null, null)).toBe(false);
+    expect(inQuietHours(k("03:00"), "25:00", "08:00")).toBe(false);
+    expect(inQuietHours(k("03:00"), "08:00", "08:00")).toBe(false);
+  });
+});
+
+describe("shouldPush (D-109)", () => {
+  const prefs = { pushTypes: DEFAULT_PUSH_TYPES, quietStart: "23:00", quietEnd: "08:00", urgentInQuiet: true };
+  const day = new Date("2026-10-05T12:00:00+02:00");
+  const night = new Date("2026-10-05T02:00:00+02:00");
+
+  it("pushes enabled types during the day, never disabled ones", () => {
+    expect(shouldPush({ type: "ORDER_NEW", priority: "URGENT" }, prefs, day)).toBe(true);
+    expect(shouldPush({ type: "LOW_STOCK", priority: "NORMAL" }, prefs, day)).toBe(false);
+  });
+
+  it("lets only urgent through quiet hours, and only when allowed", () => {
+    expect(shouldPush({ type: "ORDER_NEW", priority: "URGENT" }, prefs, night)).toBe(true);
+    expect(shouldPush({ type: "BANKAK_EXPIRING", priority: "IMPORTANT" }, prefs, night)).toBe(false);
+    expect(shouldPush({ type: "ORDER_NEW", priority: "URGENT" }, { ...prefs, urgentInQuiet: false }, night)).toBe(
+      false,
+    );
   });
 });

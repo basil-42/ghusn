@@ -1,4 +1,4 @@
-import { isRinging, type NotificationPriority } from "@ghusn/core";
+import { inQuietHours, isRinging, type NotificationPriority, type NotificationTypeName } from "@ghusn/core";
 import { prisma, type NotificationType, type Prisma } from "@ghusn/db";
 import { ROLE_NAMES, roleCan } from "./auth/permissions";
 import { formatAmount } from "./format";
@@ -58,6 +58,75 @@ export async function notify(db: Db, input: NotifyInput): Promise<string | null>
 }
 
 const sdg = (v: { toString(): string }) => `${formatAmount(v, 0)} ج.س`;
+
+/** الأحداث كما تظهر في التفضيلات: الاسم، الشرح، الأولوية، ومن يستلمها (D-109). */
+export const NOTIFICATION_EVENTS: {
+  type: NotificationTypeName;
+  label: string;
+  hint: string;
+  priority: NotificationPriority | "DAILY";
+  audience: Permissions;
+}[] = [
+  {
+    type: "ORDER_NEW",
+    label: "طلب جديد من المتجر",
+    hint: "الرقم، الاسم، المبلغ، المدينة",
+    priority: "URGENT",
+    audience: { order: ["read"] },
+  },
+  {
+    type: "PAYMENT_PROOF",
+    label: "إشعار دفع بنكك يحتاج مراجعة",
+    hint: "لمن تراجع الدفع فقط",
+    priority: "URGENT",
+    audience: { order: ["payment"] },
+  },
+  {
+    type: "BANKAK_EXPIRING",
+    label: "حجز بنكك ينتهي خلال ساعتين بلا دفع",
+    hint: "لتذكير العميل قبل الإلغاء التلقائي",
+    priority: "IMPORTANT",
+    audience: { order: ["payment"] },
+  },
+  {
+    type: "ORDER_ESCALATED",
+    label: "تصعيد: طلب لم يُفتح",
+    hint: "للمديرة بعد 15 دقيقة، وللمالك بعد 30 دقيقة",
+    priority: "IMPORTANT",
+    audience: { order: ["cancel"] },
+  },
+  {
+    type: "LOW_STOCK",
+    label: "قارب على النفاد",
+    hint: "مرة واحدة لكل صنف حتى يُعاد تعبئته",
+    priority: "NORMAL",
+    audience: { margin: ["update"] },
+  },
+  {
+    type: "BATCH_EXPIRING",
+    label: "دفعة تقترب صلاحيتها من الانتهاء",
+    hint: "حسب مهلة التنبيه في الضبط",
+    priority: "NORMAL",
+    audience: { margin: ["update"] },
+  },
+  {
+    type: "PRICE_SUGGESTIONS",
+    label: "سعر الصرف واقتراحات الأسعار",
+    hint: "للمالك والمديرة",
+    priority: "NORMAL",
+    audience: { price: ["approve"] },
+  },
+  {
+    type: "DAILY_SUMMARY",
+    label: "الملخص اليومي",
+    hint: "للمالك · الساعة 10:00 م بتوقيت الخرطوم",
+    priority: "DAILY",
+    audience: { capital: ["update"] },
+  },
+];
+
+/** الأحداث التي تخص دور المستخدمة — التفضيلات لا تعرض غيرها. */
+export const eventsForRole = (role: unknown) => NOTIFICATION_EVENTS.filter((e) => roleCan(role, e.audience));
 
 /** طلب جديد من المتجر — عاجل لكل من يرى الطلبات. */
 export function notifyNewOrder(
@@ -202,14 +271,17 @@ export const countUnread = (userId: string) => prisma.notificationRecipient.coun
 /** ما يحتاجه الجرس كل استطلاع: العدّاد، آخر الإشعارات، وعدّاد «طلبات المتجر» لمن تراها. */
 export async function notificationSummary(userId: string, role: unknown) {
   const now = new Date();
-  const [unread, items, pendingOrders] = await Promise.all([
+  const [unread, items, pendingOrders, prefs] = await Promise.all([
     countUnread(userId),
     listNotifications(userId, { take: 15, now }),
     roleCan(role, { order: ["read"] })
       ? prisma.order.count({ where: { status: { in: ["NEW", "PAYMENT_REVIEW"] } } })
       : Promise.resolve(null),
+    prisma.notificationPreference.findUnique({ where: { userId }, select: { quietStart: true, quietEnd: true } }),
   ]);
-  return { unread, items, pendingOrders, now: now.toISOString() };
+  // ساعات الهدوء تكتم نغمة «المهم» داخل النظام أيضاً؛ العاجل يرنّ دائماً
+  const quiet = prefs ? inQuietHours(now, prefs.quietStart, prefs.quietEnd) : inQuietHours(now, "23:00", "08:00");
+  return { unread, items, pendingOrders, quiet, now: now.toISOString() };
 }
 
 export async function markNotificationsRead(userId: string, ids: string[] | "all"): Promise<void> {

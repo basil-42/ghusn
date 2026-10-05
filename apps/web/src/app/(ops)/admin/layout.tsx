@@ -4,10 +4,12 @@ import Link from "next/link";
 import { logout } from "@/app/(ops)/login/actions";
 import { AdminNav, type NavItem } from "@/components/admin/nav";
 import { NotificationBell } from "@/components/admin/notification-bell";
+import { PushPrompt } from "@/components/admin/push-prompt";
 import { Button } from "@/components/ui/button";
 import { ROLE_LABELS, isRoleName, roleCan } from "@/lib/auth/permissions";
 import { requireSession } from "@/lib/auth/session";
 import { isSellingRateStale } from "@/lib/exchange-rates";
+import { pushConfig } from "@/lib/push";
 import { RegisterServiceWorker } from "@/lib/pos-offline/register-sw";
 
 type Permissions = Parameters<typeof roleCan>[1];
@@ -81,6 +83,8 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             <AdminNav items={items} orientation="horizontal" />
           </div>
         </header>
+
+        <PushPrompt publicKey={pushConfig()?.publicKey ?? null} />
 
         {rateMissing ? (
           <Link

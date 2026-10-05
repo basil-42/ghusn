@@ -1,4 +1,4 @@
-import { Check } from "lucide-react";
+import { Check, Settings } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { NotificationIcon, PriorityTag } from "@/components/admin/notification-bell";
@@ -79,13 +79,20 @@ export default async function NotificationsPage({ searchParams }: { searchParams
             {unread ? `${unread.toLocaleString("en-US")} غير مقروءة` : "لا إشعارات غير مقروءة"}
           </p>
         </div>
-        {unread ? (
-          <form action={markAllReadAction}>
-            <Button type="submit" variant="outline">
-              تحديد الكل كمقروء
-            </Button>
-          </form>
-        ) : null}
+        <div className="flex flex-wrap gap-2">
+          {unread ? (
+            <form action={markAllReadAction}>
+              <Button type="submit" variant="outline">
+                تحديد الكل كمقروء
+              </Button>
+            </form>
+          ) : null}
+          <Button asChild>
+            <Link href="/admin/notifications/settings">
+              <Settings aria-hidden /> التفضيلات
+            </Link>
+          </Button>
+        </div>
       </header>
 
       <nav aria-label="تصفية" className="flex flex-wrap gap-2">

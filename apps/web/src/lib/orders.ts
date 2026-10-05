@@ -21,6 +21,7 @@ import {
 import { Prisma, prisma, type DeliveryCity, type Fulfillment } from "@ghusn/db";
 import { nextDocumentNumber } from "./documents";
 import { notifyNewOrder, notifyPaymentProof } from "./notifications";
+import { kickPushDelivery } from "./push";
 import { formatAmount } from "./format";
 import { localePath, siteUrl } from "./site";
 import { currentSellingRate } from "./pricing";
@@ -291,7 +292,7 @@ export async function createWebOrder(input: CreateOrderInput): Promise<{ number:
   const status: OrderStatus = paymentMethod === "BANKAK" ? "AWAITING_PAYMENT" : "NEW";
   const paymentDueAt = paymentMethod === "BANKAK" ? new Date(now.getTime() + PAYMENT_WINDOW_HOURS * 3_600_000) : null;
   try {
-    return await prisma.$transaction(async (tx) => {
+    const created = await prisma.$transaction(async (tx) => {
       // قفل أرصدة الأصناف بترتيب ثابت ثم حساب المحجوز: طلبان متزامنان على آخر قطعة لا ينجحان معاً
       const sorted = [...ids].sort();
       const levels = await tx.$queryRaw<{ variantId: string; qty: Prisma.Decimal }[]>`
@@ -369,6 +370,9 @@ export async function createWebOrder(input: CreateOrderInput): Promise<{ number:
       });
       return { number, trackingToken };
     });
+    // إشعار الجوال بعد نجاح المعاملة (D-109)
+    kickPushDelivery();
+    return created;
   } catch (e) {
     // نفس الطلب أُرسل مرتين في نفس اللحظة: الأول نجح
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
@@ -434,6 +438,7 @@ export async function transitionOrder(
       await notifyPaymentProof(tx, order, proof.id);
     }
   });
+  if (to === "PAYMENT_REVIEW" && opts.proof) kickPushDelivery();
 }
 
 /** خصم كمية من المخزون (FEFO) بحركة مربوطة بالطلب — بلا رصيد سالب. يعيد تكلفة الوحدة والإجمالي. */
