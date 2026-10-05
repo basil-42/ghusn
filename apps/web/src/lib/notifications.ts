@@ -22,11 +22,13 @@ interface NotifyInput {
   dedupeKey?: string | null;
   /** من يستلمه: كل من يملك هذه الصلاحية. */
   audience: Permissions;
+  /** واستثناء من يملك هذه (مثل: المديرة دون المالك في أول تصعيد). */
+  exclude?: Permissions;
 }
 
 /** المستخدمات النشطات اللاتي تملك أدوارهن الصلاحية. */
-async function audienceIds(db: Db, permissions: Permissions): Promise<string[]> {
-  const roles = ROLE_NAMES.filter((r) => roleCan(r, permissions));
+async function audienceIds(db: Db, permissions: Permissions, exclude?: Permissions): Promise<string[]> {
+  const roles = ROLE_NAMES.filter((r) => roleCan(r, permissions) && !(exclude && roleCan(r, exclude)));
   if (!roles.length) return [];
   const users = await db.user.findMany({ where: { role: { in: roles }, banned: false }, select: { id: true } });
   return users.map((u) => u.id);
@@ -39,7 +41,7 @@ export async function notify(db: Db, input: NotifyInput): Promise<string | null>
     const existing = await db.notification.findUnique({ where: { dedupeKey: input.dedupeKey }, select: { id: true } });
     if (existing) return null;
   }
-  const userIds = await audienceIds(db, input.audience);
+  const userIds = await audienceIds(db, input.audience, input.exclude);
   if (!userIds.length) return null;
   const n = await db.notification.create({
     data: {
@@ -182,12 +184,24 @@ export function notifyPaymentProof(
 
 // ---------- القراءة ----------
 
-export const NOTIFICATION_FILTERS = ["all", "unread", "urgent", "orders", "payment"] as const;
+export const NOTIFICATION_FILTERS = [
+  "all",
+  "unread",
+  "urgent",
+  "orders",
+  "payment",
+  "stock",
+  "prices",
+  "summary",
+] as const;
 export type NotificationFilter = (typeof NOTIFICATION_FILTERS)[number];
 
 const FILTER_TYPES: Partial<Record<NotificationFilter, NotificationType[]>> = {
   orders: ["ORDER_NEW", "ORDER_ESCALATED"],
   payment: ["PAYMENT_PROOF", "BANKAK_EXPIRING"],
+  stock: ["LOW_STOCK", "BATCH_EXPIRING"],
+  prices: ["PRICE_SUGGESTIONS"],
+  summary: ["DAILY_SUMMARY"],
 };
 
 export interface NotificationItem {

@@ -23,6 +23,9 @@ const FILTER_LABELS: Record<NotificationFilter, string> = {
   urgent: "العاجلة",
   orders: "الطلبات",
   payment: "الدفع",
+  stock: "المخزون",
+  prices: "الأسعار",
+  summary: "الملخص اليومي",
 };
 
 const minutesBetween = (a: string, b: string) => Math.max(0, Math.round((Date.parse(b) - Date.parse(a)) / 60_000));
