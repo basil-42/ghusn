@@ -20,6 +20,7 @@ import {
 } from "@ghusn/core";
 import { Prisma, prisma, type DeliveryCity, type Fulfillment } from "@ghusn/db";
 import { nextDocumentNumber } from "./documents";
+import { notifyNewOrder, notifyPaymentProof } from "./notifications";
 import { formatAmount } from "./format";
 import { localePath, siteUrl } from "./site";
 import { currentSellingRate } from "./pricing";
@@ -355,6 +356,17 @@ export async function createWebOrder(input: CreateOrderInput): Promise<{ number:
           history: { create: { fromStatus: null, toStatus: status, createdAt: now } },
         },
       });
+      // الإشعار في نفس المعاملة (D-109): لا طلب بلا تنبيه، ولا تنبيه لطلب لم يُحفظ
+      await notifyNewOrder(tx, {
+        id: input.id,
+        number,
+        customerName: input.customerName,
+        itemCount: totals.lines.length,
+        totalSdg: totals.totalSdg,
+        cityLabel: input.fulfillment === "DELIVERY" && input.city ? CITY_LABELS[input.city] : null,
+        gift: !!input.recipientName,
+        bankak: paymentMethod === "BANKAK",
+      });
       return { number, trackingToken };
     });
   } catch (e) {
@@ -411,7 +423,17 @@ export async function transitionOrder(
   opts: TransitionOptions = {},
 ): Promise<void> {
   const ctx = await transitionContext(to, to === "CONFIRMED" && !!opts.proofId);
-  await prisma.$transaction((tx) => applyTransition(tx, orderId, to, actorId, opts, ctx));
+  await prisma.$transaction(async (tx) => {
+    await applyTransition(tx, orderId, to, actorId, opts, ctx);
+    // إشعار بنكك من العميل ← تنبيه عاجل لمن تراجع الدفع (D-109)
+    if (to === "PAYMENT_REVIEW" && opts.proof) {
+      const [order, proof] = await Promise.all([
+        tx.order.findUniqueOrThrow({ where: { id: orderId }, select: { id: true, number: true, totalSdg: true } }),
+        tx.paymentProof.findFirstOrThrow({ where: { orderId }, orderBy: { createdAt: "desc" }, select: { id: true } }),
+      ]);
+      await notifyPaymentProof(tx, order, proof.id);
+    }
+  });
 }
 
 /** خصم كمية من المخزون (FEFO) بحركة مربوطة بالطلب — بلا رصيد سالب. يعيد تكلفة الوحدة والإجمالي. */

@@ -3,6 +3,7 @@ import Image from "next/image";
 import Link from "next/link";
 import { logout } from "@/app/(ops)/login/actions";
 import { AdminNav, type NavItem } from "@/components/admin/nav";
+import { NotificationBell } from "@/components/admin/notification-bell";
 import { Button } from "@/components/ui/button";
 import { ROLE_LABELS, isRoleName, roleCan } from "@/lib/auth/permissions";
 import { requireSession } from "@/lib/auth/session";
@@ -66,11 +67,14 @@ export default async function AdminLayout({ children }: { children: React.ReactN
             <span className="truncate text-sm md:ms-auto">
               {user.name} <span className="text-muted-foreground">· {roleLabel}</span>
             </span>
-            <form action={logout}>
-              <Button variant="outline" size="sm" type="submit">
-                <LogOut aria-hidden /> خروج
-              </Button>
-            </form>
+            <div className="ms-auto flex items-center gap-2 md:ms-0">
+              <NotificationBell />
+              <form action={logout}>
+                <Button variant="outline" size="sm" type="submit">
+                  <LogOut aria-hidden /> خروج
+                </Button>
+              </form>
+            </div>
           </div>
           {/* قائمة أفقية على الجوال */}
           <div className="px-2 pb-2 md:hidden">

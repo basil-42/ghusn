@@ -16,6 +16,8 @@ const dateTimeFormat = new Intl.DateTimeFormat(LOCALE, {
   hour: "numeric",
   minute: "2-digit",
 });
+const timeFormat = new Intl.DateTimeFormat(LOCALE, { timeZone: SHOP_TIME_ZONE, hour: "numeric", minute: "2-digit" });
+const relativeFormat = new Intl.RelativeTimeFormat(LOCALE, { numeric: "always" });
 const dayFormat = new Intl.DateTimeFormat(LOCALE, {
   timeZone: SHOP_TIME_ZONE,
   weekday: "long",
@@ -37,6 +39,16 @@ export function formatPercent(fraction: { toString(): string }): string {
 }
 
 export const formatDateTime = (d: Date) => dateTimeFormat.format(d);
+export const formatTime = (d: Date) => timeFormat.format(d);
+
+/** «قبل دقيقتين»، «قبل 3 ساعات» — وأقدم من يوم: التاريخ والوقت. */
+export function formatRelative(d: Date, now: Date = new Date()): string {
+  const minutes = Math.round((now.getTime() - d.getTime()) / 60_000);
+  if (minutes < 1) return "الآن";
+  if (minutes < 60) return relativeFormat.format(-minutes, "minute");
+  if (minutes < 24 * 60) return relativeFormat.format(-Math.floor(minutes / 60), "hour");
+  return formatDateTime(d);
+}
 export const formatDay = (d: Date) => dayFormat.format(d);
 
 /** مبلغ بعملة معيّنة: تقريب نصف للأعلى بعدد خانات العملة (الجنيه بدون كسور) وفاصل آلاف. */

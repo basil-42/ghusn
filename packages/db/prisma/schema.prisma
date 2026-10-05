@@ -67,6 +67,8 @@ model User {
   proofsReviewed    PaymentProof[]        @relation("proofReviewedBy")
   returnsApproved   SaleReturn[]          @relation("returnApprovedBy")
   giftPhotos        GiftPhoto[]           @relation("giftPhotoBy")
+  notifications     NotificationRecipient[]
+  ordersOpened      Order[]               @relation("orderOpenedBy")
 }
 
 model Session {
@@ -974,6 +976,10 @@ model Order {
   cardMessage    String?
   // موعد رد العميل على صورة الهدية — ميزة ملغاة (D-99)، يبقى للطلبات القديمة فقط
   photoDueAt     DateTime?
+  // آخر فتح لصفحة الطلب في الإدارة (D-109): يوقف تكرار صوت التنبيه والتصعيد
+  lastOpenedAt   DateTime?
+  lastOpenedBy   User?              @relation("orderOpenedBy", fields: [lastOpenedById], references: [id])
+  lastOpenedById String?
   createdAt      DateTime           @default(now())
   updatedAt      DateTime           @updatedAt
 
@@ -983,6 +989,7 @@ model Order {
   paymentProofs  PaymentProof[]
   giftPhotos     GiftPhoto[]
   stockMovements StockMovement[]
+  notifications  Notification[]
 
   @@index([status, createdAt])
   @@index([status, paymentDueAt])
@@ -1188,4 +1195,54 @@ model Banner {
   deletedAt      DateTime?
 
   @@index([isActive, deletedAt, sortOrder])
+}
+
+// ---------- الإشعارات (D-109) ----------
+enum NotificationType {
+  ORDER_NEW // طلب جديد من المتجر
+  PAYMENT_PROOF // العميل رفع إشعار بنكك
+  ORDER_ESCALATED // طلب لم يُفتح في المهلة
+  BANKAK_EXPIRING // حجز بنكك يقترب من الانتهاء بلا دفع
+  LOW_STOCK
+  BATCH_EXPIRING
+  PRICE_SUGGESTIONS
+  DAILY_SUMMARY
+}
+
+enum NotificationPriority {
+  URGENT
+  IMPORTANT
+  NORMAL
+}
+
+/// إشعار واحد لكل حدث، يصل لعدة مستخدمين (NotificationRecipient). النص بالعربي وقت الإنشاء.
+model Notification {
+  id        String                  @id @default(cuid())
+  type      NotificationType
+  priority  NotificationPriority
+  title     String
+  body      String
+  href      String
+  order     Order?                  @relation(fields: [orderId], references: [id])
+  orderId   String?
+  /// يمنع تكرار نفس الحدث (مثل «ORDER_NEW:<id>»)
+  dedupeKey String?                 @unique
+  createdAt DateTime                @default(now())
+
+  recipients NotificationRecipient[]
+
+  @@index([createdAt])
+  @@index([orderId])
+}
+
+model NotificationRecipient {
+  notification   Notification @relation(fields: [notificationId], references: [id], onDelete: Cascade)
+  notificationId String
+  user           User         @relation(fields: [userId], references: [id])
+  userId         String
+  readAt         DateTime?
+  createdAt      DateTime     @default(now())
+
+  @@id([notificationId, userId])
+  @@index([userId, readAt, createdAt])
 }

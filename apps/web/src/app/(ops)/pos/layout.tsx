@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { logout } from "@/app/(ops)/login/actions";
+import { NotificationBell } from "@/components/admin/notification-bell";
 import { Button } from "@/components/ui/button";
 import { roleCan } from "@/lib/auth/permissions";
 import { requirePermission } from "@/lib/auth/session";
@@ -22,6 +23,8 @@ export default async function PosLayout({ children }: { children: React.ReactNod
         </Link>
         <div className="flex items-center gap-2">
           <span className="hidden truncate text-sm sm:inline">{user.name}</span>
+          {/* كمبيوتر المحل يعمل على نقطة البيع غالباً — التنبيه هنا أهم مكان (D-109) */}
+          {roleCan(user.role, { order: ["read"] }) ? <NotificationBell /> : null}
           <Button asChild variant="outline" size="sm">
             <Link href="/pos/returns">مرتجع</Link>
           </Button>
