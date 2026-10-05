@@ -7,6 +7,7 @@ import Image from "next/image";
 import { useLocale, useTranslations } from "next-intl";
 import { useState, useTransition, type ReactNode } from "react";
 import { clearCart, useCart, useHydrated } from "@/components/store/cart-store";
+import { track } from "@/components/store/analytics";
 import { Price } from "@/components/store/price";
 import { useQuote, type Quote } from "@/components/store/use-quote";
 import { Link, useRouter } from "@/i18n/navigation";
@@ -87,6 +88,7 @@ export function CheckoutForm({ bankakEnabled, wrapStyles }: { bankakEnabled: boo
           expectedTotalSdg: quote.totalSdg,
         });
         if (r.ok) {
+          track("order_placed", { payment: bankakEnabled ? payment : "ON_RECEIPT", fulfillment, items: items.length });
           clearCart();
           router.push(`/o/${r.trackingToken}?new=1`);
           return;

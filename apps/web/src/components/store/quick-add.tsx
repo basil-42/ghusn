@@ -3,6 +3,7 @@
 import { Check, Plus } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { useState } from "react";
+import { track } from "./analytics";
 import { addToCart } from "./cart-store";
 
 /** زر «+» في بطاقة المنتج (D-96): يضيف قطعة من المتغيّر الوحيد مباشرة للسلة. */
@@ -16,6 +17,7 @@ export function QuickAdd({ variantId, name }: { variantId: string; name: string 
       onClick={(e) => {
         e.preventDefault();
         addToCart(variantId, 1);
+        track("add_to_cart", { source: "card" });
         setDone(true);
         setTimeout(() => setDone(false), 1500);
       }}

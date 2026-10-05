@@ -5,6 +5,7 @@ import { useLocale, useTranslations } from "next-intl";
 import { useState } from "react";
 import { Link } from "@/i18n/navigation";
 import { formatAmount } from "@/lib/format";
+import { track } from "./analytics";
 import { MAX_QTY, addToCart } from "./cart-store";
 import type { StoreVariant } from "@/lib/storefront";
 import { Price } from "./price";
@@ -67,6 +68,7 @@ export function VariantPicker({ variants }: { variants: StoreVariant[] }) {
       type="button"
       onClick={() => {
         addToCart(selected.id, qty);
+        track("add_to_cart", { source: "product", qty });
         setAdded(true);
       }}
       className="flex min-h-12 min-w-0 flex-1 items-center justify-center gap-1.5 rounded-xl bg-primary px-3 font-semibold whitespace-nowrap text-primary-foreground hover:bg-primary/90"
