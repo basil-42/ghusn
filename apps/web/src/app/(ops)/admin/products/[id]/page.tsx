@@ -4,7 +4,14 @@ import { notFound } from "next/navigation";
 import { roleCan } from "@/lib/auth/permissions";
 import { requirePermission } from "@/lib/auth/session";
 import { listOccasionOptions } from "@/lib/occasions";
-import { PRODUCT_TYPE_LABELS, STOCK_UNIT_LABELS, getProduct, listCategoryOptions } from "@/lib/catalog";
+import {
+  PRODUCT_TYPE_LABELS,
+  READINESS_LABELS,
+  STOCK_UNIT_LABELS,
+  getProduct,
+  listCategoryOptions,
+  productReadiness,
+} from "@/lib/catalog";
 import { MAX_IMAGES_PER_PRODUCT, imageUrl } from "@/lib/product-images";
 import { formatDateTime } from "@/lib/format";
 import { plainNumber } from "@ghusn/core";
@@ -31,6 +38,10 @@ export default async function ProductPage({
 
   const canEdit = roleCan(session.user.role, { product: ["update"] });
   const canArchive = roleCan(session.user.role, { product: ["delete"] });
+  const missing = productReadiness({
+    ...product,
+    _count: { images: product.images.length, occasions: product.occasions.length },
+  });
 
   return (
     <div className="flex flex-col gap-6">
@@ -40,6 +51,23 @@ export default async function ProductPage({
           {product.category.nameAr} · آخر تعديل {formatDateTime(product.updatedAt)}
         </p>
       </header>
+
+      {/* جاهزية المتجر (D-106): ما ينقص المنتج الظاهر في المتجر */}
+      {missing?.length ? (
+        <section
+          aria-label="جاهزية المتجر"
+          className="flex flex-wrap items-center gap-2 rounded-2xl border border-gold/40 bg-gold/10 p-4 text-sm"
+        >
+          <span className="font-semibold text-warning">ينقص هذا المنتج في المتجر:</span>
+          {missing.map((k) => (
+            <span key={k} className="rounded-full bg-card px-2.5 py-0.5 font-semibold text-warning">
+              {READINESS_LABELS[k]}
+            </span>
+          ))}
+        </section>
+      ) : missing ? (
+        <p className="rounded-2xl bg-sage/15 p-3 text-sm font-semibold text-forest">مكتمل للمتجر ✓</p>
+      ) : null}
 
       <ProductImages
         productId={product.id}
