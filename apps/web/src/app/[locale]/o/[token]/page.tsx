@@ -6,13 +6,14 @@ import { Link } from "@/i18n/navigation";
 import { formatDateTime } from "@/lib/format";
 import { expireUnpaidOrders, getOrderByToken } from "@/lib/orders";
 import { bankakAccount, getReceiptSettings } from "@/lib/settings";
-import { whatsappLink } from "@/lib/site";
+import { localePath, siteUrl, whatsappLink } from "@/lib/site";
 import { PaymentProofForm } from "./payment-proof-form";
+import { ThankYou } from "./thank-you";
 import { CopyButton } from "@/components/store/copy-button";
 
 export const dynamic = "force-dynamic";
 
-type Props = { params: Promise<{ locale: string; token: string }> };
+type Props = { params: Promise<{ locale: string; token: string }>; searchParams: Promise<{ new?: string }> };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { locale, token } = await params;
@@ -29,8 +30,8 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 const STEPS = ["NEW", "CONFIRMED", "PREPARING", "READY", "OUT_FOR_DELIVERY", "DELIVERED"] as const;
 
 /** متابعة الطلب برابطه السرّي (ضيف — D-88). */
-export default async function OrderStatusPage({ params }: Props) {
-  const { locale, token } = await params;
+export default async function OrderStatusPage({ params, searchParams }: Props) {
+  const [{ locale, token }, { new: fresh }] = await Promise.all([params, searchParams]);
   setRequestLocale(locale);
   let o = await getOrderByToken(token, locale);
   if (!o) notFound();
@@ -45,15 +46,35 @@ export default async function OrderStatusPage({ params }: Props) {
   const steps = STEPS.filter((s) => o.fulfillment === "DELIVERY" || s !== "OUT_FOR_DELIVERY");
   const reached = o.status === "CANCELLED" ? -1 : steps.findIndex((s) => s === o.status);
   const current = reached >= 0 ? reached : o.status === "AWAITING_PHOTO_APPROVAL" ? steps.indexOf("PREPARING") : 0;
+  // صفحة الشكر (D-107): بعد إتمام الطلب مباشرة، وما دام الطلب لم يُؤكَّد بعد
+  const thankYou = fresh === "1" && ["NEW", "AWAITING_PAYMENT", "PAYMENT_REVIEW"].includes(o.status);
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-6 px-4 py-10">
+      {thankYou ? (
+        <ThankYou
+          customerName={o.customerName}
+          recipientName={o.recipientName}
+          number={o.number}
+          trackUrl={`${siteUrl()}${localePath(locale, `/o/${token}`)}`}
+          awaitingPayment={o.status === "AWAITING_PAYMENT"}
+          whatsapp={contact}
+        />
+      ) : null}
       <header className="flex flex-col gap-2">
-        <h1 className="font-display text-4xl font-bold">
-          {t("title", { number: "" })}
-          <bdi dir="ltr">{o.number}</bdi>
-        </h1>
-        {o.status === "NEW" ? <p className="text-lg">{t("thanks")}</p> : null}
+        {/* مع صفحة الشكر يصير عنوان الصفحة فيها؛ هذا عنوان ثانوي */}
+        {thankYou ? (
+          <h2 className="font-display text-2xl font-bold">
+            {t("title", { number: "" })}
+            <bdi dir="ltr">{o.number}</bdi>
+          </h2>
+        ) : (
+          <h1 className="font-display text-4xl font-bold">
+            {t("title", { number: "" })}
+            <bdi dir="ltr">{o.number}</bdi>
+          </h1>
+        )}
+        {o.status === "NEW" && !thankYou ? <p className="text-lg">{t("thanks")}</p> : null}
         <p className="text-sm text-muted-foreground">
           {formatDateTime(o.createdAt)} · {t("save")}
         </p>
@@ -88,7 +109,8 @@ export default async function OrderStatusPage({ params }: Props) {
             </li>
           ))}
         </ol>
-        {contact ? (
+        {/* مع صفحة الشكر الزر فيها — بلا تكرار */}
+        {contact && !thankYou ? (
           <a
             href={contact}
             target="_blank"

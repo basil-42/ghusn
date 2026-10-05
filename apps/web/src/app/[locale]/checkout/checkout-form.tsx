@@ -90,7 +90,7 @@ export function CheckoutForm({ bankakEnabled, wrapStyles }: { bankakEnabled: boo
         if (r.ok) {
           track("order_placed", { payment: bankakEnabled ? payment : "ON_RECEIPT", fulfillment, items: items.length });
           clearCart();
-          router.push(`/o/${r.trackingToken}`);
+          router.push(`/o/${r.trackingToken}?new=1`);
           return;
         }
         const known = te.has(r.code) ? r.code : "INVALID";

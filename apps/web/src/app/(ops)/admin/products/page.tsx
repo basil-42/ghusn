@@ -9,24 +9,32 @@ import { Button } from "@/components/ui/button";
 import { Input, NativeSelect } from "@/components/ui/input";
 import { roleCan } from "@/lib/auth/permissions";
 import { requirePermission } from "@/lib/auth/session";
-import { listCategories, listProducts } from "@/lib/catalog";
+import {
+  READINESS_LABELS,
+  countIncompleteForStore,
+  listCategories,
+  listProducts,
+  productReadiness,
+} from "@/lib/catalog";
 import { imageUrl } from "@/lib/product-images";
 
 export const metadata: Metadata = { title: "المنتجات | غصن" };
 
-type SearchParams = Promise<{ q?: string; category?: string; page?: string; archived?: string }>;
+type SearchParams = Promise<{ q?: string; category?: string; page?: string; archived?: string; incomplete?: string }>;
 
 export default async function ProductsPage({ searchParams }: { searchParams: SearchParams }) {
   const session = await requirePermission({ product: ["read"] });
-  const { q = "", category = "", page: pageParam, archived } = await searchParams;
+  const { q = "", category = "", page: pageParam, archived, incomplete: incompleteParam } = await searchParams;
+  const incomplete = incompleteParam === "1";
   const page = Math.max(1, Number.parseInt(pageParam ?? "1", 10) || 1);
-  const [categories, { items, total, pages }] = await Promise.all([
+  const [categories, { items, total, pages }, incompleteCount] = await Promise.all([
     listCategories(),
-    listProducts({ q, categoryId: category || undefined, page }),
+    listProducts({ q, categoryId: category || undefined, incomplete, page }),
+    countIncompleteForStore(),
   ]);
   const canCreate = roleCan(session.user.role, { product: ["create"] });
   const pageHref = (p: number) =>
-    `/admin/products?${new URLSearchParams({ ...(q && { q }), ...(category && { category }), page: String(p) })}`;
+    `/admin/products?${new URLSearchParams({ ...(q && { q }), ...(category && { category }), ...(incomplete && { incomplete: "1" }), page: String(p) })}`;
 
   return (
     <div className="flex flex-col gap-6">
@@ -46,8 +54,27 @@ export default async function ProductsPage({ searchParams }: { searchParams: Sea
 
       {archived ? <Alert variant="success">تمت أرشفة المنتج.</Alert> : null}
 
+      {/* جاهزية المتجر (D-106): رابط يعرض منتجات المتجر التي ينقصها شيء */}
+      {incompleteCount > 0 || incomplete ? (
+        <Link
+          href={incomplete ? "/admin/products" : "/admin/products?incomplete=1"}
+          aria-pressed={incomplete}
+          className={`flex min-h-11 items-center justify-between gap-3 rounded-2xl border px-4 py-2 text-sm font-semibold ${
+            incomplete ? "border-forest bg-forest text-ivory" : "border-sand bg-sand/20 text-forest hover:bg-sand/35"
+          }`}
+        >
+          <span>
+            {incomplete
+              ? "تعرضين منتجات المتجر الناقصة فقط"
+              : `${incompleteCount.toLocaleString("en-US")} منتج في المتجر ينقصه شيء (صورة، اسم أو وصف إنجليزي…)`}
+          </span>
+          <span className="shrink-0 underline">{incomplete ? "عرض الكل" : "عرضها"}</span>
+        </Link>
+      ) : null}
+
       <form className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_14rem_auto]" role="search">
         <Input name="q" defaultValue={q} placeholder="ابحثي بالاسم أو الباركود أو SKU" aria-label="بحث" />
+        {incomplete ? <input type="hidden" name="incomplete" value="1" /> : null}
         <NativeSelect name="category" defaultValue={category} aria-label="القسم">
           <option value="">كل الأقسام</option>
           {categories.map((c) => (
@@ -63,13 +90,18 @@ export default async function ProductsPage({ searchParams }: { searchParams: Sea
 
       {items.length === 0 ? (
         <p className="rounded-2xl border border-dashed border-border p-8 text-center text-muted-foreground">
-          {q || category ? "لا توجد نتائج مطابقة." : "لا توجد منتجات بعد."}
+          {incomplete && !q && !category
+            ? "كل منتجات المتجر مكتملة."
+            : q || category || incomplete
+              ? "لا توجد نتائج مطابقة."
+              : "لا توجد منتجات بعد."}
         </p>
       ) : (
         <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {items.map((p) => {
             const first = p.variants[0];
             const main = p.images[0];
+            const missing = productReadiness(p);
             return (
               <li key={p.id}>
                 <Link
@@ -106,6 +138,16 @@ export default async function ProductsPage({ searchParams }: { searchParams: Sea
                       ? `${p.variants.length} متغيرات: ${p.variants.map(variantLabel).slice(0, 3).join("، ")}${p.variants.length > 3 ? "…" : ""}`
                       : null}
                   </p>
+                  {missing?.length ? (
+                    <p className="flex flex-wrap items-center gap-1 text-xs">
+                      <span className="font-semibold text-warning">ينقصه:</span>
+                      {missing.map((k) => (
+                        <span key={k} className="rounded-full bg-gold/15 px-2 py-0.5 font-semibold text-warning">
+                          {READINESS_LABELS[k]}
+                        </span>
+                      ))}
+                    </p>
+                  ) : null}
                   {first ? (
                     <p dir="ltr" className="mt-auto text-end text-sm tabular-nums text-muted-foreground">
                       {first.sku} · {first.barcode}

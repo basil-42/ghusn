@@ -250,7 +250,14 @@
     "whatsappText": "Hello Ghusn, I'm asking about my order {number}",
     "preparingImage": "Preparing the image…",
     "copy": "Copy",
-    "copied": "Copied"
+    "copied": "Copied",
+    "thanksTitle": "Thank you, {name}",
+    "thanksTitleNoName": "Thank you",
+    "thanksNew": "We received your order and will contact you soon to confirm it.",
+    "thanksGift": "We received your order and will prepare {name}’s gift with care.",
+    "thanksPay": "One last step: transfer the amount with Bankak below to confirm your order.",
+    "thanksNumber": "Your order number",
+    "thanksLink": "Order tracking link"
   },
   "occasion": {
     "empty": "No products are available for this occasion right now."

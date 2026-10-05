@@ -78,3 +78,38 @@ export function slugify(text: string): string {
     .replace(/^-+|-+$/g, "")
     .slice(0, 60);
 }
+
+/** ما ينقص منتجاً ظاهراً في المتجر (D-106) — بترتيب العرض في لوحة التحكم. */
+export const STORE_READINESS_ITEMS = [
+  "price",
+  "image",
+  "nameEn",
+  "descriptionAr",
+  "descriptionEn",
+  "occasion",
+] as const;
+export type StoreReadinessItem = (typeof STORE_READINESS_ITEMS)[number];
+
+export interface StoreReadinessInput {
+  /** متغيّر نشط واحد على الأقل مسعّر — بدونه لا يظهر المنتج في المتجر أصلاً. */
+  hasPrice: boolean;
+  imageCount: number;
+  nameEn: string | null;
+  descriptionAr: string | null;
+  descriptionEn: string | null;
+  occasionCount: number;
+}
+
+/** النواقص فقط؛ قائمة فارغة = جاهز. النص الفارغ أو المسافات تُعدّ ناقصة. */
+export function storeReadiness(p: StoreReadinessInput): StoreReadinessItem[] {
+  const blank = (s: string | null) => !s?.trim();
+  const missing: Record<StoreReadinessItem, boolean> = {
+    price: !p.hasPrice,
+    image: p.imageCount === 0,
+    nameEn: blank(p.nameEn),
+    descriptionAr: blank(p.descriptionAr),
+    descriptionEn: blank(p.descriptionEn),
+    occasion: p.occasionCount === 0,
+  };
+  return STORE_READINESS_ITEMS.filter((k) => missing[k]);
+}

@@ -5,8 +5,10 @@ import {
   formatSku,
   internalBarcode,
   searchTerms,
+  storeReadiness,
   validateVariants,
   variantLabel,
+  type StoreReadinessItem,
   type VariantIssue,
 } from "@ghusn/core";
 import { Prisma, prisma, type ProductType, type StockUnit } from "@ghusn/db";
@@ -39,11 +41,75 @@ export async function listCategoryOptions(includeId?: string) {
   });
 }
 
-export async function listProducts({ q, categoryId, page = 1 }: { q?: string; categoryId?: string; page?: number }) {
+/** منتج يظهر في المتجر (نشط، بضاعة، «ظاهر في المتجر») وينقصه شيء من قائمة الجاهزية (D-106). */
+const incompleteForStore = {
+  isActive: true,
+  isWebVisible: true,
+  type: "STOCK",
+  OR: [
+    { variants: { none: { deletedAt: null, isActive: true, priceSdg: { not: null } } } },
+    { images: { none: {} } },
+    { nameEn: null },
+    { nameEn: "" },
+    { descriptionAr: null },
+    { descriptionAr: "" },
+    { descriptionEn: null },
+    { descriptionEn: "" },
+    { occasions: { none: {} } },
+  ],
+} satisfies Prisma.ProductWhereInput;
+
+/** عدد منتجات المتجر الناقصة — للرابط أعلى قائمة المنتجات. */
+export const countIncompleteForStore = () =>
+  prisma.product.count({ where: { deletedAt: null, ...incompleteForStore } });
+
+/** نواقص المنتج للمتجر، أو null إن لم يكن ظاهراً فيه (لا معنى للجاهزية عندها). */
+export function productReadiness(p: {
+  isActive: boolean;
+  isWebVisible: boolean;
+  type: string;
+  nameEn: string | null;
+  descriptionAr: string | null;
+  descriptionEn: string | null;
+  variants: { isActive: boolean; priceSdg: unknown }[];
+  _count: { images: number; occasions: number };
+}): StoreReadinessItem[] | null {
+  if (!p.isActive || !p.isWebVisible || p.type !== "STOCK") return null;
+  return storeReadiness({
+    hasPrice: p.variants.some((v) => v.isActive && v.priceSdg !== null),
+    imageCount: p._count.images,
+    nameEn: p.nameEn,
+    descriptionAr: p.descriptionAr,
+    descriptionEn: p.descriptionEn,
+    occasionCount: p._count.occasions,
+  });
+}
+
+export const READINESS_LABELS: Record<StoreReadinessItem, string> = {
+  price: "سعر",
+  image: "صورة",
+  nameEn: "اسم إنجليزي",
+  descriptionAr: "وصف عربي",
+  descriptionEn: "وصف إنجليزي",
+  occasion: "مناسبة",
+};
+
+export async function listProducts({
+  q,
+  categoryId,
+  incomplete = false,
+  page = 1,
+}: {
+  q?: string;
+  categoryId?: string;
+  incomplete?: boolean;
+  page?: number;
+}) {
   const terms = searchTerms(q ?? "");
   const where: Prisma.ProductWhereInput = {
     deletedAt: null,
     ...(categoryId ? { categoryId } : {}),
+    ...(incomplete ? incompleteForStore : {}),
     // كل كلمة يجب أن توجد في نص البحث الموحّد (فهرس trigram يسرّع ILIKE)
     AND: terms.map((t) => ({ searchText: { contains: t } })),
   };
@@ -59,9 +125,19 @@ export async function listProducts({ q, categoryId, page = 1 }: { q?: string; ca
         variants: {
           where: { deletedAt: null },
           orderBy: { sortOrder: "asc" },
-          select: { id: true, sku: true, barcode: true, size: true, color: true, volume: true, isActive: true },
+          select: {
+            id: true,
+            sku: true,
+            barcode: true,
+            size: true,
+            color: true,
+            volume: true,
+            isActive: true,
+            priceSdg: true,
+          },
         },
         images: { orderBy: { sortOrder: "asc" }, take: 1, select: { key: true } },
+        _count: { select: { images: true, occasions: true } },
       },
     }),
   ]);
