@@ -83,3 +83,52 @@ self.addEventListener("fetch", (event) => {
     event.respondWith(posPage(request));
   }
 });
+
+/*
+ * إشعارات الجوال (D-109). إن كانت صفحة من النظام ظاهرة أمام المستخدمة لا يظهر إشعار الهاتف — الجرس
+ * والصوت داخل الصفحة يكفيان (بلا رنين مزدوج). العاجل يبقى حتى يُضغط.
+ */
+self.addEventListener("push", (event) => {
+  let data;
+  try {
+    data = event.data ? event.data.json() : null;
+  } catch {
+    data = null;
+  }
+  if (!data || !data.title) return;
+  event.waitUntil(
+    (async () => {
+      const windows = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+      const visible = windows.some((c) => c.visibilityState === "visible" && /\/(admin|pos)(\/|$)/.test(new URL(c.url).pathname));
+      if (visible && !String(data.tag).startsWith("test-")) return;
+      await self.registration.showNotification(data.title, {
+        body: data.body,
+        tag: data.tag,
+        data: { href: data.href || "/admin/notifications" },
+        icon: "/brand/icon-192.png",
+        badge: "/brand/badge-72.png",
+        dir: "rtl",
+        lang: "ar",
+        requireInteraction: Boolean(data.urgent),
+        renotify: Boolean(data.urgent),
+      });
+    })(),
+  );
+});
+
+self.addEventListener("notificationclick", (event) => {
+  event.notification.close();
+  const target = new URL(event.notification.data?.href || "/admin/notifications", self.location.origin).toString();
+  event.waitUntil(
+    (async () => {
+      const windows = await self.clients.matchAll({ type: "window", includeUncontrolled: true });
+      const existing = windows.find((c) => new URL(c.url).origin === self.location.origin);
+      if (existing) {
+        await existing.focus();
+        if ("navigate" in existing) return existing.navigate(target);
+        return undefined;
+      }
+      return self.clients.openWindow(target);
+    })(),
+  );
+});

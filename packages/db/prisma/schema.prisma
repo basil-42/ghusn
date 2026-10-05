@@ -69,6 +69,8 @@ model User {
   giftPhotos        GiftPhoto[]           @relation("giftPhotoBy")
   notifications     NotificationRecipient[]
   ordersOpened      Order[]               @relation("orderOpenedBy")
+  pushSubscriptions PushSubscription[]
+  notificationPrefs NotificationPreference?
 }
 
 model Session {
@@ -1227,11 +1229,14 @@ model Notification {
   orderId   String?
   /// يمنع تكرار نفس الحدث (مثل «ORDER_NEW:<id>»)
   dedupeKey String?                 @unique
+  /// متى أُرسل لأجهزة الجوال (D-109) — فارغ = ينتظر الإرسال (Outbox)
+  pushedAt  DateTime?
   createdAt DateTime                @default(now())
 
   recipients NotificationRecipient[]
 
   @@index([createdAt])
+  @@index([pushedAt, createdAt])
   @@index([orderId])
 }
 
@@ -1245,4 +1250,34 @@ model NotificationRecipient {
 
   @@id([notificationId, userId])
   @@index([userId, readAt, createdAt])
+}
+
+/// جهاز مفعّل لإشعارات الجوال (Web Push) — مفاتيح التشفير من المتصفح
+model PushSubscription {
+  id         String   @id @default(cuid())
+  user       User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId     String
+  endpoint   String   @unique
+  p256dh     String
+  auth       String
+  /// «Chrome · أندرويد» للعرض في التفضيلات
+  label      String
+  createdAt  DateTime @default(now())
+  lastUsedAt DateTime @default(now())
+
+  @@index([userId])
+}
+
+/// تفضيلات الإشعارات لكل مستخدمة؛ بلا سجل = الافتراضي (D-109)
+model NotificationPreference {
+  user           User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId         String             @id
+  /// الأحداث التي تصل للجوال
+  pushTypes      NotificationType[]
+  /// ساعات الهدوء بتوقيت الخرطوم «HH:MM»؛ فارغ = بلا هدوء
+  quietStart     String?
+  quietEnd       String?
+  /// العاجل يصل حتى في ساعات الهدوء
+  urgentInQuiet  Boolean            @default(true)
+  updatedAt      DateTime           @updatedAt
 }

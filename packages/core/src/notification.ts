@@ -3,7 +3,31 @@
  * ما لم يُفتح طلبه؛ المهم نغمة واحدة؛ العادي بلا صوت.
  */
 
+import { SHOP_TIME_ZONE } from "./exchange-rate";
+
 export type NotificationPriority = "URGENT" | "IMPORTANT" | "NORMAL";
+
+export const NOTIFICATION_TYPES = [
+  "ORDER_NEW",
+  "PAYMENT_PROOF",
+  "ORDER_ESCALATED",
+  "BANKAK_EXPIRING",
+  "LOW_STOCK",
+  "BATCH_EXPIRING",
+  "PRICE_SUGGESTIONS",
+  "DAILY_SUMMARY",
+] as const;
+export type NotificationTypeName = (typeof NOTIFICATION_TYPES)[number];
+
+/** ما يصل للجوال افتراضياً: العاجل والمهم والملخص؛ العادي داخل النظام فقط (D-109). */
+export const DEFAULT_PUSH_TYPES: readonly NotificationTypeName[] = [
+  "ORDER_NEW",
+  "PAYMENT_PROOF",
+  "ORDER_ESCALATED",
+  "BANKAK_EXPIRING",
+  "DAILY_SUMMARY",
+];
+export const DEFAULT_QUIET = { start: "23:00", end: "08:00" } as const;
 export type Chime = "urgent" | "important";
 
 export const URGENT_REPEAT_MS = 60_000;
@@ -48,4 +72,41 @@ export function chimeToPlay(
   if (anyRinging && (state.lastUrgentAt === null || nowMs - state.lastUrgentAt >= URGENT_REPEAT_MS)) return "urgent";
   if (!firstPoll && fresh.some((n) => n.priority === "IMPORTANT")) return "important";
   return null;
+}
+
+const HHMM = /^([01]\d|2[0-3]):([0-5]\d)$/;
+export const isTimeOfDay = (v: string) => HHMM.test(v);
+const minutesOf = (v: string) => Number(v.slice(0, 2)) * 60 + Number(v.slice(3, 5));
+const clock = new Intl.DateTimeFormat("en-GB", {
+  timeZone: SHOP_TIME_ZONE,
+  hour: "2-digit",
+  minute: "2-digit",
+  hourCycle: "h23",
+});
+
+/** هل اللحظة داخل ساعات الهدوء بتوقيت الخرطوم؟ تعبر منتصف الليل (23:00–08:00). البداية شاملة والنهاية لا. */
+export function inQuietHours(now: Date, start: string | null, end: string | null): boolean {
+  if (!start || !end || !isTimeOfDay(start) || !isTimeOfDay(end) || start === end) return false;
+  const m = minutesOf(clock.format(now));
+  const s = minutesOf(start);
+  const e = minutesOf(end);
+  return s < e ? m >= s && m < e : m >= s || m < e;
+}
+
+export interface PushPrefs {
+  pushTypes: readonly NotificationTypeName[];
+  quietStart: string | null;
+  quietEnd: string | null;
+  urgentInQuiet: boolean;
+}
+
+/** هل يُرسل هذا الإشعار لجوال هذه المستخدمة الآن؟ */
+export function shouldPush(
+  n: { type: NotificationTypeName; priority: NotificationPriority },
+  prefs: PushPrefs,
+  now: Date,
+): boolean {
+  if (!prefs.pushTypes.includes(n.type)) return false;
+  if (!inQuietHours(now, prefs.quietStart, prefs.quietEnd)) return true;
+  return n.priority === "URGENT" && prefs.urgentInQuiet;
 }
