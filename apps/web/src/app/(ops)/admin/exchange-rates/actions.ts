@@ -6,6 +6,8 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { MANUAL_SOURCES } from "@/lib/exchange-rates";
 import { requirePermission } from "@/lib/auth/session";
+import { notifyPriceSuggestions } from "@/lib/notification-sweeps";
+import { kickPushDelivery } from "@/lib/push";
 
 export type RateFormState = {
   error?: string;
@@ -76,7 +78,7 @@ export async function createExchangeRate(_prev: RateFormState, formData: FormDat
   }
 
   // سجل جديد دائماً — لا تعديل ولا حذف: السعر القديم مستخدم في عمليات مسجّلة (D-21)
-  await prisma.exchangeRate.create({
+  const rate = await prisma.exchangeRate.create({
     data: {
       currencyCode,
       unitsPerUsd,
@@ -86,6 +88,12 @@ export async function createExchangeRate(_prev: RateFormState, formData: FormDat
       enteredById: session.user.id,
     },
   });
+
+  // سعر الجنيه يغيّر الأسعار المقترحة ← إشعار بعدد الأصناف التي تحتاج مراجعة (D-109)
+  if (currencyCode === "SDG") {
+    await notifyPriceSuggestions(rate.id, unitsPerUsd).catch((e) => console.error("[notify] price suggestions", e));
+    kickPushDelivery();
+  }
 
   revalidatePath("/admin", "layout");
   return { success: `تم حفظ سعر ${currency.nameAr}: ${unitsPerUsd} للدولار.` };

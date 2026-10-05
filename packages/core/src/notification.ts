@@ -108,5 +108,46 @@ export function shouldPush(
 ): boolean {
   if (!prefs.pushTypes.includes(n.type)) return false;
   if (!inQuietHours(now, prefs.quietStart, prefs.quietEnd)) return true;
-  return n.priority === "URGENT" && prefs.urgentInQuiet;
+  // العاجل والتصعيد (طلب ينتظر بلا متابعة) يتجاوزان ساعات الهدوء إن سمحت المستخدمة
+  return (n.priority === "URGENT" || n.type === "ORDER_ESCALATED") && prefs.urgentInQuiet;
+}
+
+// ---------- التصعيد والتذكير (D-109) ----------
+
+export const ESCALATE_MANAGER_MS = 15 * 60_000;
+export const ESCALATE_OWNER_MS = 30 * 60_000;
+
+/**
+ * مستوى تصعيد طلب جديد لم يُفتح: 0 لا شيء، 1 المديرة (بعد 15 دقيقة)، 2 المالك (بعد 30 دقيقة).
+ * فتح الطلب بعد وصوله يوقف التصعيد.
+ */
+export function escalationLevel(createdAt: Date, openedAt: Date | null, now: Date): 0 | 1 | 2 {
+  if (openedAt && openedAt >= createdAt) return 0;
+  const age = now.getTime() - createdAt.getTime();
+  if (age >= ESCALATE_OWNER_MS) return 2;
+  if (age >= ESCALATE_MANAGER_MS) return 1;
+  return 0;
+}
+
+export const BANKAK_REMIND_MS = 2 * 3_600_000;
+
+/** تذكير حجز بنكك: خلال آخر ساعتين قبل الإلغاء التلقائي، وقبل انتهائه. */
+export function bankakReminderDue(dueAt: Date | null, now: Date): boolean {
+  if (!dueAt) return false;
+  const left = dueAt.getTime() - now.getTime();
+  return left > 0 && left <= BANKAK_REMIND_MS;
+}
+
+export const BURST_MIN = 3;
+
+/**
+ * تجميع إشعارات الجوال لمستخدمة واحدة في دفعة إرسال: 3 طلبات جديدة أو أكثر = إشعار واحد «N طلبات
+ * جديدة» (كلها في الجرس)، والبقية كما هي.
+ */
+export function groupForPush<T extends { type: NotificationTypeName }>(
+  items: readonly T[],
+): { single: T[]; burst: T[] } {
+  const orders = items.filter((n) => n.type === "ORDER_NEW");
+  if (orders.length < BURST_MIN) return { single: [...items], burst: [] };
+  return { single: items.filter((n) => n.type !== "ORDER_NEW"), burst: orders };
 }

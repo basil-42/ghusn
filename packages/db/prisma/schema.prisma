@@ -1281,3 +1281,10 @@ model NotificationPreference {
   urgentInQuiet  Boolean            @default(true)
   updatedAt      DateTime           @updatedAt
 }
+
+/// تنبيهات المخزون المرسلة (D-109): «low:<variant>» يُحذف عند إعادة التعبئة فيُنبَّه من جديد لاحقاً،
+/// «batch:<id>» دفعة نُبّه على اقتراب صلاحيتها (مرة واحدة)
+model NotificationAlertState {
+  key       String   @id
+  createdAt DateTime @default(now())
+}

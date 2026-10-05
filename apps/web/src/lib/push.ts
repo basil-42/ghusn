@@ -2,6 +2,7 @@ import {
   DEFAULT_PUSH_TYPES,
   DEFAULT_QUIET,
   NOTIFICATION_TYPES,
+  groupForPush,
   isTimeOfDay,
   shouldPush,
   type NotificationTypeName,
@@ -164,6 +165,7 @@ export async function deliverPendingPushes(now = new Date()): Promise<number> {
         select: {
           user: {
             select: {
+              id: true,
               banned: true,
               notificationPrefs: true,
               pushSubscriptions: { select: { id: true, endpoint: true, p256dh: true, auth: true } },
@@ -173,7 +175,9 @@ export async function deliverPendingPushes(now = new Date()): Promise<number> {
       },
     },
   });
-  let sent = 0;
+  // لكل مستخدمة: ما يحق لها على الجوال الآن، ثم تجميع دفعة الطلبات (3 أو أكثر = إشعار واحد)
+  type Sendable = { type: NotificationTypeName; payload: Payload };
+  const perUser = new Map<string, { subs: Sub[]; items: Sendable[] }>();
   for (const n of notifications) {
     const payload: Payload = { title: n.title, body: n.body, href: n.href, tag: n.id, urgent: n.priority === "URGENT" };
     for (const { user } of n.recipients) {
@@ -187,8 +191,28 @@ export async function deliverPendingPushes(now = new Date()): Promise<number> {
             quietEnd: DEFAULT_QUIET.end,
             urgentInQuiet: true,
           };
-      if (!shouldPush({ type: n.type as NotificationTypeName, priority: n.priority }, prefs, now)) continue;
-      const results = await Promise.all(user.pushSubscriptions.map((s) => sendTo(cfg, s, payload)));
+      const type = n.type as NotificationTypeName;
+      if (!shouldPush({ type, priority: n.priority }, prefs, now)) continue;
+      const entry = perUser.get(user.id) ?? { subs: user.pushSubscriptions, items: [] };
+      entry.items.push({ type, payload });
+      perUser.set(user.id, entry);
+    }
+  }
+  let sent = 0;
+  for (const { subs, items } of perUser.values()) {
+    const { single, burst } = groupForPush(items);
+    const payloads = single.map((i) => i.payload);
+    if (burst.length) {
+      payloads.push({
+        title: `${burst.length} طلبات جديدة`,
+        body: burst.map((b) => b.payload.title.replace(/^طلب جديد · /, "")).join("، "),
+        href: "/admin/orders",
+        tag: `orders-${now.getTime()}`,
+        urgent: true,
+      });
+    }
+    for (const payload of payloads) {
+      const results = await Promise.all(subs.map((sub) => sendTo(cfg, sub, payload)));
       sent += results.filter(Boolean).length;
     }
   }

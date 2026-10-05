@@ -1,5 +1,15 @@
 import { describe, expect, it } from "vitest";
-import { DEFAULT_PUSH_TYPES, URGENT_REPEAT_MS, chimeToPlay, inQuietHours, isRinging, shouldPush } from "../src";
+import {
+  DEFAULT_PUSH_TYPES,
+  URGENT_REPEAT_MS,
+  bankakReminderDue,
+  chimeToPlay,
+  escalationLevel,
+  groupForPush,
+  inQuietHours,
+  isRinging,
+  shouldPush,
+} from "../src";
 
 const t0 = new Date("2026-10-05T10:00:00Z");
 const at = (ms: number) => new Date(t0.getTime() + ms);
@@ -97,5 +107,52 @@ describe("shouldPush (D-109)", () => {
     expect(shouldPush({ type: "ORDER_NEW", priority: "URGENT" }, { ...prefs, urgentInQuiet: false }, night)).toBe(
       false,
     );
+  });
+});
+
+describe("escalation and reminders (D-109)", () => {
+  const created = new Date("2026-10-05T10:00:00Z");
+  const after = (min: number) => new Date(created.getTime() + min * 60_000);
+
+  it("escalates to the manager at 15 minutes and the owner at 30", () => {
+    expect(escalationLevel(created, null, after(14))).toBe(0);
+    expect(escalationLevel(created, null, after(15))).toBe(1);
+    expect(escalationLevel(created, null, after(29))).toBe(1);
+    expect(escalationLevel(created, null, after(30))).toBe(2);
+  });
+
+  it("stops once the order is opened after it arrived", () => {
+    expect(escalationLevel(created, after(5), after(40))).toBe(0);
+    expect(escalationLevel(created, after(-60), after(20))).toBe(1);
+  });
+
+  it("reminds about a Bankak reservation only in its last two hours", () => {
+    const due = after(24 * 60);
+    expect(bankakReminderDue(due, after(21 * 60))).toBe(false);
+    expect(bankakReminderDue(due, after(22 * 60))).toBe(true);
+    expect(bankakReminderDue(due, after(24 * 60))).toBe(false);
+    expect(bankakReminderDue(null, after(0))).toBe(false);
+  });
+
+  it("lets escalation through quiet hours like urgent", () => {
+    const prefs = { pushTypes: DEFAULT_PUSH_TYPES, quietStart: "23:00", quietEnd: "08:00", urgentInQuiet: true };
+    const night = new Date("2026-10-05T02:00:00+02:00");
+    expect(shouldPush({ type: "ORDER_ESCALATED", priority: "IMPORTANT" }, prefs, night)).toBe(true);
+  });
+});
+
+describe("groupForPush (D-109)", () => {
+  const n = (type: "ORDER_NEW" | "PAYMENT_PROOF", id: string) => ({ type, id });
+
+  it("keeps up to two new orders as separate pushes", () => {
+    const r = groupForPush([n("ORDER_NEW", "a"), n("ORDER_NEW", "b"), n("PAYMENT_PROOF", "c")]);
+    expect(r.burst).toEqual([]);
+    expect(r.single.map((x) => x.id)).toEqual(["a", "b", "c"]);
+  });
+
+  it("folds three or more new orders into one burst", () => {
+    const r = groupForPush([n("ORDER_NEW", "a"), n("PAYMENT_PROOF", "c"), n("ORDER_NEW", "b"), n("ORDER_NEW", "d")]);
+    expect(r.burst.map((x) => x.id)).toEqual(["a", "b", "d"]);
+    expect(r.single.map((x) => x.id)).toEqual(["c"]);
   });
 });

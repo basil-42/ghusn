@@ -3,10 +3,14 @@
 import { chimeToPlay } from "@ghusn/core";
 import {
   Bell,
+  CalendarClock,
+  ChartColumn,
   Clock,
   CreditCard,
+  Package,
   Settings,
   ShoppingBag,
+  TrendingUp,
   TriangleAlert,
   Volume2,
   VolumeX,
@@ -29,10 +33,17 @@ const ICONS: Partial<Record<NotificationItem["type"], LucideIcon>> = {
   PAYMENT_PROOF: CreditCard,
   ORDER_ESCALATED: TriangleAlert,
   BANKAK_EXPIRING: Clock,
+  LOW_STOCK: Package,
+  BATCH_EXPIRING: CalendarClock,
+  PRICE_SUGGESTIONS: TrendingUp,
+  DAILY_SUMMARY: ChartColumn,
 };
 const ACTIONS: Partial<Record<NotificationItem["type"], string>> = {
   ORDER_NEW: "فتح الطلب",
   PAYMENT_PROOF: "مراجعة الدفع",
+  ORDER_ESCALATED: "فتح الطلب",
+  BANKAK_EXPIRING: "فتح الطلب",
+  PRICE_SUGGESTIONS: "مراجعة الأسعار",
 };
 type Tab = "all" | "unread" | "urgent";
 const TABS: { key: Tab; label: string }[] = [

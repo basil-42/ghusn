@@ -1,5 +1,13 @@
 import { PgBoss } from "pg-boss";
 import { expireUnpaidOrders } from "./orders";
+import {
+  cleanupNotifications,
+  runBankakReminders,
+  runEscalations,
+  runExpiringBatchAlerts,
+  runLowStockAlerts,
+  sendDailySummary,
+} from "./notification-sweeps";
 import { deliverPendingPushes } from "./push";
 
 /**
@@ -12,6 +20,11 @@ import { deliverPendingPushes } from "./push";
 const EXPIRE_UNPAID = "expire-unpaid-orders";
 /** احتياط إشعارات الجوال (D-109): ما لم يُرسل فور حدوثه (خادم أُعيد تشغيله) يُرسل خلال دقيقة. */
 const DELIVER_PUSH = "deliver-pending-push";
+/** الإشعارات المجدولة (D-109): التصعيد وتذكير بنكك كل دقيقة، المخزون كل ساعة، الملخص 10 م، التنظيف ليلاً. */
+const NOTIFY_MINUTE = "notifications-minute";
+const NOTIFY_HOURLY = "notifications-hourly";
+const DAILY_SUMMARY = "notifications-daily-summary";
+const CLEANUP = "notifications-cleanup";
 /** مهمة الموافقة الضمنية على صور الهدايا — أُلغيت الميزة (D-99)، فيُحذف جدولها المحفوظ إن وُجد. */
 const RETIRED_QUEUES = ["approve-overdue-gift-photos"];
 
@@ -43,6 +56,22 @@ async function start(): Promise<PgBoss | null> {
   await boss.work(DELIVER_PUSH, async () => {
     await deliverPendingPushes();
   });
+  const khartoum = { tz: "Africa/Khartoum" };
+  const scheduled: [string, string, () => Promise<unknown>][] = [
+    [NOTIFY_MINUTE, "* * * * *", async () => (await runEscalations()) + (await runBankakReminders())],
+    [NOTIFY_HOURLY, "7 * * * *", async () => (await runLowStockAlerts()) + (await runExpiringBatchAlerts())],
+    [DAILY_SUMMARY, "0 22 * * *", () => sendDailySummary()],
+    [CLEANUP, "20 4 * * *", () => cleanupNotifications()],
+  ];
+  for (const [name, cron, run] of scheduled) {
+    await boss.createQueue(name);
+    await boss.schedule(name, cron, undefined, khartoum);
+    await boss.work(name, async () => {
+      await run();
+      // ما أنشأته الجولة يُرسل للجوال فوراً
+      if (name !== CLEANUP) await deliverPendingPushes();
+    });
+  }
   for (const name of RETIRED_QUEUES) {
     await boss.unschedule(name).catch(() => {});
     await boss.deleteQueue(name).catch(() => {});
