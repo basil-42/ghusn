@@ -170,7 +170,7 @@ export interface StoreProduct {
   description: string | null;
   category: { slug: string; name: string };
   occasions: { slug: string; name: string }[];
-  images: { full: string; thumb: string; width: number; height: number }[];
+  images: { full: string; medium: string; thumb: string; width: number; height: number }[];
   variants: StoreVariant[];
 }
 
@@ -211,6 +211,7 @@ export async function getStoreProduct(locale: Locale, id: string): Promise<Store
     occasions: p.occasions.map(({ occasion: o }) => ({ slug: o.slug, name: locale === "en" ? o.nameEn : o.nameAr })),
     images: p.images.map((i) => ({
       full: imageUrl(i.key, "full"),
+      medium: imageUrl(i.key, "medium"),
       thumb: imageUrl(i.key, "thumb"),
       width: i.width,
       height: i.height,
