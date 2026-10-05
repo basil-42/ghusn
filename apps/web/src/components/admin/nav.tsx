@@ -26,6 +26,7 @@ import {
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { cn } from "@/lib/utils";
+import { usePendingOrders } from "./pending-orders";
 
 const ICONS = {
   dashboard: LayoutDashboard,
@@ -54,6 +55,8 @@ export type NavItem = { href: string; label: string; icon: keyof typeof ICONS };
 
 export function AdminNav({ items, orientation }: { items: NavItem[]; orientation: "vertical" | "horizontal" }) {
   const pathname = usePathname();
+  // طلبات تنتظر: جديدة أو إشعار دفع للمراجعة — يحدّثه استطلاع الجرس (D-109)
+  const pendingOrders = usePendingOrders();
   return (
     <nav
       aria-label="القائمة الرئيسية"
@@ -74,6 +77,12 @@ export function AdminNav({ items, orientation }: { items: NavItem[]; orientation
           >
             <Icon aria-hidden className="size-5" />
             {item.label}
+            {item.href === "/admin/orders" && pendingOrders ? (
+              <span className="ms-auto flex h-5 min-w-5 items-center justify-center rounded-full bg-danger px-1.5 text-[11px] font-bold text-white tabular-nums">
+                <span className="sr-only">بانتظار المتابعة: </span>
+                {pendingOrders}
+              </span>
+            ) : null}
           </Link>
         );
       })}

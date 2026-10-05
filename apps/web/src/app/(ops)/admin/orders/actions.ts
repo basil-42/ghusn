@@ -4,6 +4,7 @@ import { ORDER_STATUSES } from "@ghusn/core";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requirePermission } from "@/lib/auth/session";
+import { markOrderOpened } from "@/lib/notifications";
 import { OrderActionError, transitionOrder } from "@/lib/orders";
 
 export type FormState = { error?: string; success?: string };
@@ -60,4 +61,12 @@ export async function transitionAction(_prev: FormState, formData: FormData): Pr
   revalidatePath("/admin/orders", "layout");
   revalidatePath("/admin");
   return { success: "تم." };
+}
+
+/** فتح صفحة الطلب (D-109): يوقف تكرار التنبيه والتصعيد، ويجعل إشعاراته مقروءة لمن فتحته. */
+export async function markOrderOpenedAction(orderId: string): Promise<void> {
+  const session = await requirePermission({ order: ["read"] });
+  const id = z.string().min(1).max(40).safeParse(orderId);
+  if (!id.success) return;
+  await markOrderOpened(id.data, session.user.id).catch(() => {});
 }

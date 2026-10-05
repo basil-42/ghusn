@@ -8,6 +8,7 @@ import { requirePermission } from "@/lib/auth/session";
 import { formatAmount, formatDateTime } from "@/lib/format";
 import { CITY_LABELS, ORDER_STATUS_LABELS, getOrderForStaff, statusVariant } from "@/lib/orders";
 import { OrderActions } from "../order-actions";
+import { MarkOrderOpened } from "./mark-opened";
 
 export const metadata: Metadata = { title: "طلب | غصن" };
 
@@ -24,6 +25,7 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
 
   return (
     <div className="flex flex-col gap-6">
+      <MarkOrderOpened orderId={o.id} />
       <header className="flex flex-col gap-1">
         <Link href="/admin/orders" className="text-sm text-muted-foreground underline">
           طلبات المتجر
