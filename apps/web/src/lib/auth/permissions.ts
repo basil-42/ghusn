@@ -16,7 +16,8 @@ export const statements = {
   supplierPayment: ["create", "void"],
   shipment: ["read", "create", "update", "receive"],
   shipmentCost: ["create", "void"],
-  stock: ["read"],
+  // تسويات المخزون (D-111): التسجيل، الاعتماد حتى الحد، والاعتماد بلا حد
+  stock: ["read", "adjust", "approve", "approveAll"],
   price: ["approve"],
   pos: ["sell", "approve"],
   sale: ["read"],
@@ -44,7 +45,7 @@ export const roles = {
     supplierPayment: ["create", "void"],
     shipment: ["read", "create", "update", "receive"],
     shipmentCost: ["create", "void"],
-    stock: ["read"],
+    stock: ["read", "adjust", "approve", "approveAll"],
     price: ["approve"],
     pos: ["sell", "approve"],
     sale: ["read"],
@@ -67,7 +68,8 @@ export const roles = {
     supplierPayment: ["create", "void"],
     shipment: ["read", "create", "update", "receive"],
     shipmentCost: ["create", "void"],
-    stock: ["read"],
+    // تعتمد التسويات حتى حد الضبط؛ ما فوقه للمالك (D-111)
+    stock: ["read", "adjust", "approve"],
     price: ["approve"],
     pos: ["sell", "approve"],
     sale: ["read"],
@@ -80,7 +82,8 @@ export const roles = {
   STAFF: ac.newRole({
     exchangeRate: ["read"],
     product: ["read"],
-    stock: ["read"],
+    // تسجّل التسوية وتنتظر الاعتماد (D-111)
+    stock: ["read", "adjust"],
     // تبيع وتخصم حتى الحد وتفتح ورديتها وتغلقها (D-80)
     pos: ["sell"],
     // مصاريف الأقسام المسموحة لها فقط، من درج الوردية وحتى الحد (D-83)

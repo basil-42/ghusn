@@ -9,7 +9,7 @@ import {
   totalsByCurrency,
   type Decimal,
 } from "@ghusn/core";
-import { prisma } from "@ghusn/db";
+import { prisma, type Prisma } from "@ghusn/db";
 import { totalCapitalUsd } from "./capital";
 
 /** الشهر الحالي بتوقيت المحل: YYYY-MM. */
@@ -18,42 +18,57 @@ export const currentShopMonth = () => shopDay(new Date()).slice(0, 7);
 /** الأرقام الخام لفترة (بالدولار، وبالجنيه للمعلومة). */
 async function figures(range: { start: Date; end: Date }) {
   const within = { gte: range.start, lt: range.end };
-  const [sales, returns, expenses, lateCostLoss, shipmentLoss, shifts, orders] = await Promise.all([
-    prisma.sale.aggregate({
-      where: { createdAt: within },
-      _count: true,
-      _sum: { totalSdg: true, revenueUsd: true, cogsUsd: true, lineDiscountSdg: true, invoiceDiscountSdg: true },
-    }),
-    prisma.saleReturn.aggregate({
-      where: { createdAt: within },
-      _count: true,
-      _sum: { refundSdg: true, refundUsd: true, restockCostUsd: true, damagedCostUsd: true },
-    }),
-    prisma.expense.findMany({
-      where: { spentAt: within, voidedAt: null },
-      select: { amount: true, currencyCode: true, amountUsd: true, category: { select: { name: true } } },
-    }),
-    // تكلفة متأخرة تخص وحدات خرجت (D-78)
-    prisma.stockMovement.aggregate({ where: { createdAt: within }, _sum: { expenseUsd: true } }),
-    // بنود شحنات لم يصل منها شيء سليم (D-78) — بتاريخ الاستلام
-    prisma.shipmentLine.aggregate({ where: { shipment: { receivedAt: within } }, _sum: { lossUsd: true } }),
-    // فروقات عدّ الورديات (D-87) — بتاريخ الإغلاق
-    prisma.shift.findMany({
-      where: { closedAt: within, differenceUsd: { not: null } },
-      select: {
-        differenceUsd: true,
-        countedCashSdg: true,
-        expectedCashSdg: true,
-        user: { select: { name: true } },
-      },
-    }),
-    // طلبات المتجر: الإيراد والتكلفة عند التسليم (D-88)
-    prisma.order.aggregate({
-      where: { status: "DELIVERED", deliveredAt: within },
-      _count: true,
-      _sum: { totalSdg: true, revenueUsd: true, cogsUsd: true },
-    }),
-  ]);
+  const [sales, returns, expenses, lateCostLoss, shipmentLoss, shifts, orders, adjByReason, adjByUser] =
+    await Promise.all([
+      prisma.sale.aggregate({
+        where: { createdAt: within },
+        _count: true,
+        _sum: { totalSdg: true, revenueUsd: true, cogsUsd: true, lineDiscountSdg: true, invoiceDiscountSdg: true },
+      }),
+      prisma.saleReturn.aggregate({
+        where: { createdAt: within },
+        _count: true,
+        _sum: { refundSdg: true, refundUsd: true, restockCostUsd: true, damagedCostUsd: true },
+      }),
+      prisma.expense.findMany({
+        where: { spentAt: within, voidedAt: null },
+        select: { amount: true, currencyCode: true, amountUsd: true, category: { select: { name: true } } },
+      }),
+      // تكلفة متأخرة تخص وحدات خرجت (D-78)
+      prisma.stockMovement.aggregate({ where: { createdAt: within }, _sum: { expenseUsd: true } }),
+      // بنود شحنات لم يصل منها شيء سليم (D-78) — بتاريخ الاستلام
+      prisma.shipmentLine.aggregate({ where: { shipment: { receivedAt: within } }, _sum: { lossUsd: true } }),
+      // فروقات عدّ الورديات (D-87) — بتاريخ الإغلاق
+      prisma.shift.findMany({
+        where: { closedAt: within, differenceUsd: { not: null } },
+        select: {
+          differenceUsd: true,
+          countedCashSdg: true,
+          expectedCashSdg: true,
+          user: { select: { name: true } },
+        },
+      }),
+      // طلبات المتجر: الإيراد والتكلفة عند التسليم (D-88)
+      prisma.order.aggregate({
+        where: { status: "DELIVERED", deliveredAt: within },
+        _count: true,
+        _sum: { totalSdg: true, revenueUsd: true, cogsUsd: true },
+      }),
+      // تسويات المخزون المعتمدة (D-111) — ضمن خسائر المخزون أعلاه، مفصّلة حسب السبب ومن سجّلت
+      prisma.$queryRaw<{ reason: string; count: bigint; expenseUsd: Prisma.Decimal }[]>`
+      SELECT a."reason", COUNT(*) AS "count", SUM(m."expenseUsd") AS "expenseUsd"
+        FROM "StockMovement" m JOIN "StockAdjustment" a ON a."id" = m."adjustmentId"
+       WHERE m."kind" = 'ADJUSTMENT' AND m."createdAt" >= ${range.start} AND m."createdAt" < ${range.end}
+       GROUP BY a."reason"`,
+      prisma.$queryRaw<{ name: string; count: bigint; expenseUsd: Prisma.Decimal }[]>`
+      SELECT u."name", COUNT(*) AS "count", SUM(m."expenseUsd") AS "expenseUsd"
+        FROM "StockMovement" m
+        JOIN "StockAdjustment" a ON a."id" = m."adjustmentId"
+        JOIN "User" u ON u."id" = a."requestedById"
+       WHERE m."kind" = 'ADJUSTMENT' AND a."reason" <> 'COUNT'
+         AND m."createdAt" >= ${range.start} AND m."createdAt" < ${range.end}
+       GROUP BY u."name"`,
+    ]);
   const s = (v: { toString(): string } | null | undefined) => v?.toString() ?? "0";
   const byCategory = new Map<string, { usd: string[]; rows: { currencyCode: string; amount: string }[] }>();
   for (const e of expenses) {
@@ -99,6 +114,13 @@ async function figures(range: { start: Date; end: Date }) {
       }))
       .sort((a, b) => dec(b.usd).comparedTo(a.usd)),
     stockLossUsd: dec(s(lateCostLoss._sum.expenseUsd)).plus(s(shipmentLoss._sum.lossUsd)).toFixed(2),
+    adjustmentsUsd: sum(adjByReason.map((r) => r.expenseUsd.toString())).toFixed(2),
+    adjustmentsByReason: adjByReason
+      .map((r) => ({ reason: r.reason, count: Number(r.count), usd: dec(r.expenseUsd.toString()).toFixed(2) }))
+      .sort((a, b) => dec(b.usd).comparedTo(a.usd)),
+    adjustmentsByUser: adjByUser
+      .map((r) => ({ name: r.name, count: Number(r.count), usd: dec(r.expenseUsd.toString()).toFixed(2) }))
+      .sort((a, b) => dec(b.usd).comparedTo(a.usd)),
     cashDifferenceUsd: sumUsd(shifts.map((sh) => s(sh.differenceUsd))).toFixed(2),
     cashDifferenceSdg: sum(shifts.map((sh) => dec(s(sh.countedCashSdg)).minus(s(sh.expectedCashSdg)))).toFixed(0),
     cashDifferenceByCashier: [...byCashier.entries()]

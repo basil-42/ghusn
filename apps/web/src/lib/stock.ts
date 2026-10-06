@@ -21,7 +21,7 @@ import { ShipmentError } from "./shipment-error";
 type Tx = Prisma.TransactionClient;
 
 /** يقفل صف رصيد المتغيّر (وينشئه إن لم يوجد) حتى تنتهي المعاملة — يمنع سباق التحديث. */
-async function lockStockLevel(tx: Tx, variantId: string) {
+export async function lockStockLevel(tx: Tx, variantId: string) {
   await tx.$executeRaw`
     INSERT INTO "StockLevel" ("variantId", "qty", "avgCostUsd", "updatedAt")
     VALUES (${variantId}, 0, 0, now()) ON CONFLICT ("variantId") DO NOTHING`;
@@ -249,12 +249,14 @@ export async function revalueForCost(
 // ---------- القراءة ----------
 
 /** شاشة المخزون: الكمية للجميع، والتكلفة والقيمة لمن يملك صلاحية التكلفة فقط. */
-export async function listStock(query: string, withCost: boolean) {
+export async function listStock(query: string, withCost: boolean, options: { negativeOnly?: boolean } = {}) {
   const terms = searchTerms(query);
   const variants = await prisma.productVariant.findMany({
     where: {
       deletedAt: null,
       product: { deletedAt: null, AND: terms.map((t) => ({ searchText: { contains: t } })) },
+      // رصيد سالب من بيع دون اتصال (D-63) — يحتاج عدّاً وتسوية
+      ...(options.negativeOnly ? { stockLevel: { qty: { lt: 0 } } } : {}),
     },
     orderBy: [{ product: { nameAr: "asc" } }, { sortOrder: "asc" }],
     take: 200,
@@ -277,6 +279,82 @@ export async function listStock(query: string, withCost: boolean) {
   return {
     rows,
     totalValueUsd: withCost ? sum(rows.map((r) => r.valueUsd ?? "0")).toFixed(2) : null,
+  };
+}
+
+/** عدد الأصناف ذات الرصيد السالب — شارة في شاشة المخزون. */
+export const countNegativeStock = () =>
+  prisma.stockLevel.count({ where: { qty: { lt: 0 }, variant: { deletedAt: null, product: { deletedAt: null } } } });
+
+const MOVEMENT_LABELS: Record<string, string> = {
+  RECEIPT: "استلام شحنة",
+  REVALUATION: "إعادة تقييم",
+  SALE: "بيع",
+  RETURN: "مرتجع",
+  CONSUMPTION: "استهلاك تغليف",
+  ADJUSTMENT: "تسوية",
+};
+
+/**
+ * كارت الصنف (D-111): كل حركاته من الدفتر الذي لا يُعدَّل، الأحدث أولاً، مع مرجع كل حركة
+ * (فاتورة، طلب، شحنة، مرتجع، تسوية). التكلفة لمن يملك صلاحيتها فقط.
+ */
+export async function stockCard(variantId: string, withCost: boolean, take = 200) {
+  const v = await prisma.productVariant.findFirst({
+    where: { id: variantId },
+    include: { product: { select: { id: true, nameAr: true, unit: true } }, stockLevel: true },
+  });
+  if (!v) return null;
+  const movements = await prisma.stockMovement.findMany({
+    where: { variantId },
+    orderBy: [{ createdAt: "desc" }, { id: "desc" }],
+    take,
+    include: {
+      sale: { select: { id: true, number: true } },
+      order: { select: { id: true, number: true } },
+      shipment: { select: { id: true, number: true } },
+      saleReturn: { select: { number: true } },
+      adjustment: { select: { id: true, number: true, reason: true, note: true } },
+      batch: { select: { expiresAt: true } },
+      createdBy: { select: { name: true } },
+    },
+  });
+  return {
+    variantId: v.id,
+    productId: v.product.id,
+    label: [v.product.nameAr, variantLabel(v)].filter(Boolean).join(" · "),
+    sku: v.sku,
+    unit: v.product.unit,
+    qty: v.stockLevel?.qty.toString() ?? "0",
+    ...(withCost ? { avgCostUsd: v.stockLevel?.avgCostUsd.toString() ?? "0" } : {}),
+    movements: movements.map((m) => {
+      const ref = m.sale
+        ? { label: m.sale.number, href: `/pos/receipt/${m.sale.id}` }
+        : m.order
+          ? { label: m.order.number, href: `/admin/orders/${m.order.id}` }
+          : m.saleReturn
+            ? { label: m.saleReturn.number, href: null }
+            : m.adjustment
+              ? { label: m.adjustment.number, href: `/admin/stock/adjustments?focus=${m.adjustment.id}` }
+              : m.shipment
+                ? { label: m.shipment.number, href: `/admin/shipments/${m.shipment.id}` }
+                : null;
+      return {
+        id: m.id,
+        at: m.createdAt,
+        kind: m.kind,
+        kindLabel: MOVEMENT_LABELS[m.kind] ?? m.kind,
+        adjustmentReason: m.adjustment?.reason ?? null,
+        ref,
+        note: m.adjustment?.note ?? (m.kind === "REVALUATION" ? m.note : null),
+        expiresOn: m.kind === "RECEIPT" && m.batch?.expiresAt ? m.batch.expiresAt.toISOString().slice(0, 10) : null,
+        qty: m.qty.toString(),
+        qtyAfter: m.qtyAfter.toString(),
+        override: m.override,
+        by: m.createdBy?.name ?? null,
+        ...(withCost ? { avgCostAfterUsd: m.avgCostAfterUsd.toString(), valueUsd: m.valueUsd.toString() } : {}),
+      };
+    }),
   };
 }
 

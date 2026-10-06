@@ -1,4 +1,4 @@
-import { dec } from "@ghusn/core";
+import { dec, type AdjustmentReason } from "@ghusn/core";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -6,11 +6,14 @@ import { roleCan } from "@/lib/auth/permissions";
 import { requirePermission } from "@/lib/auth/session";
 import { formatAmount, formatMargin } from "@/lib/format";
 import { currentShopMonth, monthlyReport, reportMonths } from "@/lib/reports";
+import { REASON_LABELS } from "@/lib/stock-adjustments";
 
 export const metadata: Metadata = { title: "التقرير الشهري | غصن" };
 
 const usd = (v: string) => `${formatAmount(v)} $`;
 const sdg = (v: string) => `${formatAmount(v, 0)} ج.س`;
+/** خسارة موجبة تُعرض «−»، والمكسب «+». */
+const signedUsd = (v: string) => `${dec(v).gt(0) ? "−" : dec(v).lt(0) ? "+" : ""} ${usd(dec(v).abs().toFixed(2))}`;
 
 function Row({ label, value, sub, strong }: { label: string; value: string; sub?: string; strong?: boolean }) {
   return (
@@ -91,11 +94,11 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
                 .map((x) => `${formatAmount(x.amount, x.currencyCode === "SDG" ? 0 : 2)} ${x.currencyCode}`)
                 .join(" + ")}
             />
-            {dec(r.stockLossUsd).gt(0) ? (
+            {!dec(r.stockLossUsd).isZero() ? (
               <Row
-                label="خسائر المخزون"
-                value={`− ${usd(r.stockLossUsd)}`}
-                sub="تكلفة متأخرة لوحدات بيعت، وبنود شحنات لم تصل"
+                label={dec(r.stockLossUsd).gt(0) ? "خسائر المخزون" : "مكسب المخزون (صافي)"}
+                value={`${dec(r.stockLossUsd).gt(0) ? "−" : "+"} ${usd(dec(r.stockLossUsd).abs().toFixed(2))}`}
+                sub="تسويات المخزون، وتكلفة متأخرة لوحدات بيعت، وبنود شحنات لم تصل"
               />
             ) : null}
             {!dec(r.cashDifferenceUsd).isZero() ? (
@@ -144,6 +147,45 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
               </Link>
             ) : null}
           </Card>
+
+          {r.adjustmentsByReason.length ? (
+            <Card>
+              <CardHeader>
+                <CardTitle>خسائر المخزون</CardTitle>
+                <CardDescription>
+                  بمتوسط التكلفة لحظة اعتماد التسوية (D-111)
+                  {dec(r.netCogsUsd).gt(0)
+                    ? ` · ${formatMargin(dec(r.stockLossUsd).div(r.netCogsUsd).toString())} من تكلفة المبيعات`
+                    : ""}
+                </CardDescription>
+              </CardHeader>
+              <dl className="divide-y divide-border">
+                {r.adjustmentsByReason.map((a) => (
+                  <Row
+                    key={a.reason}
+                    label={`${REASON_LABELS[a.reason as AdjustmentReason] ?? a.reason} (${a.count})`}
+                    value={signedUsd(a.usd)}
+                  />
+                ))}
+                {!dec(r.stockLossUsd).minus(r.adjustmentsUsd).isZero() ? (
+                  <Row
+                    label="الشحنات والتكاليف المتأخرة"
+                    value={signedUsd(dec(r.stockLossUsd).minus(r.adjustmentsUsd).toFixed(2))}
+                  />
+                ) : null}
+                <Row label="الإجمالي" value={signedUsd(r.stockLossUsd)} strong />
+              </dl>
+              {r.adjustmentsByUser.length ? (
+                <p className="text-sm text-muted-foreground">
+                  حسب من سجّلت (دون الجرد):{" "}
+                  {r.adjustmentsByUser.map((u) => `${u.name} ${signedUsd(u.usd)} (${u.count})`).join(" · ")}
+                </p>
+              ) : null}
+              <Link href="/admin/stock/adjustments" className="text-sm font-semibold underline">
+                سجل التسويات
+              </Link>
+            </Card>
+          ) : null}
 
           {r.cashDifferenceByCashier.length ? (
             <Card>
