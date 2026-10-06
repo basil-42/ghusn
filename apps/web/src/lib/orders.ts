@@ -22,8 +22,6 @@ import { Prisma, prisma, type DeliveryCity, type Fulfillment } from "@ghusn/db";
 import { nextDocumentNumber } from "./documents";
 import { notifyNewOrder, notifyPaymentProof } from "./notifications";
 import { kickPushDelivery } from "./push";
-import { formatAmount } from "./format";
-import { localePath, siteUrl } from "./site";
 import { currentSellingRate } from "./pricing";
 import { PrivateImageError, savePrivateImage } from "./private-images";
 import { activeWrapStyle } from "./wrapping";
@@ -828,23 +826,6 @@ export async function expireUnpaidOrders(now = new Date()): Promise<number> {
   return n;
 }
 
-/** رابط واتساب لتذكير العميل بالدفع (قبل ربط WhatsApp API — المرحلة 3). */
-export function paymentReminderLink(o: {
-  phone: string;
-  number: string;
-  totalSdg: string;
-  trackingToken: string;
-  locale: string;
-}) {
-  const url = `${siteUrl()}${localePath(o.locale, `/o/${o.trackingToken}`)}`;
-  const total = formatAmount(o.totalSdg, 0);
-  const text =
-    o.locale === "en"
-      ? `Hello from Ghusn 🌿 Your order ${o.number} (${total} SDG) is reserved and awaiting your Bankak transfer. Please upload the receipt here: ${url}`
-      : `مرحباً من غصن 🌿 طلبك ${o.number} (${total} ج.س) محجوز بانتظار تحويل بنكك. ارفع صورة الإشعار من هنا: ${url}`;
-  return `https://wa.me/${o.phone.replace(/\D/g, "")}?text=${encodeURIComponent(text)}`;
-}
-
 /**
  * «تتبّع طلبك» (D-93): رقم الطلب (كاملاً أو أرقامه الأخيرة) + هاتف الطلب ← رابط المتابعة. الهاتف شرط
  * دائماً، فلا يكفي تخمين الرقم؛ وحد المحاولات في الإجراء.
@@ -1000,10 +981,6 @@ export async function getOrderForStaff(id: string) {
     wrapPriceSdg: o.wrapPriceSdg?.toString() ?? null,
     subtotalSdg: o.subtotalSdg.toString(),
     cardMessage: o.cardMessage,
-    reminderLink:
-      o.status === "AWAITING_PAYMENT"
-        ? paymentReminderLink({ ...o, phone: o.customer.phone, totalSdg: o.totalSdg.toFixed(0) })
-        : null,
     proofs: o.paymentProofs.map((p) => ({
       id: p.id,
       reference: p.reference,

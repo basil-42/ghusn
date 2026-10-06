@@ -19,6 +19,7 @@ export * from "./report";
 export * from "./shipment-import";
 export * from "./wallet";
 export * from "./order";
+export * from "./order-message";
 export * from "./occasion";
 export * from "./banner";
 export * from "./dashboard";

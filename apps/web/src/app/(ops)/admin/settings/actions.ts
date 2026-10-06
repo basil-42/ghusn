@@ -5,7 +5,9 @@ import { revalidatePath } from "next/cache";
 import { requirePermission } from "@/lib/auth/session";
 import { ExpenseError, saveExpenseCategory } from "@/lib/expenses";
 import {
+  messageSettingsSchema,
   posSettingsSchema,
+  saveMessageSettings,
   receiptSettingsSchema,
   savePosSettings,
   saveReceiptSettings,
@@ -114,4 +116,18 @@ export async function saveStockSettingsAction(_prev: FormState, formData: FormDa
   revalidatePath("/admin/settings");
   revalidatePath("/admin");
   return { success: "تم حفظ تنبيهات المخزون." };
+}
+
+export async function saveMessageSettingsAction(_prev: FormState, formData: FormData): Promise<FormState> {
+  await requirePermission({ settings: ["update"] });
+  const parsed = messageSettingsSchema.safeParse({
+    signatureAr: text(formData, "signatureAr"),
+    signatureEn: text(formData, "signatureEn"),
+    hoursAr: text(formData, "hoursAr"),
+    hoursEn: text(formData, "hoursEn"),
+  });
+  if (!parsed.success) return { error: "التوقيع حتى 80 حرفاً، وساعات العمل حتى 120 حرفاً." };
+  await saveMessageSettings(parsed.data);
+  revalidatePath("/admin/settings");
+  return { success: "تم حفظ إعدادات الرسائل." };
 }

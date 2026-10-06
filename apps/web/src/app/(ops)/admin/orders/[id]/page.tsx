@@ -8,7 +8,9 @@ import { requirePermission } from "@/lib/auth/session";
 import { formatAmount, formatDateTime } from "@/lib/format";
 import { CITY_LABELS, ORDER_STATUS_LABELS, getOrderForStaff, statusVariant } from "@/lib/orders";
 import { OrderActions } from "../order-actions";
+import { orderMessages } from "@/lib/order-messages";
 import { MarkOrderOpened } from "./mark-opened";
+import { OrderMessages } from "./order-messages";
 
 export const metadata: Metadata = { title: "طلب | غصن" };
 
@@ -17,7 +19,7 @@ const PAYMENT_LABELS = { COD: "عند الاستلام (مع شركة التوص
 export default async function OrderPage({ params }: { params: Promise<{ id: string }> }) {
   const session = await requirePermission({ order: ["read"] });
   const { id } = await params;
-  const o = await getOrderForStaff(id);
+  const [o, messages] = await Promise.all([getOrderForStaff(id), orderMessages(id)]);
   if (!o) notFound();
   const role = session.user.role;
   const canSeeProofs = roleCan(role, { order: ["payment"] });
@@ -178,16 +180,6 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
                   الطلب تلقائياً ويُفك الحجز.
                 </p>
               ) : null}
-              {o.reminderLink ? (
-                <a
-                  href={o.reminderLink}
-                  target="_blank"
-                  rel="noreferrer"
-                  className="mt-3 inline-flex min-h-11 items-center rounded-xl border border-primary px-4 font-semibold text-primary hover:bg-muted"
-                >
-                  تذكير العميل على واتساب
-                </a>
-              ) : null}
               {o.proofs.length === 0 ? (
                 <p className="mt-3 text-sm text-muted-foreground">لم يرفع العميل إشعاراً بعد.</p>
               ) : (
@@ -280,20 +272,30 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
           </Card>
         </div>
 
-        {o.status !== "DELIVERED" && o.status !== "CANCELLED" && roleCan(role, { order: ["update"] }) ? (
-          <aside className="flex flex-col gap-3">
-            <h2 className="font-semibold">الخطوة التالية</h2>
-            <OrderActions
-              id={o.id}
-              status={o.status}
-              fulfillment={o.fulfillment}
-              canCancel={roleCan(role, { order: ["cancel"] })}
-              canReviewPayment={canSeeProofs}
-              pendingProofId={o.proofs.find((p) => !p.reviewedAt)?.id ?? null}
-              paid={o.payments.some((p) => !p.amountSdg.startsWith("-"))}
+        <aside className="flex flex-col gap-4">
+          {messages ? (
+            <OrderMessages
+              orderId={o.id}
+              primary={messages.primary}
+              others={messages.others}
+              unavailable={messages.unavailable}
             />
-          </aside>
-        ) : null}
+          ) : null}
+          {o.status !== "DELIVERED" && o.status !== "CANCELLED" && roleCan(role, { order: ["update"] }) ? (
+            <div className="flex flex-col gap-3">
+              <h2 className="font-semibold">الخطوة التالية</h2>
+              <OrderActions
+                id={o.id}
+                status={o.status}
+                fulfillment={o.fulfillment}
+                canCancel={roleCan(role, { order: ["cancel"] })}
+                canReviewPayment={canSeeProofs}
+                pendingProofId={o.proofs.find((p) => !p.reviewedAt)?.id ?? null}
+                paid={o.payments.some((p) => !p.amountSdg.startsWith("-"))}
+              />
+            </div>
+          ) : null}
+        </aside>
       </div>
     </div>
   );
