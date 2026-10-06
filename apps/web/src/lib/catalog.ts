@@ -432,6 +432,45 @@ export async function updateProduct(id: string, input: ProductInput): Promise<vo
   }
 }
 
+/** لقطة المنتج لسجل التدقيق (D-114): الحقول الأساسية والمتغيّرات وباركوداتها. */
+export async function productAuditSnapshot(id: string): Promise<Record<string, unknown> | null> {
+  const p = await prisma.product.findUnique({
+    where: { id },
+    include: {
+      category: { select: { nameAr: true } },
+      variants: { where: { deletedAt: null }, orderBy: { sortOrder: "asc" } },
+    },
+  });
+  if (!p) return null;
+  return {
+    nameAr: p.nameAr,
+    nameEn: p.nameEn,
+    category: p.category.nameAr,
+    type: p.type === "MATERIAL" ? "مادة تغليف" : "بضاعة",
+    unit: p.unit,
+    isActive: p.isActive,
+    isWebVisible: p.isWebVisible,
+    trackExpiry: p.trackExpiry,
+    lowStockQty: p.lowStockQty?.toString() ?? null,
+    variants: p.variants
+      .map((v) => [variantLabel(v) || "أساسي", v.barcode, v.isActive ? "" : "موقوف"].filter(Boolean).join(" "))
+      .join("، "),
+  };
+}
+
+export const PRODUCT_FIELD_LABELS: Record<string, string> = {
+  nameAr: "الاسم",
+  nameEn: "الاسم بالإنجليزي",
+  category: "القسم",
+  type: "النوع",
+  unit: "الوحدة",
+  isActive: "نشط",
+  isWebVisible: "يظهر في المتجر",
+  trackExpiry: "يتتبع الصلاحية",
+  lowStockQty: "حد النفاد",
+  variants: "المتغيّرات والباركود",
+};
+
 /** أرشفة (حذف منطقي) — يختفي من القوائم ويبقى في السجلات. */
 export async function archiveProduct(id: string): Promise<void> {
   await prisma.product.updateMany({ where: { id, deletedAt: null }, data: { deletedAt: new Date(), isActive: false } });

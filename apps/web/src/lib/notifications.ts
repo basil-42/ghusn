@@ -148,6 +148,13 @@ export const NOTIFICATION_EVENTS: {
     audience: { price: ["approve"] },
   },
   {
+    type: "SECURITY_ALERT",
+    label: "محاولات دخول فاشلة متكررة",
+    hint: "3 محاولات لنفس الرقم خلال 15 دقيقة — للمالك",
+    priority: "IMPORTANT",
+    audience: { audit: ["read"] },
+  },
+  {
     type: "DAILY_SUMMARY",
     label: "الملخص اليومي",
     hint: "للمالك · الساعة 10:00 م بتوقيت الخرطوم",

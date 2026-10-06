@@ -13,6 +13,7 @@ import {
   Package,
   PartyPopper,
   Receipt,
+  ScrollText,
   Settings,
   ShoppingBag,
   ShoppingCart,
@@ -49,6 +50,7 @@ const ICONS = {
   wrapping: Gift,
   occasions: PartyPopper,
   banners: GalleryHorizontal,
+  audit: ScrollText,
 } satisfies Record<string, LucideIcon>;
 
 export type NavItem = { href: string; label: string; icon: keyof typeof ICONS };

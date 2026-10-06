@@ -36,6 +36,7 @@ const NAV: (NavItem & { permission?: Permissions })[] = [
   { href: "/admin/exchange-rates", label: "سعر الصرف", icon: "rates", permission: { exchangeRate: ["read"] } },
   { href: "/admin/settings", label: "الضبط", icon: "settings", permission: { settings: ["update"] } },
   { href: "/admin/users", label: "المستخدمون", icon: "users", permission: { user: ["list"] } },
+  { href: "/admin/audit", label: "سجل التدقيق", icon: "audit", permission: { audit: ["read"] } },
 ];
 
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
