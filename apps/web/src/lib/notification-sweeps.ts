@@ -183,7 +183,7 @@ const OPEN_STATUSES = ["NEW", "PAYMENT_REVIEW", "CONFIRMED", "PREPARING", "READY
 export async function sendDailySummary(now = new Date()): Promise<void> {
   const day = shopDay(now);
   const start = shopDayStart(day);
-  const [kpis, webOrders, open, expenses] = await Promise.all([
+  const [kpis, webOrders, open, expenses, adjustments, pendingAdj] = await Promise.all([
     salesKpis(now),
     prisma.order.count({ where: { channel: "WEB", createdAt: { gte: start, lte: now } } }),
     prisma.order.count({ where: { status: { in: [...OPEN_STATUSES] } } }),
@@ -192,6 +192,12 @@ export async function sendDailySummary(now = new Date()): Promise<void> {
       _count: true,
       _sum: { amountUsd: true },
     }),
+    prisma.stockMovement.aggregate({
+      where: { kind: "ADJUSTMENT", createdAt: { gte: start, lte: now } },
+      _count: true,
+      _sum: { expenseUsd: true },
+    }),
+    prisma.stockAdjustment.count({ where: { status: "PENDING" } }),
   ]);
   const expUsd = dec(expenses._sum.amountUsd?.toString() ?? "0");
   const parts = [
@@ -200,6 +206,13 @@ export async function sendDailySummary(now = new Date()): Promise<void> {
     `المصاريف ${expenses._count ? `${formatAmount(expUsd, 2)}$ (${expenses._count})` : "لا شيء"}`,
     `طلبات مفتوحة ${open}`,
   ];
+  if (adjustments._count) {
+    const loss = dec(adjustments._sum.expenseUsd?.toString() ?? "0");
+    parts.push(
+      `تسويات المخزون ${loss.gt(0) ? "−" : loss.lt(0) ? "+" : ""}${formatAmount(loss.abs(), 2)}$ (${adjustments._count})`,
+    );
+  }
+  if (pendingAdj) parts.push(`تسويات بانتظار الاعتماد ${pendingAdj}`);
   await notify(prisma, {
     type: "DAILY_SUMMARY",
     priority: "NORMAL",

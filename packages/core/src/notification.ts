@@ -16,6 +16,8 @@ export const NOTIFICATION_TYPES = [
   "BATCH_EXPIRING",
   "PRICE_SUGGESTIONS",
   "DAILY_SUMMARY",
+  "STOCK_ADJUSTMENT",
+  "STOCK_ADJUSTED",
 ] as const;
 export type NotificationTypeName = (typeof NOTIFICATION_TYPES)[number];
 
@@ -26,6 +28,7 @@ export const DEFAULT_PUSH_TYPES: readonly NotificationTypeName[] = [
   "ORDER_ESCALATED",
   "BANKAK_EXPIRING",
   "DAILY_SUMMARY",
+  "STOCK_ADJUSTMENT",
 ];
 export const DEFAULT_QUIET = { start: "23:00", end: "08:00" } as const;
 export type Chime = "urgent" | "important";

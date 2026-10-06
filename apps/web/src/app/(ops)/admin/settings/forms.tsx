@@ -287,6 +287,18 @@ export function StockSettingsForm({ initial }: { initial: StockSettings }) {
             دفعات العطور والتجميل التي تنتهي صلاحيتها خلال هذه المدة.
           </span>
         </label>
+        <label className={field}>
+          <span className="font-semibold">حد اعتماد المديرة للتسويات ($)</span>
+          <Input
+            name="managerAdjustLimitUsd"
+            defaultValue={String(initial.managerAdjustLimitUsd)}
+            inputMode="decimal"
+            dir="ltr"
+          />
+          <span className="text-xs text-muted-foreground">
+            تسوية مخزون (تالف، مفقود، فرق جرد) قيمتها فوق هذا الحد يعتمدها المالك.
+          </span>
+        </label>
       </div>
       <Button type="submit" disabled={pending} className="self-start">
         حفظ

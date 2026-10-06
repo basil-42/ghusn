@@ -13,6 +13,7 @@ export * from "./catalog";
 export * from "./supplier-ledger";
 export * from "./shipment";
 export * from "./receiving";
+export * from "./adjustment";
 export * from "./sale";
 export * from "./report";
 export * from "./shipment-import";

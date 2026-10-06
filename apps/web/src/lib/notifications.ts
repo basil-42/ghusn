@@ -20,8 +20,10 @@ interface NotifyInput {
   href: string;
   orderId?: string | null;
   dedupeKey?: string | null;
-  /** من يستلمه: كل من يملك هذه الصلاحية. */
-  audience: Permissions;
+  /** من يستلمه: كل من يملك هذه الصلاحية… */
+  audience?: Permissions;
+  /** …أو مستخدمات بأعيانهن (مثل: من سجّلت تسوية رُفضت). */
+  to?: string[];
   /** واستثناء من يملك هذه (مثل: المديرة دون المالك في أول تصعيد). */
   exclude?: Permissions;
 }
@@ -41,7 +43,13 @@ export async function notify(db: Db, input: NotifyInput): Promise<string | null>
     const existing = await db.notification.findUnique({ where: { dedupeKey: input.dedupeKey }, select: { id: true } });
     if (existing) return null;
   }
-  const userIds = await audienceIds(db, input.audience, input.exclude);
+  const userIds = input.to
+    ? (await db.user.findMany({ where: { id: { in: input.to }, banned: false }, select: { id: true } })).map(
+        (u) => u.id,
+      )
+    : input.audience
+      ? await audienceIds(db, input.audience, input.exclude)
+      : [];
   if (!userIds.length) return null;
   const n = await db.notification.create({
     data: {
@@ -110,6 +118,20 @@ export const NOTIFICATION_EVENTS: {
     hint: "حسب مهلة التنبيه في الضبط",
     priority: "NORMAL",
     audience: { margin: ["update"] },
+  },
+  {
+    type: "STOCK_ADJUSTMENT",
+    label: "تسوية مخزون بانتظار اعتمادك",
+    hint: "تالف، مفقود، زيادة — للمديرة حتى حد الاعتماد، وما فوقه للمالك",
+    priority: "IMPORTANT",
+    audience: { stock: ["approve"] },
+  },
+  {
+    type: "STOCK_ADJUSTED",
+    label: "نتيجة التسويات",
+    hint: "للمالك عند اعتماد المديرة لتسوية، ولمن سجّلت تسوية عند رفضها",
+    priority: "NORMAL",
+    audience: { stock: ["adjust"] },
   },
   {
     type: "PRICE_SUGGESTIONS",
@@ -199,7 +221,7 @@ export type NotificationFilter = (typeof NOTIFICATION_FILTERS)[number];
 const FILTER_TYPES: Partial<Record<NotificationFilter, NotificationType[]>> = {
   orders: ["ORDER_NEW", "ORDER_ESCALATED"],
   payment: ["PAYMENT_PROOF", "BANKAK_EXPIRING"],
-  stock: ["LOW_STOCK", "BATCH_EXPIRING"],
+  stock: ["LOW_STOCK", "BATCH_EXPIRING", "STOCK_ADJUSTMENT", "STOCK_ADJUSTED"],
   prices: ["PRICE_SUGGESTIONS"],
   summary: ["DAILY_SUMMARY"],
 };

@@ -113,9 +113,11 @@ export async function courierWallet(): Promise<string | null> {
 export const stockSettingsSchema = z.object({
   lowStockQty: z.number().min(0).max(100_000),
   expiryAlertDays: z.number().int().min(1).max(365),
+  /** حد اعتماد المديرة لتسوية المخزون بالدولار؛ ما فوقه للمالك (D-111). */
+  managerAdjustLimitUsd: z.number().min(0).max(1_000_000),
 });
 export type StockSettings = z.infer<typeof stockSettingsSchema>;
-const STOCK_DEFAULTS: StockSettings = { lowStockQty: 3, expiryAlertDays: 30 };
+const STOCK_DEFAULTS: StockSettings = { lowStockQty: 3, expiryAlertDays: 30, managerAdjustLimitUsd: 50 };
 export const getStockSettings = () => read("stock", stockSettingsSchema, STOCK_DEFAULTS);
 
 export async function saveStockSettings(value: StockSettings): Promise<void> {

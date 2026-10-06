@@ -38,39 +38,41 @@ model User {
   createdAt           DateTime  @default(now())
   updatedAt           DateTime  @updatedAt
 
-  sessions          Session[]
-  accounts          Account[]
-  ratesEntered      ExchangeRate[]
-  productsCreated   Product[]
-  supplierEntries   SupplierLedgerEntry[] @relation("entryCreatedBy")
-  supplierVoids     SupplierLedgerEntry[] @relation("entryVoidedBy")
-  shipments         Shipment[]            @relation("shipmentCreatedBy")
-  shipmentCosts     ShipmentCost[]        @relation("costCreatedBy")
-  shipmentVoids     ShipmentCost[]        @relation("costVoidedBy")
-  shipmentsReceived Shipment[]            @relation("shipmentReceivedBy")
-  stockMovements    StockMovement[]       @relation("stockMovementBy")
-  priceHistories    PriceHistory[]
-  shifts            Shift[]
-  sales             Sale[]                @relation("saleCashier")
-  salesApproved     Sale[]                @relation("saleApprovedBy")
-  returns           SaleReturn[]          @relation("returnCashier")
-  salesReviewed     Sale[]                @relation("saleReviewedBy")
-  expenses          Expense[]             @relation("expenseCreatedBy")
-  expensesVoided    Expense[]             @relation("expenseVoidedBy")
-  capitalEntries    CapitalContribution[]
-  transfersCreated  WalletTransfer[]      @relation("transferCreatedBy")
-  transfersVoided   WalletTransfer[]      @relation("transferVoidedBy")
-  adjustmentsMade   WalletAdjustment[]    @relation("adjustmentCreatedBy")
-  adjustmentsVoided WalletAdjustment[]    @relation("adjustmentVoidedBy")
-  orderStatusBy     OrderStatusHistory[]  @relation("orderStatusBy")
-  orderPaymentsBy   OrderPayment[]        @relation("orderPaymentBy")
-  proofsReviewed    PaymentProof[]        @relation("proofReviewedBy")
-  returnsApproved   SaleReturn[]          @relation("returnApprovedBy")
-  giftPhotos        GiftPhoto[]           @relation("giftPhotoBy")
-  notifications     NotificationRecipient[]
-  ordersOpened      Order[]               @relation("orderOpenedBy")
-  pushSubscriptions PushSubscription[]
-  notificationPrefs NotificationPreference?
+  sessions           Session[]
+  accounts           Account[]
+  ratesEntered       ExchangeRate[]
+  productsCreated    Product[]
+  supplierEntries    SupplierLedgerEntry[]   @relation("entryCreatedBy")
+  supplierVoids      SupplierLedgerEntry[]   @relation("entryVoidedBy")
+  shipments          Shipment[]              @relation("shipmentCreatedBy")
+  shipmentCosts      ShipmentCost[]          @relation("costCreatedBy")
+  shipmentVoids      ShipmentCost[]          @relation("costVoidedBy")
+  shipmentsReceived  Shipment[]              @relation("shipmentReceivedBy")
+  stockMovements     StockMovement[]         @relation("stockMovementBy")
+  priceHistories     PriceHistory[]
+  shifts             Shift[]
+  sales              Sale[]                  @relation("saleCashier")
+  salesApproved      Sale[]                  @relation("saleApprovedBy")
+  returns            SaleReturn[]            @relation("returnCashier")
+  salesReviewed      Sale[]                  @relation("saleReviewedBy")
+  expenses           Expense[]               @relation("expenseCreatedBy")
+  expensesVoided     Expense[]               @relation("expenseVoidedBy")
+  capitalEntries     CapitalContribution[]
+  transfersCreated   WalletTransfer[]        @relation("transferCreatedBy")
+  transfersVoided    WalletTransfer[]        @relation("transferVoidedBy")
+  adjustmentsMade    WalletAdjustment[]      @relation("adjustmentCreatedBy")
+  adjustmentsVoided  WalletAdjustment[]      @relation("adjustmentVoidedBy")
+  orderStatusBy      OrderStatusHistory[]    @relation("orderStatusBy")
+  orderPaymentsBy    OrderPayment[]          @relation("orderPaymentBy")
+  proofsReviewed     PaymentProof[]          @relation("proofReviewedBy")
+  returnsApproved    SaleReturn[]            @relation("returnApprovedBy")
+  giftPhotos         GiftPhoto[]             @relation("giftPhotoBy")
+  notifications      NotificationRecipient[]
+  ordersOpened       Order[]                 @relation("orderOpenedBy")
+  pushSubscriptions  PushSubscription[]
+  notificationPrefs  NotificationPreference?
+  stockAdjustments   StockAdjustment[]       @relation("adjustmentRequestedBy")
+  adjustmentsDecided StockAdjustment[]       @relation("adjustmentDecidedBy")
 }
 
 model Session {
@@ -333,6 +335,7 @@ model ProductVariant {
   stockLevel     StockLevel?
   stockBatches   StockBatch[]
   stockMovements StockMovement[]
+  adjustments    StockAdjustment[]
   wrapMaterials  WrapStyleMaterial[]
 
   @@index([productId])
@@ -563,6 +566,7 @@ enum StockMovementKind {
   SALE // بيع (كمية سالبة)
   RETURN // مرتجع سليم يعود للمخزون
   CONSUMPTION // مواد تغليف استُهلكت في تجهيز طلب (كمية سالبة)
+  ADJUSTMENT // تسوية معتمدة: تالف، مفقود، زيادة، فرق جرد (D-111)
 }
 
 // دفتر حركات المخزون — لا يُعدَّل ولا يُحذف (system-design §4.3)
@@ -591,6 +595,8 @@ model StockMovement {
   saleReturnId    String?
   order           Order?            @relation(fields: [orderId], references: [id])
   orderId         String?
+  adjustment      StockAdjustment?  @relation(fields: [adjustmentId], references: [id])
+  adjustmentId    String?
   // بيع تجاوز الرصيد (سالب) بموافقة — CLAUDE.md §6.8
   override        Boolean           @default(false)
   note            String?
@@ -602,6 +608,57 @@ model StockMovement {
   @@index([shipmentId])
   @@index([saleId])
   @@index([orderId])
+  @@index([adjustmentId])
+}
+
+// ---------- تسويات المخزون (D-111) ----------
+enum StockAdjustmentReason {
+  DAMAGED // تالف في المحل
+  EXPIRED // منتهي الصلاحية
+  LOST // مفقود / عجز
+  INTERNAL_USE // استخدام داخلي، عيّنة، تستر
+  FOUND // زيادة وُجدت
+  COUNT // فرق جرد
+}
+
+enum StockAdjustmentStatus {
+  PENDING
+  APPROVED
+  REJECTED
+}
+
+// تسوية لصنف واحد: تُسجَّل ثم تُعتمد (المديرة حتى الحد، والمالك بلا حد). لا يتغير الرصيد قبل
+// الاعتماد، ولا تُحذف — الخطأ يُصحَّح بتسوية عكسية
+model StockAdjustment {
+  id            String                @id @default(cuid())
+  number        String                @unique
+  variant       ProductVariant        @relation(fields: [variantId], references: [id])
+  variantId     String
+  reason        StockAdjustmentReason
+  // موقّعة: سالبة = خروج من المخزون
+  qty           Decimal               @db.Decimal(12, 3)
+  note          String?
+  // صورة اختيارية (تالف) — تخزين خاص
+  photoKey      String?
+  status        StockAdjustmentStatus @default(PENDING)
+  // تُثبَّت عند الاعتماد: تكلفة الوحدة والتغير في قيمة المخزون (موقّع)
+  unitCostUsd   Decimal?              @db.Decimal(18, 6)
+  valueUsd      Decimal?              @db.Decimal(18, 2)
+  // التكلفة أدخلها المعتمِد (صنف بلا تكلفة)
+  costEntered   Boolean               @default(false)
+  requestedBy   User                  @relation("adjustmentRequestedBy", fields: [requestedById], references: [id])
+  requestedById String
+  createdAt     DateTime              @default(now())
+  decidedBy     User?                 @relation("adjustmentDecidedBy", fields: [decidedById], references: [id])
+  decidedById   String?
+  decidedAt     DateTime?
+  rejectReason  String?
+
+  movements StockMovement[]
+
+  @@index([status, createdAt])
+  @@index([variantId, createdAt])
+  @@index([decidedAt])
 }
 
 // ---------- التسعير (D-24، D-79) ----------
@@ -1209,6 +1266,8 @@ enum NotificationType {
   BATCH_EXPIRING
   PRICE_SUGGESTIONS
   DAILY_SUMMARY
+  STOCK_ADJUSTMENT // تسوية مخزون بانتظار الاعتماد
+  STOCK_ADJUSTED // اعتُمدت تسوية (للمالك) أو رُفضت (لمن سجّلتها)
 }
 
 enum NotificationPriority {
@@ -1219,19 +1278,19 @@ enum NotificationPriority {
 
 /// إشعار واحد لكل حدث، يصل لعدة مستخدمين (NotificationRecipient). النص بالعربي وقت الإنشاء.
 model Notification {
-  id        String                  @id @default(cuid())
+  id        String               @id @default(cuid())
   type      NotificationType
   priority  NotificationPriority
   title     String
   body      String
   href      String
-  order     Order?                  @relation(fields: [orderId], references: [id])
+  order     Order?               @relation(fields: [orderId], references: [id])
   orderId   String?
   /// يمنع تكرار نفس الحدث (مثل «ORDER_NEW:<id>»)
-  dedupeKey String?                 @unique
+  dedupeKey String?              @unique
   /// متى أُرسل لأجهزة الجوال (D-109) — فارغ = ينتظر الإرسال (Outbox)
   pushedAt  DateTime?
-  createdAt DateTime                @default(now())
+  createdAt DateTime             @default(now())
 
   recipients NotificationRecipient[]
 
@@ -1270,16 +1329,16 @@ model PushSubscription {
 
 /// تفضيلات الإشعارات لكل مستخدمة؛ بلا سجل = الافتراضي (D-109)
 model NotificationPreference {
-  user           User               @relation(fields: [userId], references: [id], onDelete: Cascade)
-  userId         String             @id
+  user          User               @relation(fields: [userId], references: [id], onDelete: Cascade)
+  userId        String             @id
   /// الأحداث التي تصل للجوال
-  pushTypes      NotificationType[]
+  pushTypes     NotificationType[]
   /// ساعات الهدوء بتوقيت الخرطوم «HH:MM»؛ فارغ = بلا هدوء
-  quietStart     String?
-  quietEnd       String?
+  quietStart    String?
+  quietEnd      String?
   /// العاجل يصل حتى في ساعات الهدوء
-  urgentInQuiet  Boolean            @default(true)
-  updatedAt      DateTime           @updatedAt
+  urgentInQuiet Boolean            @default(true)
+  updatedAt     DateTime           @updatedAt
 }
 
 /// تنبيهات المخزون المرسلة (D-109): «low:<variant>» يُحذف عند إعادة التعبئة فيُنبَّه من جديد لاحقاً،

@@ -72,8 +72,10 @@ export default async function SettingsPage() {
       </Card>
       <Card>
         <CardHeader>
-          <CardTitle>تنبيهات المخزون</CardTitle>
-          <CardDescription>ما يظهر في اللوحة الرئيسية: الأصناف القاربة على النفاد والصلاحية (D-94).</CardDescription>
+          <CardTitle>المخزون</CardTitle>
+          <CardDescription>
+            تنبيهات اللوحة الرئيسية: القاربة على النفاد والصلاحية (D-94)، وحد اعتماد التسويات (D-111).
+          </CardDescription>
         </CardHeader>
         <StockSettingsForm initial={stock} />
       </Card>

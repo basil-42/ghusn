@@ -105,8 +105,11 @@ export async function saveStockSettingsAction(_prev: FormState, formData: FormDa
   const parsed = stockSettingsSchema.safeParse({
     lowStockQty: numberOf(formData, "lowStockQty"),
     expiryAlertDays: numberOf(formData, "expiryAlertDays"),
+    managerAdjustLimitUsd: numberOf(formData, "managerAdjustLimitUsd"),
   });
-  if (!parsed.success) return { error: "الحد رقم 0 أو أكثر، ومهلة الصلاحية بين 1 و365 يوماً." };
+  if (!parsed.success) {
+    return { error: "الحد رقم 0 أو أكثر، ومهلة الصلاحية بين 1 و365 يوماً، وحد اعتماد التسويات بالدولار 0 أو أكثر." };
+  }
   await saveStockSettings(parsed.data);
   revalidatePath("/admin/settings");
   revalidatePath("/admin");
