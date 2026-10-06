@@ -5,6 +5,7 @@ import { APIError } from "better-auth/api";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
 import { z } from "zod";
+import { recordLogin } from "@/lib/audit";
 import { auth } from "@/lib/auth/auth";
 import { SlidingWindowLimiter, clientIp } from "@/lib/rate-limit";
 
@@ -45,9 +46,19 @@ export async function login(_prev: LoginState, formData: FormData): Promise<Logi
       headers: requestHeaders,
     });
     perPhone.reset(phoneNumber);
+    await recordLogin(phoneNumber, true);
   } catch (error) {
     if (error instanceof APIError) {
       perPhone.hit(phoneNumber);
+      await recordLogin(
+        phoneNumber,
+        false,
+        error.status === "FORBIDDEN"
+          ? "حساب موقوف"
+          : error.status === "TOO_MANY_REQUESTS"
+            ? "محاولات كثيرة"
+            : "كلمة سر خاطئة",
+      );
       if (error.status === "TOO_MANY_REQUESTS") return { error: TOO_MANY, phone: phoneInput };
       if (error.status === "FORBIDDEN") {
         return { error: "هذا الحساب موقوف. تواصلي مع المالك.", phone: phoneInput };

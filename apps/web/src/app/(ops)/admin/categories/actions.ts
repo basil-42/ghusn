@@ -4,6 +4,7 @@ import { dec, slugify, toLatinDigits } from "@ghusn/core";
 import { prisma } from "@ghusn/db";
 import { revalidatePath } from "next/cache";
 import { z } from "zod";
+import { changesLine, diffFields, recordAudit } from "@/lib/audit";
 import { roleCan } from "@/lib/auth/permissions";
 import { requirePermission } from "@/lib/auth/session";
 
@@ -42,7 +43,49 @@ export async function updateCategory(_prev: CategoryState, formData: FormData): 
     margins.minMargin = minMargin.toFixed(4);
   }
 
-  await prisma.category.update({ where: { id }, data: { nameAr, nameEn, isActive: isActive === "on", ...margins } });
+  const before = await prisma.category.findUnique({ where: { id } });
+  const after = await prisma.category.update({
+    where: { id },
+    data: { nameAr, nameEn, isActive: isActive === "on", ...margins },
+  });
+  if (before) {
+    const pct = (v: { toString(): string }) => `${dec(v.toString()).mul(100).toDecimalPlaces(2).toFixed()}%`;
+    const changes = diffFields(
+      {
+        nameAr: before.nameAr,
+        nameEn: before.nameEn,
+        isActive: before.isActive,
+        targetMargin: pct(before.targetMargin),
+        minMargin: pct(before.minMargin),
+      },
+      {
+        nameAr: after.nameAr,
+        nameEn: after.nameEn,
+        isActive: after.isActive,
+        targetMargin: pct(after.targetMargin),
+        minMargin: pct(after.minMargin),
+      },
+      {
+        nameAr: "الاسم",
+        nameEn: "الاسم بالإنجليزي",
+        isActive: "نشط",
+        targetMargin: "الهامش المستهدف",
+        minMargin: "الحد الأدنى للهامش",
+      },
+    );
+    if (changes.length) {
+      await recordAudit({
+        type: "CATEGORY_UPDATED",
+        actorId: session.user.id,
+        title: `تعديل قسم · ${after.nameAr}`,
+        detail: changesLine(changes),
+        href: "/admin/categories",
+        changes,
+        // تغيير الهامش يغيّر الأسعار المقترحة كلها
+        sensitive: changes.some((c) => c.field.includes("الهامش")),
+      });
+    }
+  }
   revalidatePath("/admin/categories");
   return { success: "تم الحفظ." };
 }

@@ -11,6 +11,7 @@ import {
   Package,
   Settings,
   ScanBarcode,
+  ShieldAlert,
   ShoppingBag,
   TrendingUp,
   TriangleAlert,
@@ -42,6 +43,7 @@ const ICONS: Partial<Record<NotificationItem["type"], LucideIcon>> = {
   STOCK_ADJUSTMENT: ClipboardCheck,
   STOCK_ADJUSTED: ClipboardCheck,
   STOCK_COUNT: ScanBarcode,
+  SECURITY_ALERT: ShieldAlert,
 };
 const ACTIONS: Partial<Record<NotificationItem["type"], string>> = {
   ORDER_NEW: "فتح الطلب",

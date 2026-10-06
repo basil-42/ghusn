@@ -1,5 +1,6 @@
 import { bankakReminderDue, dec, escalationLevel, shopDay, shopDayStart, BANKAK_REMIND_MS } from "@ghusn/core";
 import { prisma } from "@ghusn/db";
+import { attentionCount } from "./audit-feed";
 import { expiringBatches, lowStock, salesKpis } from "./dashboard";
 import { formatAmount, formatTime } from "./format";
 import { notify } from "./notifications";
@@ -213,6 +214,9 @@ export async function sendDailySummary(now = new Date()): Promise<void> {
     );
   }
   if (pendingAdj) parts.push(`تسويات بانتظار الاعتماد ${pendingAdj}`);
+  // سجل التدقيق (D-114): الحساس اليوم — التفاصيل في /admin/audit
+  const attention = await attentionCount(start, now);
+  if (attention) parts.push(`تستحق انتباهك في سجل التدقيق ${attention}`);
   await notify(prisma, {
     type: "DAILY_SUMMARY",
     priority: "NORMAL",

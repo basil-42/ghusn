@@ -78,6 +78,7 @@ model User {
   stockCountsDecided StockCount[]            @relation("countDecidedBy")
   stockCountLines    StockCountLine[]        @relation("countLineBy")
   orderMessagesSent  OrderMessageLog[]
+  auditEvents        AuditEvent[]            @relation("auditActor")
 }
 
 model Session {
@@ -1369,6 +1370,7 @@ enum NotificationType {
   STOCK_ADJUSTMENT // تسوية مخزون بانتظار الاعتماد
   STOCK_ADJUSTED // اعتُمدت تسوية (للمالك) أو رُفضت (لمن سجّلتها)
   STOCK_COUNT // جرد أُرسل للمراجعة، أو موعد جرد (D-112)
+  SECURITY_ALERT // محاولات دخول فاشلة متكررة (D-114)
 }
 
 enum NotificationPriority {
@@ -1447,4 +1449,30 @@ model NotificationPreference {
 model NotificationAlertState {
   key       String   @id
   createdAt DateTime @default(now())
+}
+
+// ---------- سجل التدقيق (D-114) ----------
+// ما لا تسجّله جداوله أصلاً: تغيير الإعدادات، إدارة المستخدمين، هوامش الأقسام، تعديل المنتجات
+// وأرشفتها، وتسجيل الدخول. باقي الأحداث (الأسعار، المخزون، المال، الطلبات…) تُقرأ من جداولها مباشرة.
+// لا يُعدَّل ولا يُحذف
+model AuditEvent {
+  id        String   @id @default(cuid())
+  // SETTINGS_UPDATED، USER_CREATED، USER_ROLE، USER_BANNED، USER_UNBANNED، USER_PASSWORD، CATEGORY_UPDATED،
+  // PRODUCT_UPDATED، PRODUCT_ARCHIVED، LOGIN، LOGIN_FAILED
+  type      String
+  actor     User?    @relation("auditActor", fields: [actorId], references: [id])
+  actorId   String?
+  title     String
+  detail    String?
+  href      String?
+  // قبل/بعد للإعدادات والهوامش
+  changes   Json?
+  sensitive Boolean  @default(false)
+  ip        String?
+  userAgent String?
+  createdAt DateTime @default(now())
+
+  @@index([createdAt])
+  @@index([actorId, createdAt])
+  @@index([type, createdAt])
 }
