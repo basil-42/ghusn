@@ -156,3 +156,31 @@ export async function posWallets(): Promise<{ cash: string; bankak: string }> {
   if (!cash || !bankak) throw new Error("POS wallets are not configured");
   return { cash, bankak };
 }
+
+/**
+ * رسائل واتساب للطلبات (D-113): التوقيع في آخر كل رسالة وساعات العمل (لرسالة «جاهز للاستلام»)،
+ * بالعربية والإنجليزية حسب لغة طلب العميل. العنوان يُؤخذ من إعدادات الإيصال.
+ */
+export const messageSettingsSchema = z.object({
+  signatureAr: z.string().trim().max(80),
+  signatureEn: z.string().trim().max(80),
+  hoursAr: z.string().trim().max(120),
+  hoursEn: z.string().trim().max(120),
+});
+export type MessageSettings = z.infer<typeof messageSettingsSchema>;
+const MESSAGE_DEFAULTS: MessageSettings = {
+  signatureAr: "غصن — هدايا تُصنع لتُذكر",
+  signatureEn: "Ghusn — Gifts made to be remembered",
+  hoursAr: "",
+  hoursEn: "",
+};
+export const getMessageSettings = () => read("messages", messageSettingsSchema, MESSAGE_DEFAULTS);
+
+export async function saveMessageSettings(value: MessageSettings): Promise<void> {
+  const data = messageSettingsSchema.parse(value);
+  await prisma.setting.upsert({
+    where: { key: "messages" },
+    create: { key: "messages", value: data },
+    update: { value: data },
+  });
+}

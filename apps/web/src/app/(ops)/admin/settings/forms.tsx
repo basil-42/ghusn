@@ -4,11 +4,12 @@ import { useActionState } from "react";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input, NativeSelect } from "@/components/ui/input";
-import type { PosSettings, ReceiptSettings, StockSettings, StoreSettings } from "@/lib/settings";
+import type { MessageSettings, PosSettings, ReceiptSettings, StockSettings, StoreSettings } from "@/lib/settings";
 import {
   saveExpenseCategoryAction,
   savePosSettingsAction,
   saveReceiptSettingsAction,
+  saveMessageSettingsAction,
   saveStockSettingsAction,
   saveStoreSettingsAction,
   type FormState,
@@ -259,6 +260,53 @@ export function StoreSettingsForm({
           <Input name="bankakNote" defaultValue={initial.bankakNote} maxLength={200} />
         </label>
       </div>
+      <Button type="submit" disabled={pending} className="self-start">
+        حفظ
+      </Button>
+    </form>
+  );
+}
+
+/** رسائل واتساب للطلبات (D-113): التوقيع وساعات العمل بالعربية والإنجليزية. */
+export function MessageSettingsForm({ initial, address }: { initial: MessageSettings; address: string }) {
+  const [state, action, pending] = useActionState<FormState, FormData>(saveMessageSettingsAction, {});
+  return (
+    <form action={action} className="flex flex-col gap-3">
+      <Messages state={state} />
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        <label className={field}>
+          <span className="font-semibold">التوقيع (عربي)</span>
+          <Input name="signatureAr" defaultValue={initial.signatureAr} maxLength={80} />
+          <span className="text-xs text-muted-foreground">آخر سطر في كل رسالة. فارغ = «غصن».</span>
+        </label>
+        <label className={field}>
+          <span className="font-semibold">التوقيع (إنجليزي)</span>
+          <Input name="signatureEn" defaultValue={initial.signatureEn} maxLength={80} dir="ltr" />
+        </label>
+        <label className={field}>
+          <span className="font-semibold">ساعات العمل (عربي)</span>
+          <Input
+            name="hoursAr"
+            defaultValue={initial.hoursAr}
+            maxLength={120}
+            placeholder="مثال: يومياً 10 ص – 10 م، الجمعة من 4 م"
+          />
+          <span className="text-xs text-muted-foreground">تظهر في رسالة «جاهز للاستلام». فارغ = لا تظهر.</span>
+        </label>
+        <label className={field}>
+          <span className="font-semibold">ساعات العمل (إنجليزي)</span>
+          <Input
+            name="hoursEn"
+            defaultValue={initial.hoursEn}
+            maxLength={120}
+            dir="ltr"
+            placeholder="Daily 10 AM – 10 PM"
+          />
+        </label>
+      </div>
+      <p className="text-sm text-muted-foreground">
+        العنوان في رسالة «جاهز للاستلام» من إعدادات الإيصال: {address ? `«${address}»` : "لم يُضبط بعد"}.
+      </p>
       <Button type="submit" disabled={pending} className="self-start">
         حفظ
       </Button>

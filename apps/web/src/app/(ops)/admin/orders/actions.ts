@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requirePermission } from "@/lib/auth/session";
 import { markOrderOpened } from "@/lib/notifications";
+import { logOrderMessage } from "@/lib/order-messages";
 import { OrderActionError, transitionOrder } from "@/lib/orders";
 
 export type FormState = { error?: string; success?: string };
@@ -69,4 +70,11 @@ export async function markOrderOpenedAction(orderId: string): Promise<void> {
   const id = z.string().min(1).max(40).safeParse(orderId);
   if (!id.success) return;
   await markOrderOpened(id.data, session.user.id).catch(() => {});
+}
+
+/** تسجيل فتح رسالة واتساب جاهزة (D-113) — يظهر «أُرسلت بواسطة…» للأخريات. */
+export async function logOrderMessageAction(orderId: string, key: string): Promise<void> {
+  const session = await requirePermission({ order: ["read"] });
+  await logOrderMessage(orderId.slice(0, 40), key.slice(0, 40), session.user.id);
+  revalidatePath(`/admin/orders/${orderId}`);
 }

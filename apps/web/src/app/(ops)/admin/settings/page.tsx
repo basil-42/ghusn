@@ -4,12 +4,19 @@ import Link from "next/link";
 import { Receipt } from "@/components/receipt";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { requirePermission } from "@/lib/auth/session";
-import { getPosSettings, getReceiptSettings, getStockSettings, getStoreSettings } from "@/lib/settings";
+import {
+  getMessageSettings,
+  getPosSettings,
+  getReceiptSettings,
+  getStockSettings,
+  getStoreSettings,
+} from "@/lib/settings";
 import { listExpenseCategories } from "@/lib/expenses";
 import {
   ExpenseCategoryForm,
   PosSettingsForm,
   ReceiptSettingsForm,
+  MessageSettingsForm,
   StockSettingsForm,
   StoreSettingsForm,
 } from "./forms";
@@ -38,11 +45,12 @@ const SAMPLE = {
 
 export default async function SettingsPage() {
   await requirePermission({ settings: ["update"] });
-  const [pos, receipt, store, stock, wallets, categories] = await Promise.all([
+  const [pos, receipt, store, stock, messages, wallets, categories] = await Promise.all([
     getPosSettings(),
     getReceiptSettings(),
     getStoreSettings(),
     getStockSettings(),
+    getMessageSettings(),
     prisma.wallet.findMany({ where: { isActive: true, currencyCode: "SDG" }, orderBy: { name: "asc" } }),
     listExpenseCategories({ includeInactive: true }),
   ]);
@@ -69,6 +77,15 @@ export default async function SettingsPage() {
           </Link>
           .
         </p>
+      </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle>رسائل واتساب</CardTitle>
+          <CardDescription>
+            رسائل الطلبات الجاهزة من صفحة كل طلب (D-113) — نفس النصوص تُعتمد قوالب عند ربط WhatsApp API.
+          </CardDescription>
+        </CardHeader>
+        <MessageSettingsForm initial={messages} address={receipt.address} />
       </Card>
       <Card>
         <CardHeader>

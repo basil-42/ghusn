@@ -77,6 +77,7 @@ model User {
   stockCountsSent    StockCount[]            @relation("countSubmittedBy")
   stockCountsDecided StockCount[]            @relation("countDecidedBy")
   stockCountLines    StockCountLine[]        @relation("countLineBy")
+  orderMessagesSent  OrderMessageLog[]
 }
 
 model Session {
@@ -1127,12 +1128,33 @@ model Order {
   giftPhotos     GiftPhoto[]
   stockMovements StockMovement[]
   notifications  Notification[]
+  messages       OrderMessageLog[]
 
   @@index([status, createdAt])
   @@index([status, paymentDueAt])
   @@index([status, photoDueAt])
   @@index([deliveredAt])
   @@index([customerId])
+}
+
+enum OrderMessageChannel {
+  MANUAL // زر wa.me من صفحة الطلب (قبل ربط Cloud API)
+  API // WhatsApp Cloud API (المرحلة 3)
+}
+
+// سجل رسائل واتساب للطلب (D-113): أي رسالة، ومن أرسلها، ومتى. اليدوي يسجّل فتح الرسالة في واتساب
+model OrderMessageLog {
+  id        String              @id @default(cuid())
+  order     Order               @relation(fields: [orderId], references: [id])
+  orderId   String
+  // مفتاح القالب (RECEIVED، OUT_FOR_DELIVERY…) — نفس المفاتيح في @ghusn/core
+  key       String
+  channel   OrderMessageChannel @default(MANUAL)
+  sentBy    User?               @relation(fields: [sentById], references: [id])
+  sentById  String?
+  createdAt DateTime            @default(now())
+
+  @@index([orderId, createdAt])
 }
 
 model OrderLine {
