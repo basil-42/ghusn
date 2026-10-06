@@ -4,6 +4,7 @@ import {
   ArrowLeftRight,
   BadgeDollarSign,
   ChartColumn,
+  Contact,
   Container,
   FolderTree,
   GalleryHorizontal,
@@ -51,6 +52,7 @@ const ICONS = {
   occasions: PartyPopper,
   banners: GalleryHorizontal,
   audit: ScrollText,
+  customers: Contact,
 } satisfies Record<string, LucideIcon>;
 
 export type NavItem = { href: string; label: string; icon: keyof typeof ICONS };

@@ -19,6 +19,7 @@ const NAV: (NavItem & { permission?: Permissions })[] = [
   { href: "/admin", label: "الرئيسية", icon: "dashboard" },
   { href: "/pos", label: "نقطة البيع", icon: "pos", permission: { pos: ["sell"] } },
   { href: "/admin/orders", label: "طلبات المتجر", icon: "orders", permission: { order: ["read"] } },
+  { href: "/admin/customers", label: "العملاء", icon: "customers", permission: { customer: ["read"] } },
   { href: "/admin/sales", label: "المبيعات", icon: "sales", permission: { sale: ["read"] } },
   { href: "/admin/reports", label: "التقرير الشهري", icon: "reports", permission: { report: ["read"] } },
   { href: "/admin/expenses", label: "المصاريف", icon: "expenses", permission: { expense: ["create"] } },

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { internalEmailForPhone, normalizePhone, toLatinDigits } from "../src";
+import { formatPhone, internalEmailForPhone, normalizePhone, toLatinDigits } from "../src";
 
 describe("normalizePhone", () => {
   it.each([
@@ -26,5 +26,13 @@ describe("helpers", () => {
   });
   it("builds an undeliverable internal email", () => {
     expect(internalEmailForPhone("+249912345678")).toBe("249912345678@phone.ghusn.invalid");
+  });
+});
+
+describe("formatPhone", () => {
+  it("groups an E.164 number for display", () => {
+    expect(formatPhone("+249912345678")).toBe("+249 91 234 5678");
+    expect(formatPhone("+97455123344")).toBe("+974 5512 3344");
+    expect(formatPhone("abc")).toBe("abc");
   });
 });

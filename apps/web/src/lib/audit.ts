@@ -22,6 +22,7 @@ export type AuditType =
   | "CATEGORY_UPDATED"
   | "PRODUCT_UPDATED"
   | "PRODUCT_ARCHIVED"
+  | "CUSTOMER_UPDATED"
   | "LOGIN"
   | "LOGIN_FAILED";
 
