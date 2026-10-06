@@ -1,6 +1,6 @@
 import { plainNumber } from "@ghusn/core";
 import { dec } from "@ghusn/core";
-import { ClipboardCheck, Plus, Search } from "lucide-react";
+import { ClipboardCheck, Plus, ScanBarcode, Search } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Button } from "@/components/ui/button";
@@ -13,6 +13,7 @@ import { formatAmount } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { countNegativeStock, listStock } from "@/lib/stock";
 import { countPendingFor, pendingByVariant } from "@/lib/stock-adjustments";
+import { COUNT_STATUS_LABELS, activeCount } from "@/lib/stock-counts";
 
 export const metadata: Metadata = { title: "المخزون | غصن" };
 
@@ -25,10 +26,11 @@ export default async function StockPage({ searchParams }: { searchParams: Promis
   // التكلفة والقيمة للمالك والمديرة فقط — لا تُرسل للموظفة أصلاً
   const withCost = roleCan(session.user.role, { cost: ["read"] });
   const canAdjust = roleCan(session.user.role, { stock: ["adjust"] });
-  const [{ rows, totalValueUsd }, negative, pendingCount] = await Promise.all([
+  const [{ rows, totalValueUsd }, negative, pendingCount, count] = await Promise.all([
     listStock(q, withCost, { negativeOnly }),
     countNegativeStock(),
     canAdjust ? countPendingFor({ id: session.user.id, role: session.user.role }) : 0,
+    canAdjust ? activeCount() : null,
   ]);
   const pending = canAdjust ? await pendingByVariant(rows.map((r) => r.variantId)) : new Map<string, string>();
 
@@ -58,6 +60,11 @@ export default async function StockPage({ searchParams }: { searchParams: Promis
                 ) : null}
               </Link>
             </Button>
+            <Button asChild variant="outline">
+              <Link href="/admin/stock/counts">
+                <ScanBarcode aria-hidden /> الجرد
+              </Link>
+            </Button>
             <Button asChild>
               <Link href="/admin/stock/adjustments/new">
                 <Plus aria-hidden /> تسوية جديدة
@@ -66,6 +73,20 @@ export default async function StockPage({ searchParams }: { searchParams: Promis
           </div>
         ) : null}
       </header>
+
+      {count ? (
+        <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-sand bg-card p-4">
+          <ScanBarcode aria-hidden className="size-5 text-warning" />
+          <span className="flex-1 font-semibold">
+            {COUNT_STATUS_LABELS[count.status]} · <bdi dir="ltr">{count.number}</bdi>
+          </span>
+          <Button asChild size="sm">
+            <Link href={count.status === "OPEN" ? `/admin/stock/counts/${count.id}/count` : `/admin/stock/counts`}>
+              {count.status === "OPEN" ? "متابعة العد" : "فتح"}
+            </Link>
+          </Button>
+        </div>
+      ) : null}
 
       <form className="grid grid-cols-1 gap-3 sm:grid-cols-[1fr_auto]" role="search">
         <Input name="q" defaultValue={q} placeholder="ابحثي بالاسم أو الباركود أو SKU" aria-label="بحث" />

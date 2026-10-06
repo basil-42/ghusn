@@ -73,6 +73,10 @@ model User {
   notificationPrefs  NotificationPreference?
   stockAdjustments   StockAdjustment[]       @relation("adjustmentRequestedBy")
   adjustmentsDecided StockAdjustment[]       @relation("adjustmentDecidedBy")
+  stockCountsMade    StockCount[]            @relation("countCreatedBy")
+  stockCountsSent    StockCount[]            @relation("countSubmittedBy")
+  stockCountsDecided StockCount[]            @relation("countDecidedBy")
+  stockCountLines    StockCountLine[]        @relation("countLineBy")
 }
 
 model Session {
@@ -258,7 +262,8 @@ model Category {
   targetMargin Decimal @default(0.40) @db.Decimal(5, 4)
   minMargin    Decimal @default(0.35) @db.Decimal(5, 4)
 
-  products Product[]
+  products    Product[]
+  stockCounts StockCount[]
 }
 
 // ---------- المنتجات ----------
@@ -336,6 +341,7 @@ model ProductVariant {
   stockBatches   StockBatch[]
   stockMovements StockMovement[]
   adjustments    StockAdjustment[]
+  countLines     StockCountLine[]
   wrapMaterials  WrapStyleMaterial[]
 
   @@index([productId])
@@ -653,12 +659,84 @@ model StockAdjustment {
   decidedById   String?
   decidedAt     DateTime?
   rejectReason  String?
+  // فرق جرد: من أي جرد جاءت
+  count         StockCount?           @relation(fields: [countId], references: [id])
+  countId       String?
 
   movements StockMovement[]
+  countLine StockCountLine?
 
   @@index([status, createdAt])
   @@index([variantId, createdAt])
   @@index([decidedAt])
+}
+
+// ---------- الجرد (D-112) ----------
+enum StockCountScope {
+  FULL // المحل كله
+  CATEGORY // قسم واحد
+  QUICK // عدّ سريع: الرصيد السالب والأغلى تكلفة
+}
+
+enum StockCountStatus {
+  OPEN // العد جارٍ
+  SUBMITTED // أُرسل للمراجعة
+  APPROVED
+  CANCELLED
+}
+
+// جرد: قائمة أصناف تُعدّ بالمسح (عدّ أعمى)، ثم تُراجع فروقاتها وتُعتمد كتسويات «فرق جرد»
+model StockCount {
+  id            String           @id @default(cuid())
+  number        String           @unique
+  scope         StockCountScope
+  category      Category?        @relation(fields: [categoryId], references: [id])
+  categoryId    String?
+  status        StockCountStatus @default(OPEN)
+  createdBy     User             @relation("countCreatedBy", fields: [createdById], references: [id])
+  createdById   String
+  createdAt     DateTime         @default(now())
+  submittedBy   User?            @relation("countSubmittedBy", fields: [submittedById], references: [id])
+  submittedById String?
+  submittedAt   DateTime?
+  decidedBy     User?            @relation("countDecidedBy", fields: [decidedById], references: [id])
+  decidedById   String?
+  decidedAt     DateTime?
+  cancelReason  String?
+
+  lines       StockCountLine[]
+  adjustments StockAdjustment[]
+
+  @@index([status, createdAt])
+}
+
+enum StockCountLineStatus {
+  PENDING // لم يُعدّ
+  COUNTED
+  MISSING // غير موجود على الرف (العدد صفر)
+  RECOUNT // طلبت المراجِعة إعادة عدّه
+}
+
+// صنف في جرد: رصيد النظام يُلتقط لحظة عدّه — فما يُباع قبلها أو بعدها لا يفسد الفرق
+model StockCountLine {
+  id           String               @id @default(cuid())
+  count        StockCount           @relation(fields: [countId], references: [id])
+  countId      String
+  variant      ProductVariant       @relation(fields: [variantId], references: [id])
+  variantId    String
+  status       StockCountLineStatus @default(PENDING)
+  countedQty   Decimal?             @db.Decimal(12, 3)
+  // رصيد النظام لحظة العد (لا يُعرض لمن تعدّ)
+  systemQty    Decimal?             @db.Decimal(12, 3)
+  countedBy    User?                @relation("countLineBy", fields: [countedById], references: [id])
+  countedById  String?
+  countedAt    DateTime?
+  // التسوية التي نتجت عند الاعتماد (للفرق غير الصفري)
+  adjustment   StockAdjustment?     @relation(fields: [adjustmentId], references: [id])
+  adjustmentId String?              @unique
+
+  @@unique([countId, variantId])
+  @@index([countId, status])
 }
 
 // ---------- التسعير (D-24، D-79) ----------
@@ -1268,6 +1346,7 @@ enum NotificationType {
   DAILY_SUMMARY
   STOCK_ADJUSTMENT // تسوية مخزون بانتظار الاعتماد
   STOCK_ADJUSTED // اعتُمدت تسوية (للمالك) أو رُفضت (لمن سجّلتها)
+  STOCK_COUNT // جرد أُرسل للمراجعة، أو موعد جرد (D-112)
 }
 
 enum NotificationPriority {

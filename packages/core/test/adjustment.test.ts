@@ -4,7 +4,12 @@ import {
   adjustmentDirection,
   adjustmentNoteRequired,
   canApproveAdjustment,
+  countDifference,
   estimateAdjustmentUsd,
+  fullCountDue,
+  qtyAfterCount,
+  summarizeCount,
+  weeklySection,
   planAdjustment,
   signedAdjustmentQty,
 } from "../src";
@@ -112,5 +117,55 @@ describe("planAdjustment", () => {
 
   it("rejects a zero quantity", () => {
     expect(() => planAdjustment({ qty: "0", levelQty: "5", avgCostUsd: "1" })).toThrow(CoreError);
+  });
+});
+
+describe("stock count (D-112)", () => {
+  it("compares with system stock at the moment of counting, applied to current stock", () => {
+    // عُدّ 13 والنظام 14 وقتها، ثم بيعت قطعة (النظام 13 الآن) ← النتيجة 12
+    const diff = countDifference("13", "14");
+    expect(diff.toFixed()).toBe("-1");
+    expect(qtyAfterCount("13", diff).toFixed()).toBe("12");
+    // المقارنة بالرصيد الحالي كانت ستُخفي القطعة الضائعة
+    expect(countDifference("13", "13").toFixed()).toBe("0");
+  });
+
+  it("summarizes shortages, surpluses and the net value", () => {
+    const s = summarizeCount([
+      { difference: "-1", unitCostUsd: "14.2" },
+      { difference: "-2", unitCostUsd: "5.8" },
+      { difference: "-1", unitCostUsd: "3.2" },
+      { difference: "4", unitCostUsd: "2.9" },
+      { difference: "0", unitCostUsd: "18" },
+    ]);
+    expect(s.matched).toBe(1);
+    expect(s.shortageLines).toBe(3);
+    expect(s.surplusLines).toBe(1);
+    expect(s.shortageUsd.toFixed(2)).toBe("29.00");
+    expect(s.surplusUsd.toFixed(2)).toBe("11.60");
+    expect(s.netUsd.toFixed(2)).toBe("-17.40");
+  });
+
+  it("a count shortage may take stock below zero (sold after counting)", () => {
+    expect(() => planAdjustment({ qty: "-2", levelQty: "1", avgCostUsd: "5" })).toThrow(CoreError);
+    const p = planAdjustment({ qty: "-2", levelQty: "1", avgCostUsd: "5", allowNegative: true });
+    expect(p.qtyAfter.toFixed()).toBe("-1");
+    expect(p.expenseUsd.toFixed(2)).toBe("10.00");
+  });
+
+  it("knows when a full count is due", () => {
+    const now = new Date("2026-10-06T08:00:00Z");
+    expect(fullCountDue(null, now)).toBe(true);
+    expect(fullCountDue(new Date("2026-08-01T08:00:00Z"), now)).toBe(false);
+    expect(fullCountDue(new Date("2026-07-08T08:00:00Z"), now)).toBe(true);
+  });
+
+  it("rotates the weekly section: never counted first, then the oldest", () => {
+    const a = { id: "a", lastCountedAt: new Date("2026-09-01") };
+    const b = { id: "b", lastCountedAt: new Date("2026-08-01") };
+    const c = { id: "c", lastCountedAt: null };
+    expect(weeklySection([a, b, c])?.id).toBe("c");
+    expect(weeklySection([a, b])?.id).toBe("b");
+    expect(weeklySection([])).toBeNull();
   });
 });

@@ -9,6 +9,7 @@ import {
   sendDailySummary,
 } from "./notification-sweeps";
 import { deliverPendingPushes } from "./push";
+import { runCountReminders } from "./stock-counts";
 
 /**
  * المهام الدورية (pg-boss على نفس Postgres، مخطط «pgboss» منفصل). تبدأ مرة واحدة مع الخادم
@@ -25,6 +26,8 @@ const NOTIFY_MINUTE = "notifications-minute";
 const NOTIFY_HOURLY = "notifications-hourly";
 const DAILY_SUMMARY = "notifications-daily-summary";
 const CLEANUP = "notifications-cleanup";
+/** تذكير الجرد الأسبوعي (D-112): السبت 10 ص — قسم الأسبوع، والجرد الكامل كل 90 يوماً، والرصيد السالب. */
+const COUNT_REMINDER = "stock-count-reminder";
 /** مهمة الموافقة الضمنية على صور الهدايا — أُلغيت الميزة (D-99)، فيُحذف جدولها المحفوظ إن وُجد. */
 const RETIRED_QUEUES = ["approve-overdue-gift-photos"];
 
@@ -62,6 +65,7 @@ async function start(): Promise<PgBoss | null> {
     [NOTIFY_HOURLY, "7 * * * *", async () => (await runLowStockAlerts()) + (await runExpiringBatchAlerts())],
     [DAILY_SUMMARY, "0 22 * * *", () => sendDailySummary()],
     [CLEANUP, "20 4 * * *", () => cleanupNotifications()],
+    [COUNT_REMINDER, "0 10 * * 6", () => runCountReminders()],
   ];
   for (const [name, cron, run] of scheduled) {
     await boss.createQueue(name);
