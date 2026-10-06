@@ -10,6 +10,7 @@ import {
   CreditCard,
   Package,
   Settings,
+  ScanBarcode,
   ShoppingBag,
   TrendingUp,
   TriangleAlert,
@@ -40,6 +41,7 @@ const ICONS: Partial<Record<NotificationItem["type"], LucideIcon>> = {
   DAILY_SUMMARY: ChartColumn,
   STOCK_ADJUSTMENT: ClipboardCheck,
   STOCK_ADJUSTED: ClipboardCheck,
+  STOCK_COUNT: ScanBarcode,
 };
 const ACTIONS: Partial<Record<NotificationItem["type"], string>> = {
   ORDER_NEW: "فتح الطلب",
@@ -48,6 +50,7 @@ const ACTIONS: Partial<Record<NotificationItem["type"], string>> = {
   BANKAK_EXPIRING: "فتح الطلب",
   PRICE_SUGGESTIONS: "مراجعة الأسعار",
   STOCK_ADJUSTMENT: "مراجعة التسوية",
+  STOCK_COUNT: "فتح الجرد",
 };
 type Tab = "all" | "unread" | "urgent";
 const TABS: { key: Tab; label: string }[] = [

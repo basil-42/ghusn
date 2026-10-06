@@ -74,12 +74,16 @@ function coreMessage(e: unknown, unit: string, levelQty: string): never {
   throw e;
 }
 
-/** التنفيذ داخل المعاملة: الرصيد والمتوسط والدفعات والحركة، ثم تثبيت القيمة على التسوية. */
-async function applyAdjustment(
+/**
+ * التنفيذ داخل المعاملة: الرصيد والمتوسط والدفعات والحركة، ثم تثبيت القيمة على التسوية.
+ * فرق الجرد (allowNegative) يُطبَّق حتى لو نزل الرصيد تحت الصفر (D-112).
+ */
+export async function applyAdjustment(
   tx: Tx,
   adj: { id: string; number: string; variantId: string; reason: AdjustmentReason; qty: string; unit: string },
   userId: string,
   enteredUnitCostUsd: string | null,
+  options: { allowNegative?: boolean } = {},
 ): Promise<{ valueUsd: Decimal }> {
   const level = await lockStockLevel(tx, adj.variantId);
   let plan;
@@ -89,6 +93,7 @@ async function applyAdjustment(
       levelQty: level.qty,
       avgCostUsd: level.avgCostUsd,
       enteredUnitCostUsd,
+      allowNegative: options.allowNegative,
     });
   } catch (e) {
     coreMessage(e, adj.unit, level.qty);

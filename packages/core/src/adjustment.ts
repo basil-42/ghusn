@@ -72,6 +72,11 @@ export interface AdjustmentPlanInput {
   avgCostUsd: DecimalInput;
   /** تكلفة الوحدة المدخلة — تُستخدم فقط لزيادة صنف متوسط تكلفته صفر. */
   enteredUnitCostUsd?: DecimalInput | null;
+  /**
+   * فرق الجرد يُطبَّق كما هو حتى لو نزل الرصيد تحت الصفر: عُدّ الرف ثم بِيع ما ليس عليه
+   * (بيع دون اتصال) — الرصيد السالب هو الحقيقة ويظهر للعدّ القادم.
+   */
+  allowNegative?: boolean;
 }
 
 export interface AdjustmentPlan {
@@ -98,7 +103,7 @@ export function planAdjustment(input: AdjustmentPlanInput): AdjustmentPlan {
 
   if (qty.lt(0)) {
     const out = qty.abs();
-    if (out.gt(Decimal.max(level, 0))) {
+    if (!input.allowNegative && out.gt(Decimal.max(level, 0))) {
       throw new CoreError("INSUFFICIENT_STOCK", "Adjustment exceeds stock on hand");
     }
     const value = roundMoney(out.mul(avg)).neg();
@@ -126,4 +131,77 @@ export function planAdjustment(input: AdjustmentPlanInput): AdjustmentPlan {
     expenseUsd: value.neg(),
     costEntered,
   };
+}
+
+// ---------- الجرد (D-112) ----------
+
+/** الفرق = المعدود − رصيد النظام لحظة عدّ الصنف (لا الرصيد الحالي). */
+export const countDifference = (countedQty: DecimalInput, systemQtyAtCount: DecimalInput): Decimal =>
+  dec(countedQty).minus(systemQtyAtCount);
+
+/** ما يُطبَّق عند الاعتماد: الفرق على الرصيد الحالي — فما بِيع بعد العد يبقى محسوباً. */
+export const qtyAfterCount = (currentQty: DecimalInput, difference: DecimalInput): Decimal =>
+  dec(currentQty).plus(difference);
+
+export interface CountSummary {
+  matched: number;
+  shortageLines: number;
+  surplusLines: number;
+  /** موجبة: قيمة العجز. */
+  shortageUsd: Decimal;
+  /** موجبة: قيمة الزيادة. */
+  surplusUsd: Decimal;
+  /** موقّع: سالب = خسارة صافية. */
+  netUsd: Decimal;
+}
+
+/** خلاصة فروقات جرد بمتوسط التكلفة (أو التكلفة المدخلة لصنف بلا تكلفة). */
+export function summarizeCount(
+  lines: readonly { difference: DecimalInput; unitCostUsd: DecimalInput }[],
+): CountSummary {
+  let matched = 0;
+  let shortageLines = 0;
+  let surplusLines = 0;
+  let shortage = dec(0);
+  let surplus = dec(0);
+  for (const l of lines) {
+    const d = dec(l.difference);
+    const value = roundMoney(d.abs().mul(l.unitCostUsd));
+    if (d.isZero()) matched++;
+    else if (d.lt(0)) {
+      shortageLines++;
+      shortage = shortage.plus(value);
+    } else {
+      surplusLines++;
+      surplus = surplus.plus(value);
+    }
+  }
+  return {
+    matched,
+    shortageLines,
+    surplusLines,
+    shortageUsd: shortage,
+    surplusUsd: surplus,
+    netUsd: surplus.minus(shortage),
+  };
+}
+
+/** الجرد الكامل كل 90 يوماً (D-112). */
+export const FULL_COUNT_DAYS = 90;
+
+export function fullCountDue(lastFullCountAt: Date | null, now: Date, days = FULL_COUNT_DAYS): boolean {
+  if (!lastFullCountAt) return true;
+  return now.getTime() - lastFullCountAt.getTime() >= days * 86_400_000;
+}
+
+/** قسم هذا الأسبوع بالتناوب: الذي لم يُجرد أبداً أولاً، ثم الأقدم جرداً (بترتيب الأقسام عند التساوي). */
+export function weeklySection<T extends { id: string; lastCountedAt: Date | null }>(
+  categories: readonly T[],
+): T | null {
+  let pick: T | null = null;
+  for (const c of categories) {
+    if (!pick) pick = c;
+    else if (pick.lastCountedAt && (!c.lastCountedAt || c.lastCountedAt < pick.lastCountedAt)) pick = c;
+  }
+  return pick;
 }

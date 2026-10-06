@@ -134,6 +134,13 @@ export const NOTIFICATION_EVENTS: {
     audience: { stock: ["adjust"] },
   },
   {
+    type: "STOCK_COUNT",
+    label: "الجرد",
+    hint: "جرد بانتظار مراجعتك، طلب إعادة عدّ، وتذكير الجرد الأسبوعي (السبت 10 ص)",
+    priority: "IMPORTANT",
+    audience: { stock: ["adjust"] },
+  },
+  {
     type: "PRICE_SUGGESTIONS",
     label: "سعر الصرف واقتراحات الأسعار",
     hint: "للمالك والمديرة",
@@ -221,7 +228,7 @@ export type NotificationFilter = (typeof NOTIFICATION_FILTERS)[number];
 const FILTER_TYPES: Partial<Record<NotificationFilter, NotificationType[]>> = {
   orders: ["ORDER_NEW", "ORDER_ESCALATED"],
   payment: ["PAYMENT_PROOF", "BANKAK_EXPIRING"],
-  stock: ["LOW_STOCK", "BATCH_EXPIRING", "STOCK_ADJUSTMENT", "STOCK_ADJUSTED"],
+  stock: ["LOW_STOCK", "BATCH_EXPIRING", "STOCK_ADJUSTMENT", "STOCK_ADJUSTED", "STOCK_COUNT"],
   prices: ["PRICE_SUGGESTIONS"],
   summary: ["DAILY_SUMMARY"],
 };
