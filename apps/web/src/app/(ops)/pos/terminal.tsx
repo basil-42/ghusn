@@ -50,9 +50,12 @@ export function PosTerminal({
   maxDiscountPercent,
   hasRate,
   credit,
+  customer,
 }: {
   maxDiscountPercent: number;
   hasRate: boolean;
+  /** «بيع الآن» من صفحة العميل (D-115): رقمه واسمه جاهزان. */
+  customer?: { phone: string; name: string | null } | null;
   /** استبدال: رصيد مرتجع يُستخدم أولاً في هذه الفاتورة (D-81). */
   credit?: { returnId: string; number: string; amountSdg: string } | null;
 }) {
@@ -65,8 +68,8 @@ export function PosTerminal({
   const [message, setMessage] = useState<{ kind: "error" | "info"; text: string } | null>(null);
   const [invoiceMode, setInvoiceMode] = useState<Mode>("amount");
   const [invoiceDiscount, setInvoiceDiscount] = useState("");
-  const [customerPhone, setCustomerPhone] = useState("");
-  const [customerName, setCustomerName] = useState("");
+  const [customerPhone, setCustomerPhone] = useState(customer?.phone ?? "");
+  const [customerName, setCustomerName] = useState(customer?.name ?? "");
   const [cash, setCash] = useState<string | null>(null);
   const [bankak, setBankak] = useState("");
   const [bankakRef, setBankakRef] = useState("");

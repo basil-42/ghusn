@@ -25,3 +25,4 @@ export * from "./banner";
 export * from "./dashboard";
 export * from "./notification";
 export * from "./audit";
+export * from "./customer";

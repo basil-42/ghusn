@@ -28,3 +28,8 @@ export function normalizePhone(input: string, defaultCountry: CountryCode = DEFA
 export function internalEmailForPhone(phoneE164: string): string {
   return `${phoneE164.replace(/\D/g, "")}@phone.ghusn.invalid`;
 }
+
+/** للعرض: «‎+249 91 234 5678» — والنص كما هو إن لم يُفهم. */
+export function formatPhone(phoneE164: string): string {
+  return parsePhoneNumberFromString(phoneE164)?.formatInternational() ?? phoneE164;
+}

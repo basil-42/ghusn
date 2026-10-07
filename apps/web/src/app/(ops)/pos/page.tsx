@@ -1,6 +1,7 @@
 import { dec } from "@ghusn/core";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { requirePermission } from "@/lib/auth/session";
+import { customerForPos } from "@/lib/customers";
 import { currentSellingRate } from "@/lib/pricing";
 import { getReturn } from "@/lib/returns";
 import { getPosSettings } from "@/lib/settings";
@@ -8,9 +9,13 @@ import { getOpenShift } from "@/lib/shifts";
 import { OpenShiftForm } from "./shift-forms";
 import { PosTerminal } from "./terminal";
 
-export default async function PosPage({ searchParams }: { searchParams: Promise<{ credit?: string }> }) {
+export default async function PosPage({
+  searchParams,
+}: {
+  searchParams: Promise<{ credit?: string; customer?: string }>;
+}) {
   const { user } = await requirePermission({ pos: ["sell"] });
-  const { credit: creditId } = await searchParams;
+  const { credit: creditId, customer: customerId } = await searchParams;
   const shift = await getOpenShift(user.id);
   if (!shift) {
     return (
@@ -23,7 +28,11 @@ export default async function PosPage({ searchParams }: { searchParams: Promise<
       </Card>
     );
   }
-  const [settings, rate] = await Promise.all([getPosSettings(), currentSellingRate()]);
+  const [settings, rate, customer] = await Promise.all([
+    getPosSettings(),
+    currentSellingRate(),
+    customerId ? customerForPos(customerId) : null,
+  ]);
   // استبدال: رصيد المرتجع المتبقي
   const ret = creditId ? await getReturn(creditId) : null;
   const credit =
@@ -32,10 +41,11 @@ export default async function PosPage({ searchParams }: { searchParams: Promise<
       : null;
   return (
     <PosTerminal
-      key={credit?.returnId ?? "sale"}
+      key={credit?.returnId ?? customerId ?? "sale"}
       maxDiscountPercent={settings.maxDiscountPercent}
       hasRate={!!rate}
       credit={credit}
+      customer={customer}
     />
   );
 }

@@ -1,4 +1,4 @@
-import { SHOP_TIME_ZONE, dec } from "@ghusn/core";
+import { SHOP_TIME_ZONE, dec, shopDay } from "@ghusn/core";
 
 // عربي بأرقام لاتينية وفاصل آلاف: 185,000 ج.س (CLAUDE.md)
 const LOCALE = "ar-u-nu-latn";
@@ -50,6 +50,22 @@ export function formatRelative(d: Date, now: Date = new Date()): string {
   return formatDateTime(d);
 }
 export const formatDay = (d: Date) => dayFormat.format(d);
+
+const monthYearFormat = new Intl.DateTimeFormat(LOCALE, { timeZone: SHOP_TIME_ZONE, month: "long", year: "numeric" });
+const shortDateFormat = new Intl.DateTimeFormat(LOCALE, { timeZone: SHOP_TIME_ZONE, day: "numeric", month: "long" });
+export const formatMonthYear = (d: Date) => monthYearFormat.format(d);
+export const formatShortDate = (d: Date) => shortDateFormat.format(d);
+
+/** «اليوم»، «أمس»، «قبل يومين»، «قبل 5 أيام»، «قبل 12 يوماً» — وأقدم من شهرين: الشهر والسنة. بأيام المحل. */
+export function formatDaysAgo(d: Date, now: Date = new Date()): string {
+  const days = Math.round((Date.parse(shopDay(now)) - Date.parse(shopDay(d))) / 86_400_000);
+  if (days <= 0) return "اليوم";
+  if (days === 1) return "أمس";
+  if (days === 2) return "قبل يومين";
+  if (days <= 10) return `قبل ${days} أيام`;
+  if (days < 60) return `قبل ${days} يوماً`;
+  return formatMonthYear(d);
+}
 
 /** مبلغ بعملة معيّنة: تقريب نصف للأعلى بعدد خانات العملة (الجنيه بدون كسور) وفاصل آلاف. */
 export function formatAmount(value: { toString(): string }, decimals = 2): string {

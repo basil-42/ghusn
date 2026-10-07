@@ -79,6 +79,7 @@ model User {
   stockCountLines    StockCountLine[]        @relation("countLineBy")
   orderMessagesSent  OrderMessageLog[]
   auditEvents        AuditEvent[]            @relation("auditActor")
+  customerNotes      CustomerNote[]          @relation("customerNoteBy")
 }
 
 model Session {
@@ -786,6 +787,21 @@ model Customer {
 
   sales  Sale[]
   orders Order[]
+  notes  CustomerNote[]
+}
+
+// ملاحظات الفريق عن العميل (D-115): «تحب الورد الأبيض»… تظهر لكل من يخدمه لاحقاً
+model CustomerNote {
+  id         String    @id @default(cuid())
+  customer   Customer  @relation(fields: [customerId], references: [id])
+  customerId String
+  body       String
+  author     User      @relation("customerNoteBy", fields: [authorId], references: [id])
+  authorId   String
+  createdAt  DateTime  @default(now())
+  deletedAt  DateTime?
+
+  @@index([customerId, createdAt])
 }
 
 // وردية موظفة: عهدة نقدية افتتاحية ← إغلاق بعدّ النقد ومطابقته
