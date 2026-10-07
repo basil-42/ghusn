@@ -1,6 +1,7 @@
 import { dec, type AdjustmentReason } from "@ghusn/core";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { ExportLink } from "@/components/admin/export-button";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { roleCan } from "@/lib/auth/permissions";
 import { requirePermission } from "@/lib/auth/session";
@@ -44,23 +45,26 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
             الربح بالدولار (عملة الأساس)، والمبالغ الفعلية بالجنيه بجانبه للمعلومة.
           </p>
         </div>
-        <form className="flex items-center gap-2">
-          <select
-            name="month"
-            defaultValue={month}
-            className="min-h-11 rounded-xl border border-input bg-card px-3"
-            aria-label="الشهر"
-          >
-            {months.map((x) => (
-              <option key={x} value={x}>
-                {x}
-              </option>
-            ))}
-          </select>
-          <button type="submit" className="min-h-11 rounded-xl border border-border px-4 font-semibold">
-            عرض
-          </button>
-        </form>
+        <div className="flex flex-wrap items-center gap-2">
+          <form className="flex items-center gap-2">
+            <select
+              name="month"
+              defaultValue={month}
+              className="min-h-11 rounded-xl border border-input bg-card px-3"
+              aria-label="الشهر"
+            >
+              {months.map((x) => (
+                <option key={x} value={x}>
+                  {x}
+                </option>
+              ))}
+            </select>
+            <button type="submit" className="min-h-11 rounded-xl border border-border px-4 font-semibold">
+              عرض
+            </button>
+          </form>
+          <ExportLink href={`/admin/export/report?month=${month}`} />
+        </div>
       </header>
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
