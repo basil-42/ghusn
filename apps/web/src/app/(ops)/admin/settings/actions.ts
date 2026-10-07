@@ -6,6 +6,7 @@ import { changesLine, diffFields, recordAudit } from "@/lib/audit";
 import { requirePermission } from "@/lib/auth/session";
 import { ExpenseError, saveExpenseCategory } from "@/lib/expenses";
 import {
+  insightsSettingsSchema,
   messageSettingsSchema,
   posSettingsSchema,
   saveMessageSettings,
@@ -15,8 +16,10 @@ import {
   getMessageSettings,
   getPosSettings,
   getReceiptSettings,
+  getInsightsSettings,
   getStockSettings,
   getStoreSettings,
+  saveInsightsSettings,
   saveStockSettings,
   saveStoreSettings,
   stockSettingsSchema,
@@ -46,6 +49,11 @@ const FIELD_LABELS: Record<string, string> = {
   lowStockQty: "حد «قارب على النفاد»",
   expiryAlertDays: "تنبيه الصلاحية (يوم)",
   managerAdjustLimitUsd: "حد اعتماد المديرة للتسويات $",
+  deadStockDays: "حد الراكد (يوم)",
+  salesWindowDays: "نافذة معدل البيع (يوم)",
+  leadTimeDays: "مدة وصول الشحنة (يوم)",
+  coverDays: "مدة التغطية (يوم)",
+  reorderMinSold: "أقل كمية مباعة للاقتراح",
   showLogo: "الشعار في الإيصال",
   tagline: "عبارة الإيصال",
   address: "العنوان",
@@ -177,6 +185,28 @@ export async function saveStockSettingsAction(_prev: FormState, formData: FormDa
   revalidatePath("/admin/settings");
   revalidatePath("/admin");
   return { success: "تم حفظ تنبيهات المخزون." };
+}
+
+export async function saveInsightsSettingsAction(_prev: FormState, formData: FormData): Promise<FormState> {
+  const session = await requirePermission({ settings: ["update"] });
+  const parsed = insightsSettingsSchema.safeParse({
+    deadStockDays: numberOf(formData, "deadStockDays"),
+    salesWindowDays: numberOf(formData, "salesWindowDays"),
+    leadTimeDays: numberOf(formData, "leadTimeDays"),
+    coverDays: numberOf(formData, "coverDays"),
+    reorderMinSold: numberOf(formData, "reorderMinSold"),
+  });
+  if (!parsed.success) {
+    return {
+      error: "أرقام صحيحة: الراكد 7–365 يوماً، النافذة 14–365، الوصول 1–180، التغطية 7–365، وأقل كمية 1 أو أكثر.",
+    };
+  }
+  const before = await getInsightsSettings();
+  await saveInsightsSettings(parsed.data);
+  await auditSettings("التحليلات وإعادة الطلب", session.user.id, before, parsed.data);
+  revalidatePath("/admin/settings");
+  revalidatePath("/admin/insights");
+  return { success: "تم حفظ إعدادات التحليلات." };
 }
 
 export async function saveMessageSettingsAction(_prev: FormState, formData: FormData): Promise<FormState> {

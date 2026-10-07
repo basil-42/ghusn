@@ -4,6 +4,7 @@ import {
   ArrowLeftRight,
   BadgeDollarSign,
   ChartColumn,
+  ChartNoAxesCombined,
   Contact,
   Container,
   FolderTree,
@@ -53,6 +54,7 @@ const ICONS = {
   banners: GalleryHorizontal,
   audit: ScrollText,
   customers: Contact,
+  insights: ChartNoAxesCombined,
 } satisfies Record<string, LucideIcon>;
 
 export type NavItem = { href: string; label: string; icon: keyof typeof ICONS };

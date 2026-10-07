@@ -8,6 +8,7 @@ import {
   getMessageSettings,
   getPosSettings,
   getReceiptSettings,
+  getInsightsSettings,
   getStockSettings,
   getStoreSettings,
 } from "@/lib/settings";
@@ -17,6 +18,7 @@ import {
   PosSettingsForm,
   ReceiptSettingsForm,
   MessageSettingsForm,
+  InsightsSettingsForm,
   StockSettingsForm,
   StoreSettingsForm,
 } from "./forms";
@@ -45,7 +47,7 @@ const SAMPLE = {
 
 export default async function SettingsPage() {
   await requirePermission({ settings: ["update"] });
-  const [pos, receipt, store, stock, messages, wallets, categories] = await Promise.all([
+  const [pos, receipt, store, stock, messages, wallets, categories, insights] = await Promise.all([
     getPosSettings(),
     getReceiptSettings(),
     getStoreSettings(),
@@ -53,6 +55,7 @@ export default async function SettingsPage() {
     getMessageSettings(),
     prisma.wallet.findMany({ where: { isActive: true, currencyCode: "SDG" }, orderBy: { name: "asc" } }),
     listExpenseCategories({ includeInactive: true }),
+    getInsightsSettings(),
   ]);
   return (
     <div className="flex flex-col gap-6">
@@ -95,6 +98,13 @@ export default async function SettingsPage() {
           </CardDescription>
         </CardHeader>
         <StockSettingsForm initial={stock} />
+      </Card>
+      <Card>
+        <CardHeader>
+          <CardTitle>التحليلات وإعادة الطلب</CardTitle>
+          <CardDescription>حد المخزون الراكد ومعادلة اقتراحات إعادة الطلب في صفحة التحليلات (D-118).</CardDescription>
+        </CardHeader>
+        <InsightsSettingsForm initial={insights} />
       </Card>
       <Card>
         <CardHeader>

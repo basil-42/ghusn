@@ -56,6 +56,15 @@ const shortDateFormat = new Intl.DateTimeFormat(LOCALE, { timeZone: SHOP_TIME_ZO
 export const formatMonthYear = (d: Date) => monthYearFormat.format(d);
 export const formatShortDate = (d: Date) => shortDateFormat.format(d);
 
+/** «يوم واحد»، «يومين»، «5 أيام»، «60 يوماً» — تمييز العدد بالعربية. */
+export function daysLabel(n: number | string): string {
+  const d = Number(n);
+  if (d === 1) return "يوم واحد";
+  if (d === 2) return "يومين";
+  if (d >= 3 && d <= 10) return `${d} أيام`;
+  return `${d} يوماً`;
+}
+
 /** «اليوم»، «أمس»، «قبل يومين»، «قبل 5 أيام»، «قبل 12 يوماً» — وأقدم من شهرين: الشهر والسنة. بأيام المحل. */
 export function formatDaysAgo(d: Date, now: Date = new Date()): string {
   const days = Math.round((Date.parse(shopDay(now)) - Date.parse(shopDay(d))) / 86_400_000);

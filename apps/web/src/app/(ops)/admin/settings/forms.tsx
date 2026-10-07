@@ -4,12 +4,20 @@ import { useActionState } from "react";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input, NativeSelect } from "@/components/ui/input";
-import type { MessageSettings, PosSettings, ReceiptSettings, StockSettings, StoreSettings } from "@/lib/settings";
+import type {
+  InsightsSettings,
+  MessageSettings,
+  PosSettings,
+  ReceiptSettings,
+  StockSettings,
+  StoreSettings,
+} from "@/lib/settings";
 import {
   saveExpenseCategoryAction,
   savePosSettingsAction,
   saveReceiptSettingsAction,
   saveMessageSettingsAction,
+  saveInsightsSettingsAction,
   saveStockSettingsAction,
   saveStoreSettingsAction,
   type FormState,
@@ -348,6 +356,46 @@ export function StockSettingsForm({ initial }: { initial: StockSettings }) {
           </span>
         </label>
       </div>
+      <Button type="submit" disabled={pending} className="self-start">
+        حفظ
+      </Button>
+    </form>
+  );
+}
+
+/** التحليلات (D-118): حد الراكد ومعادلة إعادة الطلب. */
+export function InsightsSettingsForm({ initial }: { initial: InsightsSettings }) {
+  const [state, action, pending] = useActionState<FormState, FormData>(saveInsightsSettingsAction, {});
+  const fields: { name: keyof InsightsSettings; label: string; hint: string }[] = [
+    { name: "deadStockDays", label: "حد «الراكد» (يوم)", hint: "صنف له رصيد ولم يُبع منه شيء طوال هذه المدة." },
+    {
+      name: "salesWindowDays",
+      label: "نافذة معدل البيع (يوم)",
+      hint: "يُحسب البيع اليومي من مبيعات هذه المدة الأخيرة.",
+    },
+    { name: "leadTimeDays", label: "مدة وصول الشحنة (يوم)", hint: "من الطلب حتى الاستلام في المحل." },
+    { name: "coverDays", label: "مدة التغطية (يوم)", hint: "كم يوماً تكفي الشحنة بعد وصولها." },
+    {
+      name: "reorderMinSold",
+      label: "أقل كمية مباعة للاقتراح",
+      hint: "الصنف الأقل بيعاً من هذا في النافذة لا يُقترح.",
+    },
+  ];
+  return (
+    <form action={action} className="flex flex-col gap-3">
+      <Messages state={state} />
+      <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
+        {fields.map((f) => (
+          <label key={f.name} className={field}>
+            <span className="font-semibold">{f.label}</span>
+            <Input name={f.name} defaultValue={String(initial[f.name])} inputMode="numeric" dir="ltr" />
+            <span className="text-xs text-muted-foreground">{f.hint}</span>
+          </label>
+        ))}
+      </div>
+      <p className="text-sm text-muted-foreground">
+        الكمية المقترحة = البيع اليومي × (الوصول + التغطية) − الرصيد − ما في الطريق.
+      </p>
       <Button type="submit" disabled={pending} className="self-start">
         حفظ
       </Button>

@@ -2,7 +2,17 @@ import { shopDay } from "@ghusn/core";
 import { recordAudit } from "@/lib/audit";
 import { roleCan } from "@/lib/auth/permissions";
 import { getSession } from "@/lib/auth/session";
-import { expenseSheets, monthlyReportSheets, parseDayRange, salesSheets, stockSheets } from "@/lib/exports";
+import {
+  INSIGHT_TABS,
+  expenseSheets,
+  insightSheets,
+  monthlyReportSheets,
+  parseDayRange,
+  salesSheets,
+  stockSheets,
+  type InsightTab,
+} from "@/lib/exports";
+import { parsePeriod } from "@/lib/insights";
 import { buildWorkbook, xlsxResponse, type Sheet } from "@/lib/xlsx";
 
 type Permissions = Parameters<typeof roleCan>[1];
@@ -13,6 +23,7 @@ const KINDS: Record<string, { label: string; permission: Permissions }> = {
   sales: { label: "المبيعات", permission: { sale: ["read"], cost: ["read"] } },
   expenses: { label: "المصاريف", permission: { expense: ["read"] } },
   stock: { label: "المخزون وقيمته", permission: { stock: ["read"], cost: ["read"] } },
+  insights: { label: "التحليلات", permission: { report: ["read"], cost: ["read"] } },
 };
 
 /** تنزيل ملف Excel — يُسجَّل في سجل التدقيق (من صدّر ماذا ومتى). */
@@ -31,6 +42,15 @@ export async function GET(request: Request, { params }: { params: Promise<{ kind
       if (!/^\d{4}-\d{2}$/.test(month)) return new Response("Bad month", { status: 400 });
       sheets = await monthlyReportSheets(month);
       suffix = month;
+    } else if (kind === "insights") {
+      const tab = url.searchParams.get("tab") ?? "";
+      if (!(INSIGHT_TABS as readonly string[]).includes(tab)) return new Response("Bad tab", { status: 400 });
+      const range = parsePeriod(Object.fromEntries(url.searchParams));
+      sheets = await insightSheets(tab as InsightTab, range);
+      suffix =
+        tab === "dead" || tab === "reorder"
+          ? `${tab}-${shopDay(new Date())}`
+          : `${tab}-${range.fromDay}_${range.toDay}`;
     } else if (kind === "stock") {
       sheets = await stockSheets();
       suffix = shopDay(new Date());
