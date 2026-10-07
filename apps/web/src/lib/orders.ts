@@ -6,6 +6,7 @@ import {
   dec,
   isStockOut,
   normalizePhone,
+  resolveCustomerName,
   CARD_MESSAGE_MAX,
   orderTotals,
   PAYMENT_WINDOW_HOURS,
@@ -307,11 +308,18 @@ export async function createWebOrder(input: CreateOrderInput): Promise<{ number:
         });
       }
 
-      const customer = await tx.customer.upsert({
-        where: { phone },
-        create: { phone, name: input.customerName },
-        update: { name: input.customerName },
+      // الاسم المسجّل لا يُستبدل من المتجر (D-116): يُملأ إن كان فارغاً فقط، والطلب يحفظ الاسم المكتوب
+      const found = await tx.customer.findUnique({ where: { phone }, select: { id: true, name: true } });
+      const name = resolveCustomerName({
+        existing: found?.name ?? null,
+        incoming: input.customerName,
+        confirmRename: false,
       });
+      const customer = found
+        ? name.update
+          ? await tx.customer.update({ where: { id: found.id }, data: { name: name.update } })
+          : found
+        : await tx.customer.upsert({ where: { phone }, create: { phone, name: name.update }, update: {} });
       const number = await nextDocumentNumber(tx, "GHS", now, 6);
       const trackingToken = randomBytes(18).toString("base64url");
       await tx.order.create({

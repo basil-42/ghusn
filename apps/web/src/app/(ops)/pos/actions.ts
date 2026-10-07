@@ -1,10 +1,11 @@
 "use server";
 
-import { dec, toLatinDigits } from "@ghusn/core";
+import { CUSTOMER_SEGMENT_LABELS, dec, normalizePhone, toLatinDigits } from "@ghusn/core";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { requirePermission } from "@/lib/auth/session";
+import { customerCardByPhone } from "@/lib/customers";
 import { saleSchema } from "@/lib/sale-schema";
 import { ApprovalRequired, SaleError, createSale, findPosItems } from "@/lib/sales";
 import { ReturnError, cashOutCredit, createReturn, findSaleForReturn } from "@/lib/returns";
@@ -52,6 +53,24 @@ export async function closeShiftAction(_prev: FormState, formData: FormData): Pr
   }
   revalidatePath("/pos");
   redirect(`/pos/shift?closed=${String(formData.get("shiftId"))}`);
+}
+
+export type CustomerCard = { name: string | null; badge: string | null; purchases: number; lastNote: string | null };
+
+/** عند كتابة رقم مسجّل في نقطة البيع: اسمه وتصنيفه وآخر ملاحظة (D-116). */
+export async function lookupCustomerAction(phoneInput: string): Promise<CustomerCard | null> {
+  await requirePermission({ pos: ["sell"] });
+  const phone = normalizePhone(String(phoneInput).slice(0, 20), "SD");
+  if (!phone) return null;
+  const card = await customerCardByPhone(phone);
+  return card
+    ? {
+        name: card.name,
+        badge: card.segment ? CUSTOMER_SEGMENT_LABELS[card.segment] : null,
+        purchases: card.purchases,
+        lastNote: card.lastNote,
+      }
+    : null;
 }
 
 export async function findItemsAction(query: string) {
