@@ -1,4 +1,5 @@
 import { dec, sum, type DecimalInput } from "./decimal";
+import { normalizeArabic } from "./search";
 
 /**
  * تصنيف العملاء (D-115): مميز = أعلى 10% إنفاقاً، متكرر = 3 مشتريات أو أكثر، جديد = شراء واحد.
@@ -55,4 +56,27 @@ export function spendShare(rows: readonly CustomerValue[], ids: ReadonlySet<stri
 export function averageTicket(totalSdg: DecimalInput, purchases: number): string | null {
   if (purchases <= 0) return null;
   return dec(totalSdg).div(purchases).toDecimalPlaces(0).toFixed();
+}
+
+const sameName = (a: string, b: string) => normalizeArabic(a) === normalizeArabic(b);
+
+/**
+ * اسم العميل عند البيع أو الطلب (D-116): الاسم المسجّل لا يُستبدل بصمت.
+ * - لا اسم مسجّل ← يُحفظ المكتوب.
+ * - اسم مختلف ← يبقى المسجّل، إلا بتأكيد صريح من الموظفة (نقطة البيع فقط) فيُستبدل ويُسجَّل في التدقيق.
+ * - الاسم المطبوع على الفاتورة (snapshot) = المكتوب الآن، وإلا المسجّل.
+ */
+export function resolveCustomerName(input: {
+  existing: string | null;
+  incoming: string | null;
+  confirmRename: boolean;
+}): { update: string | null; snapshot: string | null; renamed: { before: string; after: string } | null } {
+  const existing = input.existing?.trim() || null;
+  const incoming = input.incoming?.trim().replace(/\s+/g, " ") || null;
+  if (!incoming) return { update: null, snapshot: existing, renamed: null };
+  if (!existing) return { update: incoming, snapshot: incoming, renamed: null };
+  if (sameName(existing, incoming)) return { update: null, snapshot: existing, renamed: null };
+  if (input.confirmRename)
+    return { update: incoming, snapshot: incoming, renamed: { before: existing, after: incoming } };
+  return { update: null, snapshot: incoming, renamed: null };
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { averageTicket, customerSegment, spendShare, vipCustomers } from "../src";
+import { averageTicket, customerSegment, resolveCustomerName, spendShare, vipCustomers } from "../src";
 
 const rows = (spends: string[]) => spends.map((s, i) => ({ id: `c${i}`, spendUsd: s }));
 
@@ -49,5 +49,33 @@ describe("spendShare and averageTicket", () => {
   it("averages the ticket rounded to the pound", () => {
     expect(averageTicket("1640000", 9)).toBe("182222");
     expect(averageTicket("0", 0)).toBeNull();
+  });
+});
+
+describe("resolveCustomerName", () => {
+  const r = (existing: string | null, incoming: string | null, confirmRename = false) =>
+    resolveCustomerName({ existing, incoming, confirmRename });
+
+  it("fills a missing name", () => {
+    expect(r(null, "سارة أحمد")).toEqual({ update: "سارة أحمد", snapshot: "سارة أحمد", renamed: null });
+    expect(r("  ", " سارة   أحمد ")).toEqual({ update: "سارة أحمد", snapshot: "سارة أحمد", renamed: null });
+  });
+
+  it("keeps the registered name when nothing or the same name is typed", () => {
+    expect(r("سارة أحمد", null)).toEqual({ update: null, snapshot: "سارة أحمد", renamed: null });
+    expect(r("سارة أحمد", "ساره احمد")).toEqual({ update: null, snapshot: "سارة أحمد", renamed: null });
+  });
+
+  it("never replaces a different name silently, but prints the typed one", () => {
+    expect(r("سارة أحمد", "منى")).toEqual({ update: null, snapshot: "منى", renamed: null });
+  });
+
+  it("replaces only with explicit confirmation and reports the change", () => {
+    expect(r("سارة أحمد", "سارة أحمد علي", true)).toEqual({
+      update: "سارة أحمد علي",
+      snapshot: "سارة أحمد علي",
+      renamed: { before: "سارة أحمد", after: "سارة أحمد علي" },
+    });
+    expect(r(null, "منى", true).renamed).toBeNull();
   });
 });

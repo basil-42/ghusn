@@ -157,6 +157,7 @@ export default async function CustomerPage({
                           {[
                             h.kind === "SALE" ? "المحل" : "المتجر",
                             h.by,
+                            h.boughtAs ? `باسم ${h.boughtAs}` : null,
                             h.recipient ? `هدية إلى ${h.recipient}` : null,
                             h.statusLabel,
                           ]

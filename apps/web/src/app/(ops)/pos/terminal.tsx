@@ -4,6 +4,7 @@ import {
   applyExchangeCredit,
   computeSale,
   dec,
+  normalizeArabic,
   percentOf,
   plainNumber,
   toLatinDigits,
@@ -22,7 +23,7 @@ import { Receipt, type ReceiptData } from "@/components/receipt";
 import { getMeta, nextLocalNumber, pendingCount, posDb, searchCatalog } from "@/lib/pos-offline/db";
 import { usePosSync } from "@/lib/pos-offline/use-pos-sync";
 import type { ReceiptSettings } from "@/lib/settings";
-import { createSaleAction, findItemsAction } from "./actions";
+import { createSaleAction, findItemsAction, lookupCustomerAction, type CustomerCard } from "./actions";
 import { ApprovalDialog } from "./approval-dialog";
 
 type Mode = "amount" | "percent";
@@ -54,8 +55,8 @@ export function PosTerminal({
 }: {
   maxDiscountPercent: number;
   hasRate: boolean;
-  /** «بيع الآن» من صفحة العميل (D-115): رقمه واسمه جاهزان. */
-  customer?: { phone: string; name: string | null } | null;
+  /** «بيع الآن» من صفحة العميل (D-115): رقمه واسمه جاهزان، وبطاقته (D-116). */
+  customer?: { phone: string; name: string | null; card: CustomerCard | null } | null;
   /** استبدال: رصيد مرتجع يُستخدم أولاً في هذه الفاتورة (D-81). */
   credit?: { returnId: string; number: string; amountSdg: string } | null;
 }) {
@@ -70,6 +71,11 @@ export function PosTerminal({
   const [invoiceDiscount, setInvoiceDiscount] = useState("");
   const [customerPhone, setCustomerPhone] = useState(customer?.phone ?? "");
   const [customerName, setCustomerName] = useState(customer?.name ?? "");
+  // العميل المسجّل بالرقم المكتوب (D-116) — اسمه لا يُستبدل إلا بتأكيد صريح
+  const [found, setFound] = useState<CustomerCard | null>(customer?.card ?? null);
+  const [renameCustomer, setRenameCustomer] = useState(false);
+  const lookupTimer = useRef<ReturnType<typeof setTimeout> | null>(null);
+  const lookupSeq = useRef(0);
   const [cash, setCash] = useState<string | null>(null);
   const [bankak, setBankak] = useState("");
   const [bankakRef, setBankakRef] = useState("");
@@ -146,11 +152,29 @@ export function PosTerminal({
   const change = tendered ? dec(num(tendered)).minus(num(cashDue)) : dec(0);
   const discountPct = totals && totals.subtotalSdg.gt(0) ? totals.discountSdg.div(totals.subtotalSdg).mul(100) : dec(0);
 
+  function changePhone(value: string) {
+    setCustomerPhone(value);
+    setFound(null);
+    setRenameCustomer(false);
+    if (lookupTimer.current) clearTimeout(lookupTimer.current);
+    const seq = ++lookupSeq.current;
+    if (toLatinDigits(value).replace(/\D/g, "").length < 9 || !navigator.onLine) return;
+    lookupTimer.current = setTimeout(async () => {
+      const card = await lookupCustomerAction(value).catch(() => null);
+      if (seq !== lookupSeq.current) return;
+      setFound(card);
+      // الاسم المسجّل يُملأ تلقائياً إن لم تكتب الموظفة اسماً
+      if (card?.name) setCustomerName((current) => (current.trim() ? current : (card.name ?? "")));
+    }, 400);
+  }
+
   function reset() {
     setCart([]);
     setInvoiceDiscount("");
     setCustomerPhone("");
     setCustomerName("");
+    setFound(null);
+    setRenameCustomer(false);
     setCash(null);
     setBankak("");
     setBankakRef("");
@@ -253,6 +277,7 @@ export function PosTerminal({
         cashTenderedSdg: tendered ? num(tendered) : null,
         customerPhone,
         customerName,
+        renameCustomer: nameDiffers && renameCustomer,
         approval: withApproval ?? null,
         creditReturnId: credit?.returnId ?? null,
       };
@@ -274,6 +299,10 @@ export function PosTerminal({
       }
     });
   }
+
+  // اسم مكتوب يختلف عن المسجّل: يبقى المسجّل ما لم تؤكد الموظفة الاستبدال
+  const nameDiffers =
+    !!found?.name && !!customerName.trim() && normalizeArabic(customerName) !== normalizeArabic(found.name);
 
   const canPay = !!totals && cart.length > 0 && paidSum.eq(due) && !change.lt(0) && !pending && hasRate;
 
@@ -524,7 +553,7 @@ export function PosTerminal({
         <div className="grid grid-cols-1 gap-2 sm:grid-cols-2 lg:grid-cols-1">
           <Input
             value={customerPhone}
-            onChange={(e) => setCustomerPhone(e.target.value)}
+            onChange={(e) => changePhone(e.target.value)}
             placeholder="هاتف العميل (اختياري)"
             aria-label="هاتف العميل"
             inputMode="tel"
@@ -537,6 +566,32 @@ export function PosTerminal({
             aria-label="اسم العميل"
           />
         </div>
+        {found ? (
+          <div className="flex flex-col gap-1 rounded-xl border border-sand bg-gold/10 p-3 text-sm" role="status">
+            <span>
+              عميل مسجّل: <b>{found.name ?? "بلا اسم"}</b>
+              {found.badge ? <span className="ms-1 font-bold text-warning">· {found.badge}</span> : null}
+              <span className="text-muted-foreground"> · {found.purchases} مشتريات</span>
+            </span>
+            {found.lastNote ? <span className="text-muted-foreground">ملاحظة: {found.lastNote}</span> : null}
+            {nameDiffers ? (
+              <label className="mt-1 flex min-h-11 cursor-pointer items-start gap-2">
+                <input
+                  type="checkbox"
+                  checked={renameCustomer}
+                  onChange={(e) => setRenameCustomer(e.target.checked)}
+                  className="mt-1 size-5 accent-primary"
+                />
+                <span>
+                  تغيير الاسم المسجّل من «{found.name}» إلى «{customerName.trim()}»
+                  <span className="block text-xs text-muted-foreground">
+                    بدون التحديد يبقى «{found.name}» في سجل العميل، ويُحفظ «{customerName.trim()}» على هذه الفاتورة فقط.
+                  </span>
+                </span>
+              </label>
+            ) : null}
+          </div>
+        ) : null}
 
         <Button type="button" className="min-h-14 text-lg" disabled={!canPay} onClick={() => submit()}>
           {pending ? "جارٍ الحفظ…" : `إتمام البيع ${cart.length ? sdg(total) : ""}`}

@@ -841,6 +841,8 @@ model Sale {
   cashierId          String
   customer           Customer? @relation(fields: [customerId], references: [id])
   customerId         String?
+  // الاسم وقت البيع (D-116): الإيصال لا يتغير إن عُدّل اسم العميل لاحقاً
+  customerName       String?
   subtotalSdg        Decimal   @db.Decimal(18, 2)
   lineDiscountSdg    Decimal   @db.Decimal(18, 2)
   invoiceDiscountSdg Decimal   @db.Decimal(18, 2)

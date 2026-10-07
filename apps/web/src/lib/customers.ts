@@ -1,4 +1,5 @@
 import {
+  CUSTOMER_SEGMENT_LABELS,
   REPEAT_MIN_PURCHASES,
   averageTicket,
   customerSegment,
@@ -195,6 +196,8 @@ export interface HistoryEntry {
   statusLabel: string | null;
   by: string | null;
   recipient: string | null;
+  /** اسم مختلف كُتب وقت الشراء (مثل أخت اشترت برقم أختها) — D-116 */
+  boughtAs: string | null;
 }
 
 const PAYABLE_EXCLUDED: OrderStatus[] = ["CANCELLED"];
@@ -216,6 +219,7 @@ export async function customerProfile(id: string) {
         number: true,
         createdAt: true,
         totalSdg: true,
+        customerName: true,
         cashier: { select: { name: true } },
         returns: { select: { refundSdg: true } },
         lines: {
@@ -238,6 +242,7 @@ export async function customerProfile(id: string) {
         createdAt: true,
         status: true,
         totalSdg: true,
+        customerName: true,
         recipientName: true,
         recipientPhone: true,
         lines: {
@@ -272,6 +277,7 @@ export async function customerProfile(id: string) {
         statusLabel: null,
         by: s.cashier.name,
         recipient: null,
+        boughtAs: differentName(s.customerName, row.name),
       };
     }),
     ...orders.map((o) => ({
@@ -286,6 +292,7 @@ export async function customerProfile(id: string) {
       statusLabel: o.status === "DELIVERED" ? null : ORDER_STATUS_LABELS[o.status],
       by: null,
       recipient: o.recipientName,
+      boughtAs: differentName(o.customerName, row.name),
     })),
   ].sort((a, b) => b.at.getTime() - a.at.getTime());
 
@@ -349,6 +356,11 @@ export async function customerProfile(id: string) {
 
 export type CustomerProfile = NonNullable<Awaited<ReturnType<typeof customerProfile>>>;
 
+function differentName(at: string | null, current: string | null): string | null {
+  if (!at?.trim()) return null;
+  return current && normalizeArabic(at) === normalizeArabic(current) ? null : at.trim();
+}
+
 function countBy(values: string[]): { label: string; count: number }[] {
   const m = new Map<string, number>();
   for (const v of values) m.set(v, (m.get(v) ?? 0) + 1);
@@ -390,8 +402,46 @@ export async function deleteCustomerNote(noteId: string, actor: { id: string; ca
   return note.customerId;
 }
 
-/** «بيع لها الآن»: الرقم والاسم لملء نقطة البيع. */
-export async function customerForPos(id: string): Promise<{ phone: string; name: string | null } | null> {
+/** «بيع الآن»: الرقم والاسم لملء نقطة البيع، وبطاقة العميل (D-116). */
+export async function customerForPos(id: string) {
   const c = await prisma.customer.findUnique({ where: { id }, select: { phone: true, name: true } });
-  return c ? { phone: c.phone, name: c.name } : null;
+  if (!c) return null;
+  const card = await customerCardByPhone(c.phone);
+  return {
+    phone: c.phone,
+    name: c.name,
+    card: card
+      ? {
+          name: card.name,
+          badge: card.segment ? CUSTOMER_SEGMENT_LABELS[card.segment] : null,
+          purchases: card.purchases,
+          lastNote: card.lastNote,
+        }
+      : null,
+  };
+}
+
+/**
+ * التعرّف على العميل في نقطة البيع (D-116): الاسم المسجّل والتصنيف وعدد المشتريات وآخر ملاحظة.
+ * بلا مبالغ — يظهر للموظفة.
+ */
+export async function customerCardByPhone(phone: string): Promise<{
+  name: string | null;
+  segment: CustomerSegment | null;
+  purchases: number;
+  lastNote: string | null;
+} | null> {
+  const found = await prisma.customer.findUnique({ where: { phone }, select: { id: true } });
+  if (!found) return null;
+  const [{ rows }, note] = await Promise.all([
+    customerDirectory(),
+    prisma.customerNote.findFirst({
+      where: { customerId: found.id, deletedAt: null },
+      orderBy: { createdAt: "desc" },
+      select: { body: true },
+    }),
+  ]);
+  const row = rows.find((r) => r.id === found.id);
+  if (!row) return null;
+  return { name: row.name, segment: row.segment, purchases: row.purchases, lastNote: note?.body ?? null };
 }

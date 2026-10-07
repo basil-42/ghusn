@@ -5,6 +5,7 @@ import {
   consumeBatches,
   dec,
   normalizePhone,
+  resolveCustomerName,
   roundMoney,
   searchTerms,
   applyExchangeCredit,
@@ -17,6 +18,7 @@ import {
 } from "@ghusn/core";
 import { Prisma, prisma } from "@ghusn/db";
 import { ApprovalError, verifyApprover } from "./approvals";
+import { recordAudit } from "./audit";
 import { nextDocumentNumber } from "./documents";
 import { reservedByVariant } from "./orders";
 import { SELLING_CURRENCY, getRateAt } from "./exchange-rates";
@@ -101,6 +103,8 @@ export interface SaleInput {
   cashTenderedSdg: string | null;
   customerPhone: string | null;
   customerName: string | null;
+  /** الموظفة أكّدت استبدال الاسم المسجّل بالمكتوب (D-116)؛ بدونه يبقى المسجّل. */
+  renameCustomer?: boolean;
   approval: { phone: string; password: string } | null;
   /** استبدال: مرتجع رصيده يُستخدم في هذه الفاتورة (D-81). */
   creditReturnId: string | null;
@@ -248,7 +252,7 @@ export async function createSale(input: SaleInput, cashierId: string): Promise<{
   const now = offline?.createdAt ?? new Date();
 
   try {
-    return await prisma.$transaction(async (tx) => {
+    const result = await prisma.$transaction(async (tx) => {
       // قفل الوردية: لا تُغلق أثناء بيع، ولا بيع على وردية مغلقة.
       // دون اتصال: الوردية التي كانت مفتوحة وقت البيع
       const [shift] = offline
@@ -268,15 +272,34 @@ export async function createSale(input: SaleInput, cashierId: string): Promise<{
         if (!now.eq(credit)) throw new SaleError("رصيد الاستبدال تغيّر — حدّثي الصفحة.");
       }
 
-      const customerId = customerPhone
-        ? (
-            await tx.customer.upsert({
+      // العميل برقمه؛ الاسم المسجّل لا يُستبدل إلا بتأكيد الموظفة (D-116)
+      let customerId: string | null = null;
+      let customerName: string | null = null;
+      let renamed: { before: string; after: string } | null = null;
+      if (customerPhone) {
+        const found = await tx.customer.findUnique({
+          where: { phone: customerPhone },
+          select: { id: true, name: true },
+        });
+        const name = resolveCustomerName({
+          existing: found?.name ?? null,
+          incoming: input.customerName,
+          confirmRename: !!input.renameCustomer,
+        });
+        const customer = found
+          ? name.update
+            ? await tx.customer.update({ where: { id: found.id }, data: { name: name.update }, select: { id: true } })
+            : found
+          : await tx.customer.upsert({
               where: { phone: customerPhone },
-              create: { phone: customerPhone, name: input.customerName },
-              update: input.customerName ? { name: input.customerName } : {},
-            })
-          ).id
-        : null;
+              create: { phone: customerPhone, name: name.update },
+              update: {},
+              select: { id: true },
+            });
+        customerId = customer.id;
+        customerName = name.snapshot;
+        renamed = name.renamed;
+      }
 
       const number = await nextDocumentNumber(tx, "INV", now, 6);
       const lineInput = new Map(input.lines.map((l) => [l.variantId, l]));
@@ -365,6 +388,7 @@ export async function createSale(input: SaleInput, cashierId: string): Promise<{
           shiftId: shift.id,
           cashierId,
           customerId,
+          customerName,
           subtotalSdg: totals.subtotalSdg.toFixed(2),
           lineDiscountSdg: totals.lineDiscountSdg.toFixed(2),
           invoiceDiscountSdg: totals.invoiceDiscountSdg.toFixed(2),
@@ -423,8 +447,19 @@ export async function createSale(input: SaleInput, cashierId: string): Promise<{
           });
         }
       }
-      return { id: input.id, number };
+      return { id: input.id, number, customerId, renamed };
     });
+    if (result.renamed && result.customerId) {
+      await recordAudit({
+        type: "CUSTOMER_UPDATED",
+        actorId: cashierId,
+        title: `تعديل اسم عميل من نقطة البيع · ${result.renamed.after}`,
+        detail: result.number,
+        href: `/admin/customers/${result.customerId}`,
+        changes: [{ field: "الاسم", ...result.renamed }],
+      });
+    }
+    return { id: result.id, number: result.number };
   } catch (e) {
     // نفس الفاتورة أُرسلت مرتين في نفس اللحظة: الأولى نجحت
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
@@ -447,6 +482,7 @@ export async function getReceipt(id: string) {
     },
   });
   if (!s) return null;
+  // الاسم كما كان وقت البيع (D-116)، وللفواتير القديمة بلا نسخة: الاسم الحالي
   const cashBack = await prisma.returnRefund.aggregate({ where: { saleId: s.id }, _sum: { amountSdg: true } });
   return {
     id: s.id,
@@ -456,7 +492,7 @@ export async function getReceipt(id: string) {
     shiftId: s.shiftId,
     cashierId: s.cashierId,
     cashierName: s.cashier.name,
-    customer: s.customer,
+    customer: s.customer ? { phone: s.customer.phone, name: s.customerName ?? s.customer.name } : null,
     subtotalSdg: s.subtotalSdg.toString(),
     discountSdg: dec(s.lineDiscountSdg.toString()).plus(s.invoiceDiscountSdg.toString()).toString(),
     totalSdg: s.totalSdg.toString(),
