@@ -1,6 +1,7 @@
 import { shopDay, shopMonthRange, sumUsd } from "@ghusn/core";
 import { prisma } from "@ghusn/db";
 import type { Metadata } from "next";
+import { ExportLink } from "@/components/admin/export-button";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { roleCan } from "@/lib/auth/permissions";
 import { requirePermission } from "@/lib/auth/session";
@@ -25,10 +26,18 @@ export default async function ExpensesPage({ searchParams }: { searchParams: Pro
     listExpenses(shopMonthRange(month), full ? undefined : session.user.id),
   ]);
   const active = expenses.filter((e) => !e.voided);
+  const canExport = roleCan(session.user.role, { expense: ["read"] });
+  const range = shopMonthRange(month);
+  const lastDay = shopDay(new Date(range.end.getTime() - 1));
 
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="font-display text-3xl font-bold">المصاريف</h1>
+      <header className="flex flex-wrap items-end justify-between gap-3">
+        <h1 className="font-display text-3xl font-bold">المصاريف</h1>
+        {canExport ? (
+          <ExportLink href={`/admin/export/expenses?from=${month}-01&to=${lastDay}`} label={`تصدير ${month}`} />
+        ) : null}
+      </header>
       <Card>
         <CardHeader>
           <CardTitle>مصروف جديد</CardTitle>

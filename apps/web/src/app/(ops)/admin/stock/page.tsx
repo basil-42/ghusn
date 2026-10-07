@@ -3,6 +3,7 @@ import { dec } from "@ghusn/core";
 import { ClipboardCheck, Plus, ScanBarcode, Search } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { ExportLink } from "@/components/admin/export-button";
 import { Button } from "@/components/ui/button";
 import { Card } from "@/components/ui/card";
 import { Input } from "@/components/ui/input";
@@ -48,28 +49,33 @@ export default async function StockPage({ searchParams }: { searchParams: Promis
             </p>
           ) : null}
         </div>
-        {canAdjust ? (
+        {canAdjust || withCost ? (
           <div className="flex flex-wrap gap-2">
-            <Button asChild variant="outline">
-              <Link href="/admin/stock/adjustments">
-                <ClipboardCheck aria-hidden /> التسويات
-                {pendingCount ? (
-                  <span className="inline-flex min-w-6 items-center justify-center rounded-full bg-gold px-1.5 text-xs font-bold text-card">
-                    {pendingCount}
-                  </span>
-                ) : null}
-              </Link>
-            </Button>
-            <Button asChild variant="outline">
-              <Link href="/admin/stock/counts">
-                <ScanBarcode aria-hidden /> الجرد
-              </Link>
-            </Button>
-            <Button asChild>
-              <Link href="/admin/stock/adjustments/new">
-                <Plus aria-hidden /> تسوية جديدة
-              </Link>
-            </Button>
+            {withCost ? <ExportLink href="/admin/export/stock" /> : null}
+            {canAdjust ? (
+              <>
+                <Button asChild variant="outline">
+                  <Link href="/admin/stock/adjustments">
+                    <ClipboardCheck aria-hidden /> التسويات
+                    {pendingCount ? (
+                      <span className="inline-flex min-w-6 items-center justify-center rounded-full bg-gold px-1.5 text-xs font-bold text-card">
+                        {pendingCount}
+                      </span>
+                    ) : null}
+                  </Link>
+                </Button>
+                <Button asChild variant="outline">
+                  <Link href="/admin/stock/counts">
+                    <ScanBarcode aria-hidden /> الجرد
+                  </Link>
+                </Button>
+                <Button asChild>
+                  <Link href="/admin/stock/adjustments/new">
+                    <Plus aria-hidden /> تسوية جديدة
+                  </Link>
+                </Button>
+              </>
+            ) : null}
           </div>
         ) : null}
       </header>
