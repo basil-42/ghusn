@@ -129,6 +129,33 @@ export async function saveStockSettings(value: StockSettings): Promise<void> {
   });
 }
 
+/** التحليلات (D-118): حد الراكد، ونافذة البيع ومدة الوصول والتغطية لاقتراحات إعادة الطلب. */
+export const insightsSettingsSchema = z.object({
+  deadStockDays: z.number().int().min(7).max(365),
+  salesWindowDays: z.number().int().min(14).max(365),
+  leadTimeDays: z.number().int().min(1).max(180),
+  coverDays: z.number().int().min(7).max(365),
+  reorderMinSold: z.number().int().min(1).max(1000),
+});
+export type InsightsSettings = z.infer<typeof insightsSettingsSchema>;
+const INSIGHTS_DEFAULTS: InsightsSettings = {
+  deadStockDays: 60,
+  salesWindowDays: 60,
+  leadTimeDays: 30,
+  coverDays: 60,
+  reorderMinSold: 3,
+};
+export const getInsightsSettings = () => read("insights", insightsSettingsSchema, INSIGHTS_DEFAULTS);
+
+export async function saveInsightsSettings(value: InsightsSettings): Promise<void> {
+  const data = insightsSettingsSchema.parse(value);
+  await prisma.setting.upsert({
+    where: { key: "insights" },
+    create: { key: "insights", value: data },
+    update: { value: data },
+  });
+}
+
 export const getReceiptSettings = () => read("receipt", receiptSettingsSchema, RECEIPT_DEFAULTS);
 
 export async function savePosSettings(value: PosSettings): Promise<void> {

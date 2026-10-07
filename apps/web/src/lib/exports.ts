@@ -1,7 +1,18 @@
 import { dec, shopDay, shopDayStart, variantLabel, type AdjustmentReason } from "@ghusn/core";
 import { prisma } from "@ghusn/db";
 import { monthlyReport } from "./reports";
+import { daysLabel } from "./format";
 import { REASON_LABELS } from "./stock-adjustments";
+import {
+  breakdownInsights,
+  itemSales,
+  profitInsights,
+  profitUsd,
+  staffInsights,
+  stockInsights,
+  type ItemSales,
+  type Range,
+} from "./insights";
 import { sheet, type Sheet } from "./xlsx";
 
 /**
@@ -145,7 +156,7 @@ const SALE_PAYMENT = { CASH: "نقداً", BANKAK: "بنكك", CREDIT: "رصيد
 
 export async function salesSheets(range: { start: Date; end: Date; fromDay: string; toDay: string }) {
   const within = { gte: range.start, lt: range.end };
-  const [sales, orders, returns] = await Promise.all([
+  const [sales, orders, items] = await Promise.all([
     prisma.sale.findMany({
       where: { createdAt: within },
       orderBy: { createdAt: "asc" },
@@ -155,16 +166,6 @@ export async function salesSheets(range: { start: Date; end: Date; fromDay: stri
         customer: { select: { phone: true, name: true } },
         payments: { select: { method: true, amountSdg: true } },
         returns: { select: { refundSdg: true } },
-        lines: {
-          select: {
-            variantId: true,
-            label: true,
-            qty: true,
-            netSdg: true,
-            costUsd: true,
-            variant: { select: { sku: true, product: { select: { category: { select: { nameAr: true } } } } } },
-          },
-        },
       },
     }),
     prisma.order.findMany({
@@ -172,86 +173,10 @@ export async function salesSheets(range: { start: Date; end: Date; fromDay: stri
       orderBy: { deliveredAt: "asc" },
       include: {
         customer: { select: { phone: true } },
-        lines: {
-          select: {
-            variantId: true,
-            label: true,
-            qty: true,
-            lineTotalSdg: true,
-            unitCostUsd: true,
-            variant: { select: { sku: true, product: { select: { category: { select: { nameAr: true } } } } } },
-          },
-        },
       },
     }),
-    prisma.saleReturnLine.findMany({
-      where: { saleReturn: { createdAt: within } },
-      select: {
-        qty: true,
-        refundSdg: true,
-        saleLine: { select: { variantId: true, label: true, sale: { select: { sdgPerUsd: true } } } },
-      },
-    }),
+    itemSales(range),
   ]);
-
-  // الأصناف: الكمية والإيراد (بسعر جنيه الفاتورة/الطلب) والتكلفة، ثم المرتجع
-  type Item = {
-    label: string;
-    sku: string;
-    category: string;
-    qty: ReturnType<typeof dec>;
-    sdg: ReturnType<typeof dec>;
-    usd: ReturnType<typeof dec>;
-    cost: ReturnType<typeof dec>;
-    returnedQty: ReturnType<typeof dec>;
-    returnedSdg: ReturnType<typeof dec>;
-    returnedUsd: ReturnType<typeof dec>;
-  };
-  const items = new Map<string, Item>();
-  const item = (id: string, label: string, sku: string, category: string) => {
-    let it = items.get(id);
-    if (!it) {
-      it = {
-        label,
-        sku,
-        category,
-        qty: dec(0),
-        sdg: dec(0),
-        usd: dec(0),
-        cost: dec(0),
-        returnedQty: dec(0),
-        returnedSdg: dec(0),
-        returnedUsd: dec(0),
-      };
-      items.set(id, it);
-    }
-    return it;
-  };
-  for (const s of sales) {
-    for (const l of s.lines) {
-      const it = item(l.variantId, l.label, l.variant.sku, l.variant.product.category.nameAr);
-      it.qty = it.qty.plus(l.qty.toString());
-      it.sdg = it.sdg.plus(l.netSdg.toString());
-      it.usd = it.usd.plus(dec(l.netSdg.toString()).div(s.sdgPerUsd.toString()));
-      it.cost = it.cost.plus(l.costUsd.toString());
-    }
-  }
-  for (const o of orders) {
-    const rate = o.sdgPerUsd?.toString();
-    for (const l of o.lines) {
-      const it = item(l.variantId, l.label, l.variant.sku, l.variant.product.category.nameAr);
-      it.qty = it.qty.plus(l.qty.toString());
-      it.sdg = it.sdg.plus(l.lineTotalSdg.toString());
-      if (rate) it.usd = it.usd.plus(dec(l.lineTotalSdg.toString()).div(rate));
-      it.cost = it.cost.plus(dec(l.qty.toString()).mul(l.unitCostUsd?.toString() ?? "0"));
-    }
-  }
-  for (const r of returns) {
-    const it = item(r.saleLine.variantId, r.saleLine.label, "", "");
-    it.returnedQty = it.returnedQty.plus(r.qty.toString());
-    it.returnedSdg = it.returnedSdg.plus(r.refundSdg.toString());
-    it.returnedUsd = it.returnedUsd.plus(dec(r.refundSdg.toString()).div(r.saleLine.sale.sdgPerUsd.toString()));
-  }
 
   const title = `${range.fromDay} إلى ${range.toDay}`;
   type SaleRow = (typeof sales)[number];
@@ -324,25 +249,25 @@ export async function salesSheets(range: { start: Date; end: Date; fromDay: stri
       rows: orders,
       totals: true,
     }),
-    sheet<Item>({
+    sheet<ItemSales>({
       name: "الأصناف المباعة",
       title: `الأصناف المباعة — ${title}`,
       columns: [
         { header: "الصنف", value: (i) => i.label, width: 34 },
-        { header: "SKU", value: (i) => i.sku || null, width: 14 },
-        { header: "القسم", value: (i) => i.category || null, width: 16 },
-        { header: "الكمية", kind: "qty", value: (i) => i.qty.toFixed() },
+        { header: "SKU", value: (i) => i.sku, width: 14 },
+        { header: "القسم", value: (i) => i.category, width: 16 },
+        { header: "الكمية المباعة", kind: "qty", value: (i) => i.qty.toFixed() },
         { header: "الإيراد ج.س", kind: "sdg", value: (i) => i.sdg.toFixed(2) },
         { header: "الإيراد $", kind: "usd", value: (i) => i.usd.toFixed(2) },
         { header: "التكلفة $", kind: "usd", value: (i) => i.cost.toFixed(2) },
-        { header: "الربح $", kind: "usd", value: (i) => i.usd.minus(i.cost).toFixed(2) },
         { header: "كمية مرتجعة", kind: "qty", value: (i) => i.returnedQty.toFixed() },
         { header: "مرتجع ج.س", kind: "sdg", value: (i) => i.returnedSdg.toFixed(2) },
         { header: "مرتجع $", kind: "usd", value: (i) => i.returnedUsd.toFixed(2) },
+        { header: "صافي الربح $", kind: "usd", value: (i) => profitUsd(i).toFixed(2) },
       ],
-      rows: [...items.values()].sort((a, b) => b.usd.minus(b.cost).cmp(a.usd.minus(a.cost))),
+      rows: [...items].sort((a, b) => profitUsd(b).cmp(profitUsd(a))),
       totals: true,
-      note: "الربح قبل المرتجعات؛ المرتجع في أعمدته بتاريخ المرتجع. الطلبات تُحسب عند التسليم.",
+      note: "صافي الربح = الإيراد − المرتجع − (التكلفة − تكلفة ما عاد سليماً للمخزون). المرتجع بتاريخه، والطلبات عند التسليم.",
     }),
   ];
 }
@@ -438,6 +363,130 @@ export async function stockSheets() {
       rows,
       totals: true,
       note: "القيمة بالمتوسط المرجّح للتكلفة؛ الرصيد السالب لا يُحسب في القيمة.",
+    }),
+  ];
+}
+
+// ---------- التحليلات (D-118) ----------
+
+export const INSIGHT_TABS = ["profit", "dead", "reorder", "staff", "breakdown"] as const;
+export type InsightTab = (typeof INSIGHT_TABS)[number];
+
+export async function insightSheets(tab: InsightTab, range: Range): Promise<Sheet<never>[]> {
+  const title = `${range.fromDay} إلى ${range.toDay}`;
+  if (tab === "profit") {
+    const r = await profitInsights(range);
+    type Row = (typeof r.byProfit)[number];
+    return [
+      sheet<Row>({
+        name: "الأكثر ربحاً",
+        title: `الأكثر ربحاً — ${title} (بعد المرتجع)`,
+        columns: [
+          { header: "الصنف", value: (i) => i.label, width: 34 },
+          { header: "القسم", value: (i) => i.category, width: 16 },
+          { header: "الكمية", kind: "qty", value: (i) => i.qty },
+          { header: "الإيراد ج.س", kind: "sdg", value: (i) => i.revenueSdg },
+          { header: "الإيراد $", kind: "usd", value: (i) => i.revenueUsd },
+          { header: "الربح $", kind: "usd", value: (i) => i.profitUsd },
+          { header: "الهامش", kind: "percent", value: (i) => i.margin },
+          { header: "الحد الأدنى", kind: "percent", value: (i) => i.minMargin },
+          { header: "تحت الحد", value: (i) => (i.belowMin ? "نعم" : null), width: 10 },
+        ],
+        rows: r.byProfit,
+        totals: true,
+      }),
+    ];
+  }
+  if (tab === "staff") {
+    const rows = await staffInsights(range);
+    type Row = (typeof rows)[number];
+    return [
+      sheet<Row>({
+        name: "مبيعات الموظفات",
+        title: `مبيعات كل موظفة — ${title} (فواتير المحل)`,
+        columns: [
+          { header: "الموظفة", value: (r) => r.name, width: 20 },
+          { header: "الفواتير", kind: "int", value: (r) => r.count },
+          { header: "الإجمالي ج.س", kind: "sdg", value: (r) => r.totalSdg },
+          { header: "متوسط الفاتورة ج.س", kind: "sdg", value: (r) => r.avgSdg },
+          { header: "الخصومات ج.س", kind: "sdg", value: (r) => r.discountSdg },
+          { header: "نسبة الخصم", kind: "percent", value: (r) => r.discountRate },
+          { header: "الربح $", kind: "usd", value: (r) => r.profitUsd },
+          { header: "بموافقة", kind: "int", value: (r) => r.approvals },
+        ],
+        rows,
+        totals: true,
+      }),
+    ];
+  }
+  if (tab === "breakdown") {
+    const { categories, occasions } = await breakdownInsights(range);
+    type Row = (typeof occasions)[number];
+    const columns = (first: string) => [
+      { header: first, value: (r: Row) => r.label, width: 22 },
+      { header: "الإيراد ج.س", kind: "sdg" as const, value: (r: Row) => r.revenueSdg },
+      { header: "الإيراد $", kind: "usd" as const, value: (r: Row) => r.revenueUsd },
+      { header: "الربح $", kind: "usd" as const, value: (r: Row) => r.profitUsd },
+      { header: "الهامش", kind: "percent" as const, value: (r: Row) => r.margin },
+      { header: "القطع", kind: "qty" as const, value: (r: Row) => r.qty },
+    ];
+    return [
+      sheet<Row>({
+        name: "حسب القسم",
+        title: `حسب القسم — ${title}`,
+        columns: columns("القسم"),
+        rows: categories,
+        totals: true,
+      }),
+      sheet<Row>({
+        name: "حسب المناسبة",
+        title: `حسب المناسبة — ${title}`,
+        columns: columns("المناسبة"),
+        rows: occasions,
+        note: "الصنف الذي له أكثر من مناسبة يُحسب في كل مناسباته، لذلك قد يزيد المجموع عن إجمالي المبيعات.",
+      }),
+    ];
+  }
+  const s = await stockInsights();
+  if (tab === "dead") {
+    type Row = (typeof s.dead)[number];
+    return [
+      sheet<Row>({
+        name: "المخزون الراكد",
+        title: `المخزون الراكد — لا بيع منذ ${daysLabel(s.settings.deadStockDays)}`,
+        columns: [
+          { header: "الصنف", value: (d) => d.label, width: 34 },
+          { header: "SKU", value: (d) => d.sku, width: 14 },
+          { header: "القسم", value: (d) => d.category, width: 16 },
+          { header: "الرصيد", kind: "qty", value: (d) => d.qty },
+          { header: "القيمة $", kind: "usd", value: (d) => d.valueUsd },
+          { header: "آخر بيع", kind: "date", value: (d) => d.lastSaleAt ?? "لم يُبع" },
+          { header: "أول استلام", kind: "date", value: (d) => d.since },
+        ],
+        rows: s.dead,
+        totals: true,
+      }),
+    ];
+  }
+  type Row = (typeof s.reorder)[number];
+  return [
+    sheet<Row>({
+      name: "إعادة الطلب",
+      title: `اقتراحات إعادة الطلب — نافذة ${daysLabel(s.settings.salesWindowDays)}، وصول ${daysLabel(s.settings.leadTimeDays)}، تغطية ${daysLabel(s.settings.coverDays)}`,
+      columns: [
+        { header: "الصنف", value: (r) => r.label, width: 34 },
+        { header: "SKU", value: (r) => r.sku, width: 14 },
+        { header: "القسم", value: (r) => r.category, width: 16 },
+        { header: "بيع/يوم", kind: "rate", value: (r) => r.perDay },
+        { header: "الرصيد", kind: "qty", value: (r) => r.qty },
+        { header: "في الطريق", kind: "qty", value: (r) => r.inboundQty },
+        { header: "يكفي (يوم)", kind: "rate", value: (r) => r.daysLeft },
+        { header: "الكمية المقترحة", kind: "qty", value: (r) => r.suggestQty },
+        { header: "التكلفة التقريبية $", kind: "usd", value: (r) => r.costUsd },
+        { header: "عاجل", value: (r) => (r.urgent ? "نعم" : null), width: 8 },
+      ],
+      rows: s.reorder,
+      totals: true,
     }),
   ];
 }
