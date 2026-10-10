@@ -38,6 +38,7 @@ import {
   type QuickAction,
 } from "@/lib/admin-nav-model";
 import { cn } from "@/lib/utils";
+import { GlobalSearch } from "./global-search";
 import { NotificationBell } from "./notification-bell";
 import { usePendingOrders } from "./pending-orders";
 
@@ -138,7 +139,9 @@ export function AdminShell({
           <Link href="/admin" aria-label="الرئيسية" className="md:hidden">
             <Image src="/brand/logo-ar-mark-forest.svg" alt="غصن" width={74} height={38} loading="eager" />
           </Link>
-          <span className="flex-1" />
+          <div className="flex flex-1 justify-end md:justify-start">
+            <GlobalSearch quick={quick} />
+          </div>
           {quick.length ? <QuickMenu actions={quick} /> : null}
           <NotificationBell />
         </header>
