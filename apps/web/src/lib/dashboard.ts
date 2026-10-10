@@ -1,4 +1,14 @@
-import { dec, percentChange, SHOP_TIME_ZONE, shopDay, shopDayStart, shopMonthRange } from "@ghusn/core";
+import {
+  dashboardRange,
+  dec,
+  marginOf,
+  percentChange,
+  SHOP_TIME_ZONE,
+  shopDay,
+  shopDayStart,
+  shopMonthRange,
+  type DashboardPeriod,
+} from "@ghusn/core";
 import { Prisma, prisma } from "@ghusn/db";
 import { getStockSettings } from "./settings";
 
@@ -12,14 +22,24 @@ const s = (v: { toString(): string } | null | undefined) => v?.toString() ?? "0"
 async function salesBetween(start: Date, end: Date) {
   const within = { gte: start, lt: end };
   const [sales, orders, returns] = await Promise.all([
-    prisma.sale.aggregate({ where: { createdAt: within }, _count: true, _sum: { totalSdg: true } }),
+    prisma.sale.aggregate({
+      where: { createdAt: within },
+      _count: true,
+      _sum: { totalSdg: true, revenueUsd: true, cogsUsd: true },
+    }),
     prisma.order.aggregate({
       where: { status: "DELIVERED", deliveredAt: within },
       _count: true,
-      _sum: { totalSdg: true },
+      _sum: { totalSdg: true, revenueUsd: true, cogsUsd: true },
     }),
-    prisma.saleReturn.aggregate({ where: { createdAt: within }, _sum: { refundSdg: true } }),
+    prisma.saleReturn.aggregate({
+      where: { createdAt: within },
+      _sum: { refundSdg: true, refundUsd: true, restockCostUsd: true },
+    }),
   ]);
+  // مجمل الربح بنفس تعريف التقرير الشهري: الإيراد − المرتجع − (التكلفة − تكلفة ما عاد للمخزون)
+  const revenueUsd = dec(s(sales._sum.revenueUsd)).plus(s(orders._sum.revenueUsd)).minus(s(returns._sum.refundUsd));
+  const cogsUsd = dec(s(sales._sum.cogsUsd)).plus(s(orders._sum.cogsUsd)).minus(s(returns._sum.restockCostUsd));
   const gross = dec(s(sales._sum.totalSdg)).plus(s(orders._sum.totalSdg));
   const count = sales._count + orders._count;
   return {
@@ -28,6 +48,39 @@ async function salesBetween(start: Date, end: Date) {
     storeSdg: dec(s(orders._sum.totalSdg)),
     count,
     avgTicketSdg: count ? gross.div(count) : null,
+    revenueUsd,
+    profitUsd: revenueUsd.minus(cogsUsd),
+  };
+}
+
+/**
+ * أرقام الرئيسية لفترة (D-120): المبيعات ومقارنتها، مجمل الربح والهامش، متوسط الفاتورة، والعملاء
+ * (من اشترى في الفترة، ومنهم الجدد: أول شراء مكتمل لهم فيها).
+ */
+export async function periodKpis(period: DashboardPeriod, now = new Date()) {
+  const r = dashboardRange(period, now);
+  const [cur, prev, customers] = await Promise.all([
+    salesBetween(r.start, r.end),
+    salesBetween(r.prevStart, r.prevEnd),
+    prisma.$queryRaw<{ buyers: bigint; fresh: bigint }[]>`
+      WITH p AS (
+        SELECT "customerId" AS id, "createdAt" AS at FROM "Sale" WHERE "customerId" IS NOT NULL
+        UNION ALL
+        SELECT "customerId", "deliveredAt" FROM "Order" WHERE "status" = 'DELIVERED' AND "deliveredAt" IS NOT NULL
+      ), f AS (SELECT id, MIN(at) AS first_at, MAX(at) AS last_at FROM p GROUP BY id)
+      SELECT COUNT(*) FILTER (WHERE EXISTS (SELECT 1 FROM p WHERE p.id = f.id AND p.at >= ${r.start} AND p.at < ${r.end})) AS "buyers",
+             COUNT(*) FILTER (WHERE f.first_at >= ${r.start} AND f.first_at < ${r.end}) AS "fresh"
+        FROM f`,
+  ]);
+  return {
+    netSdg: cur.netSdg.toFixed(0),
+    count: cur.count,
+    change: percentChange(cur.netSdg, prev.netSdg)?.toFixed(4) ?? null,
+    avgTicketSdg: cur.avgTicketSdg?.toFixed(0) ?? null,
+    profitUsd: cur.profitUsd.toFixed(2),
+    margin: marginOf(cur.revenueUsd, cur.profitUsd)?.toFixed(4) ?? null,
+    customers: Number(customers[0]?.buyers ?? 0),
+    newCustomers: Number(customers[0]?.fresh ?? 0),
   };
 }
 
@@ -188,12 +241,4 @@ export async function openShifts() {
     include: { user: { select: { name: true } }, _count: { select: { sales: true } } },
   });
   return rows.map((sh) => ({ id: sh.id, userName: sh.user.name, openedAt: sh.openedAt, sales: sh._count.sales }));
-}
-
-/** للموظفة: ورديتها المفتوحة ومبيعاتها فيها. */
-export async function myShift(userId: string) {
-  const shift = await prisma.shift.findFirst({ where: { userId, closedAt: null } });
-  if (!shift) return null;
-  const agg = await prisma.sale.aggregate({ where: { shiftId: shift.id }, _count: true, _sum: { totalSdg: true } });
-  return { openedAt: shift.openedAt, count: agg._count, totalSdg: dec(s(agg._sum.totalSdg)).toFixed(0) };
 }
