@@ -8,6 +8,7 @@ import { requirePermission } from "@/lib/auth/session";
 import { formatAmount, formatMargin } from "@/lib/format";
 import { currentShopMonth, monthlyReport, reportMonths } from "@/lib/reports";
 import { REASON_LABELS } from "@/lib/stock-adjustments";
+import { PageHeader } from "@/components/admin/page-header";
 
 export const metadata: Metadata = { title: "التقرير الشهري | غصن" };
 
@@ -38,34 +39,32 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
 
   return (
     <div className="flex flex-col gap-6">
-      <header className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="font-display text-3xl font-bold">التقرير الشهري</h1>
-          <p className="text-muted-foreground">
-            الربح بالدولار (عملة الأساس)، والمبالغ الفعلية بالجنيه بجانبه للمعلومة.
-          </p>
-        </div>
-        <div className="flex flex-wrap items-center gap-2">
-          <form className="flex items-center gap-2">
-            <select
-              name="month"
-              defaultValue={month}
-              className="min-h-11 rounded-xl border border-input bg-card px-3"
-              aria-label="الشهر"
-            >
-              {months.map((x) => (
-                <option key={x} value={x}>
-                  {x}
-                </option>
-              ))}
-            </select>
-            <button type="submit" className="min-h-11 rounded-xl border border-border px-4 font-semibold">
-              عرض
-            </button>
-          </form>
-          <ExportLink href={`/admin/export/report?month=${month}`} />
-        </div>
-      </header>
+      <PageHeader
+        title="التقرير الشهري"
+        description="الربح بالدولار (عملة الأساس)، والمبالغ الفعلية بالجنيه بجانبه للمعلومة."
+        actions={
+          <>
+            <form className="flex items-center gap-2">
+              <select
+                name="month"
+                defaultValue={month}
+                className="min-h-11 flex-1 rounded-xl border border-input bg-card px-3"
+                aria-label="الشهر"
+              >
+                {months.map((x) => (
+                  <option key={x} value={x}>
+                    {x}
+                  </option>
+                ))}
+              </select>
+              <button type="submit" className="min-h-11 rounded-xl border border-border px-4 font-semibold">
+                عرض
+              </button>
+            </form>
+            <ExportLink href={`/admin/export/report?month=${month}`} />
+          </>
+        }
+      />
 
       <div className="grid grid-cols-1 gap-6 lg:grid-cols-2">
         <Card>

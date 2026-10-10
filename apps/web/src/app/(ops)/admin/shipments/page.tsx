@@ -10,6 +10,7 @@ import { requirePermission } from "@/lib/auth/session";
 import { formatAmount, formatDateTime } from "@/lib/format";
 import { STATUS_LABELS, listShipments } from "@/lib/shipments";
 import { cn } from "@/lib/utils";
+import { PageHeader } from "@/components/admin/page-header";
 
 export const metadata: Metadata = { title: "الشحنات | غصن" };
 
@@ -33,16 +34,19 @@ export default async function ShipmentsPage({ searchParams }: { searchParams: Pr
 
   return (
     <div className="flex flex-col gap-6">
-      <header className="flex flex-wrap items-end justify-between gap-3">
-        <h1 className="font-display text-3xl font-bold">الشحنات</h1>
-        {roleCan(session.user.role, { shipment: ["create"] }) ? (
-          <Button asChild>
-            <Link href="/admin/shipments/new">
-              <Plus aria-hidden /> شحنة جديدة
-            </Link>
-          </Button>
-        ) : null}
-      </header>
+      <PageHeader
+        title="الشحنات"
+        description="كل شراء من مورد بتكاليفه — تُحسب منه تكلفة القطعة الحقيقية."
+        actions={
+          roleCan(session.user.role, { shipment: ["create"] }) ? (
+            <Button asChild>
+              <Link href="/admin/shipments/new">
+                <Plus aria-hidden /> شحنة جديدة
+              </Link>
+            </Button>
+          ) : null
+        }
+      />
 
       <nav aria-label="تصفية حسب الحالة" className="flex gap-2 overflow-x-auto pb-1">
         {[undefined, ...SHIPMENT_STATUSES].map((s) => (

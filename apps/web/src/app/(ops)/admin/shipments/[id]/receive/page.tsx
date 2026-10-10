@@ -1,6 +1,5 @@
 import { canReceiveShipment, plainNumber } from "@ghusn/core";
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
 import { Alert } from "@/components/ui/alert";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -8,6 +7,7 @@ import { requirePermission } from "@/lib/auth/session";
 import { formatAmount } from "@/lib/format";
 import { COST_LABELS, getShipment } from "@/lib/shipments";
 import { ReceiveForm } from "./receive-form";
+import { PageHeader } from "@/components/admin/page-header";
 
 export const metadata: Metadata = { title: "استلام شحنة | غصن" };
 
@@ -21,17 +21,15 @@ export default async function ReceivePage({ params }: { params: Promise<{ id: st
 
   return (
     <div className="flex flex-col gap-6">
-      <header className="flex flex-col gap-1">
-        <h1 className="font-display text-3xl font-bold">
-          استلام <bdi dir="ltr">{s.number}</bdi>
-        </h1>
-        <p className="text-muted-foreground">
-          <Link href={`/admin/shipments/${s.id}`} className="underline">
-            العودة للشحنة
-          </Link>{" "}
-          · {s.supplier.name}
-        </p>
-      </header>
+      <PageHeader
+        title={
+          <>
+            استلام <bdi dir="ltr">{s.number}</bdi>
+          </>
+        }
+        back={{ href: `/admin/shipments/${s.id}`, label: "الشحنة" }}
+        description={s.supplier.name}
+      />
 
       <Alert>
         {costs.length ? (

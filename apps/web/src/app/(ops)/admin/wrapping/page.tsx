@@ -8,6 +8,7 @@ import { getStoreSettings } from "@/lib/settings";
 import { listMaterialOptions, listWrapStylesForAdmin } from "@/lib/wrapping";
 import { GiftTileForm } from "./gift-tile-form";
 import { WrapStyleForm } from "./wrap-style-form";
+import { PageHeader } from "@/components/admin/page-header";
 
 export const metadata: Metadata = { title: "التغليف | غصن" };
 
@@ -22,13 +23,10 @@ export default async function WrappingPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <header className="flex flex-col gap-1">
-        <h1 className="font-display text-3xl font-bold">التغليف</h1>
-        <p className="text-muted-foreground">
-          النمط يظهر في المتجر عند تفعيله وتحديد سعره. المواد تُخصم من المخزون عند بدء تجهيز الطلب، وتكلفتها تدخل تكلفة
-          الطلب.
-        </p>
-      </header>
+      <PageHeader
+        title="التغليف"
+        description="النمط يظهر في المتجر عند تفعيله وتحديد سعره. المواد تُخصم من المخزون عند بدء تجهيز الطلب، وتكلفتها تدخل تكلفة الطلب."
+      />
       <Card>
         <CardHeader>
           <CardTitle>صورة بطاقة «صمّم هديتك» في الرئيسية</CardTitle>

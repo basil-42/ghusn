@@ -9,6 +9,7 @@ import { formatAmount, formatDateTime } from "@/lib/format";
 import { COUNTRIES, ENTRY_LABELS, getSupplierStatement } from "@/lib/suppliers";
 import { BalanceBadge } from "../balance";
 import { EditSupplierForm, PaymentForm, VoidEntryForm } from "../forms";
+import { PageHeader } from "@/components/admin/page-header";
 
 export const metadata: Metadata = { title: "مورد | غصن" };
 
@@ -33,10 +34,11 @@ export default async function SupplierPage({ params }: { params: Promise<{ id: s
 
   return (
     <div className="flex flex-col gap-6">
-      <header className="flex flex-wrap items-start justify-between gap-3">
-        <div>
-          <h1 className="font-display text-3xl font-bold">{supplier.name}</h1>
-          <p className="text-muted-foreground">
+      <PageHeader
+        title={supplier.name}
+        back={{ href: "/admin/suppliers", label: "الموردون" }}
+        description={
+          <>
             {COUNTRIES[supplier.country] ?? supplier.country} · حساب بـ {cur.nameAr}
             {supplier.phone ? (
               <>
@@ -44,10 +46,10 @@ export default async function SupplierPage({ params }: { params: Promise<{ id: s
                 <bdi dir="ltr">{supplier.phone}</bdi>
               </>
             ) : null}
-          </p>
-        </div>
-        <BalanceBadge balance={data.balance} symbol={cur.symbol} decimals={cur.decimals} />
-      </header>
+          </>
+        }
+        actions={<BalanceBadge balance={data.balance} symbol={cur.symbol} decimals={cur.decimals} />}
+      />
 
       <section className="grid grid-cols-1 gap-3 sm:grid-cols-3">
         <Card className="gap-1">

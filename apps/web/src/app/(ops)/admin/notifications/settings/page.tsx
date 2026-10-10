@@ -1,11 +1,11 @@
 import { Plus, Share } from "lucide-react";
 import type { Metadata } from "next";
-import Link from "next/link";
 import { requireSession } from "@/lib/auth/session";
 import { eventsForRole } from "@/lib/notifications";
 import { getPushPrefs, listSubscriptions, pushConfig } from "@/lib/push";
 import { Devices, SoundCard } from "./devices";
 import { PrefsForm } from "./prefs-form";
+import { PageHeader } from "@/components/admin/page-header";
 
 export const metadata: Metadata = { title: "تفضيلات الإشعارات | غصن" };
 
@@ -31,15 +31,11 @@ export default async function NotificationSettingsPage() {
 
   return (
     <div className="flex flex-col gap-5">
-      <header className="flex flex-col gap-1">
-        <Link href="/admin/notifications" className="text-sm text-muted-foreground underline">
-          الإشعارات
-        </Link>
-        <h1 className="font-display text-3xl font-bold">تفضيلات الإشعارات</h1>
-        <p className="text-muted-foreground">
-          داخل النظام تصلك كل الإشعارات المسموحة لصلاحياتك دائماً؛ هنا تختارين ما يصل للجوال.
-        </p>
-      </header>
+      <PageHeader
+        title="تفضيلات الإشعارات"
+        back={{ href: "/admin/notifications", label: "الإشعارات" }}
+        description="داخل النظام تصلك كل الإشعارات المسموحة لصلاحياتك دائماً؛ هنا تختارين ما يصل للجوال."
+      />
 
       <div className="grid gap-5 lg:grid-cols-2">
         <Devices

@@ -9,6 +9,7 @@ import { formatAmount, formatDateTime, formatRate } from "@/lib/format";
 import { currentRateSides, listTransfers, listWallets } from "@/lib/wallets";
 import { voidTransferAction } from "./actions";
 import { NewWalletForm, TransferForm } from "./forms";
+import { PageHeader } from "@/components/admin/page-header";
 
 export const metadata: Metadata = { title: "المحافظ | غصن" };
 
@@ -25,13 +26,10 @@ export default async function WalletsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <header>
-        <h1 className="font-display text-3xl font-bold">المحافظ</h1>
-        <p className="text-muted-foreground">
-          الرصيد يُحسب من كل الحركات بعد الرصيد الافتتاحي: المبيعات والمرتجعات والمصاريف والشحنات ودفعات الموردين
-          والتحويلات وفروقات الورديات (D-86).
-        </p>
-      </header>
+      <PageHeader
+        title="المحافظ"
+        description="الرصيد يُحسب من كل الحركات بعد الرصيد الافتتاحي: المبيعات والمرتجعات والمصاريف والشحنات ودفعات الموردين والتحويلات وفروقات الورديات (D-86)."
+      />
 
       <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 lg:grid-cols-3">
         {wallets.map((w) => (

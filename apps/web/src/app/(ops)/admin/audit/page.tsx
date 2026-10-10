@@ -16,6 +16,7 @@ import {
 } from "@/lib/audit-feed";
 import { formatDay, formatTime } from "@/lib/format";
 import { cn } from "@/lib/utils";
+import { PageHeader } from "@/components/admin/page-header";
 
 export const metadata: Metadata = { title: "سجل التدقيق | غصن" };
 
@@ -72,17 +73,17 @@ export default async function AuditPage({ searchParams }: { searchParams: Promis
 
   return (
     <div className="flex flex-col gap-6">
-      <header className="flex flex-wrap items-end justify-between gap-3">
-        <div className="flex flex-col gap-1">
-          <h1 className="font-display text-3xl font-bold">سجل التدقيق</h1>
-          <p className="text-muted-foreground">كل ما تغيّر في النظام: من، ومتى، وماذا — لا يُعدَّل ولا يُحذف.</p>
-        </div>
-        <Button asChild variant="outline">
-          <a href={`/admin/audit/export?${exportQuery}`}>
-            <Download aria-hidden /> تصدير Excel
-          </a>
-        </Button>
-      </header>
+      <PageHeader
+        title="سجل التدقيق"
+        description="كل ما تغيّر في النظام: من، ومتى، وماذا — لا يُعدَّل ولا يُحذف."
+        actions={
+          <Button asChild variant="outline">
+            <a href={`/admin/audit/export?${exportQuery}`}>
+              <Download aria-hidden /> تصدير Excel
+            </a>
+          </Button>
+        }
+      />
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Card className="gap-1 p-4">

@@ -10,6 +10,7 @@ import { formatAmount, formatDateTime } from "@/lib/format";
 import { currentShopMonth } from "@/lib/reports";
 import { getPosSettings } from "@/lib/settings";
 import { ExpenseForm, VoidExpenseForm } from "./forms";
+import { PageHeader } from "@/components/admin/page-header";
 
 export const metadata: Metadata = { title: "المصاريف | غصن" };
 
@@ -32,12 +33,15 @@ export default async function ExpensesPage({ searchParams }: { searchParams: Pro
 
   return (
     <div className="flex flex-col gap-6">
-      <header className="flex flex-wrap items-end justify-between gap-3">
-        <h1 className="font-display text-3xl font-bold">المصاريف</h1>
-        {canExport ? (
-          <ExportLink href={`/admin/export/expenses?from=${month}-01&to=${lastDay}`} label={`تصدير ${month}`} />
-        ) : null}
-      </header>
+      <PageHeader
+        title="المصاريف"
+        description="مصاريف المحل بعملتها وسعر يومها — ما يُدفع من الدرج يُخصم من نقد الوردية."
+        actions={
+          canExport ? (
+            <ExportLink href={`/admin/export/expenses?from=${month}-01&to=${lastDay}`} label={`تصدير ${month}`} />
+          ) : null
+        }
+      />
       <Card id="new" className="scroll-mt-24">
         <CardHeader>
           <CardTitle>مصروف جديد</CardTitle>

@@ -8,6 +8,7 @@ import { listContributions, totalCapitalUsd } from "@/lib/capital";
 import { formatAmount, formatDateTime } from "@/lib/format";
 import { voidContributionAction } from "./actions";
 import { ContributionForm } from "./form";
+import { PageHeader } from "@/components/admin/page-header";
 
 export const metadata: Metadata = { title: "التمويل | غصن" };
 
@@ -25,16 +26,18 @@ export default async function CapitalPage() {
   ]);
   return (
     <div className="flex flex-col gap-6">
-      <header>
-        <h1 className="font-display text-3xl font-bold">التمويل ورأس المال</h1>
-        <p className="text-muted-foreground">
-          الإجمالي{" "}
-          <bdi dir="ltr" className="font-bold text-foreground">
-            {formatAmount(total)} $
-          </bdi>{" "}
-          — يُسترد من الربح أولاً قبل أي توزيع (D-83). كل مبلغ بعملته وسعر يومه.
-        </p>
-      </header>
+      <PageHeader
+        title="التمويل ورأس المال"
+        description={
+          <>
+            الإجمالي{" "}
+            <bdi dir="ltr" className="font-bold text-foreground">
+              {formatAmount(total)} $
+            </bdi>{" "}
+            — يُسترد من الربح أولاً قبل أي توزيع (D-83). كل مبلغ بعملته وسعر يومه.
+          </>
+        }
+      />
       <Card>
         <CardHeader>
           <CardTitle>تمويل جديد</CardTitle>

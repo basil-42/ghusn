@@ -15,6 +15,7 @@ import {
 } from "@/lib/notifications";
 import { cn } from "@/lib/utils";
 import { markAllReadAction } from "./actions";
+import { PageHeader } from "@/components/admin/page-header";
 
 export const metadata: Metadata = { title: "الإشعارات | غصن" };
 
@@ -76,28 +77,26 @@ export default async function NotificationsPage({ searchParams }: { searchParams
 
   return (
     <div className="flex flex-col gap-5">
-      <header className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="font-display text-3xl font-bold">الإشعارات</h1>
-          <p className="text-muted-foreground">
-            {unread ? `${unread.toLocaleString("en-US")} غير مقروءة` : "لا إشعارات غير مقروءة"}
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {unread ? (
-            <form action={markAllReadAction}>
-              <Button type="submit" variant="outline">
-                تحديد الكل كمقروء
-              </Button>
-            </form>
-          ) : null}
-          <Button asChild>
-            <Link href="/admin/notifications/settings">
-              <Settings aria-hidden /> التفضيلات
-            </Link>
-          </Button>
-        </div>
-      </header>
+      <PageHeader
+        title="الإشعارات"
+        description={unread ? `${unread.toLocaleString("en-US")} غير مقروءة` : "لا إشعارات غير مقروءة"}
+        actions={
+          <>
+            {unread ? (
+              <form action={markAllReadAction}>
+                <Button type="submit" variant="outline" className="w-full">
+                  تحديد الكل كمقروء
+                </Button>
+              </form>
+            ) : null}
+            <Button asChild>
+              <Link href="/admin/notifications/settings">
+                <Settings aria-hidden /> التفضيلات
+              </Link>
+            </Button>
+          </>
+        }
+      />
 
       <nav aria-label="تصفية" className="flex flex-wrap gap-2">
         {NOTIFICATION_FILTERS.map((key) => (

@@ -8,6 +8,7 @@ import { daysLabel, formatShortDate } from "@/lib/format";
 import { BannerDrawer } from "./banner-drawer";
 import { BannerList, type BannerRow } from "./banner-list";
 import { LINK_LABELS } from "./link-labels";
+import { PageHeader } from "@/components/admin/page-header";
 
 export const metadata: Metadata = { title: "البانرات | غصن" };
 
@@ -80,32 +81,29 @@ export default async function BannersPage({ searchParams }: { searchParams: Prom
 
   return (
     <div className="flex flex-col gap-5">
-      <header className="flex flex-wrap items-end justify-between gap-3">
-        <div className="flex flex-col gap-1">
-          <h1 className="font-display text-3xl font-bold">البانرات</h1>
-          <p className="text-sm text-muted-foreground">
-            تظهر أعلى رئيسية المتجر بالترتيب وتتبدل كل 6 ثوانٍ — حتى {MAX_HOME_BANNERS} في نفس الوقت. بلا بانر ظاهر يظهر
-            بانر الهوية.
-          </p>
-        </div>
-        <div className="flex gap-2">
-          <a
-            href="/"
-            target="_blank"
-            rel="noreferrer"
-            className="flex min-h-11 items-center gap-1.5 rounded-xl border border-border bg-card px-4 text-sm font-semibold hover:bg-muted"
-          >
-            <ExternalLink aria-hidden className="size-4" /> معاينة المتجر
-          </a>
-          <Link
-            href="/admin/banners?edit=new"
-            scroll={false}
-            className="flex min-h-11 items-center gap-1.5 rounded-xl bg-primary px-4 text-sm font-bold text-primary-foreground"
-          >
-            <Plus aria-hidden className="size-4" /> بانر جديد
-          </Link>
-        </div>
-      </header>
+      <PageHeader
+        title="البانرات"
+        description={`تظهر أعلى رئيسية المتجر بالترتيب وتتبدل كل 6 ثوانٍ — حتى ${MAX_HOME_BANNERS} في نفس الوقت. بلا بانر ظاهر يظهر بانر الهوية.`}
+        actions={
+          <>
+            <a
+              href="/"
+              target="_blank"
+              rel="noreferrer"
+              className="flex min-h-11 items-center justify-center gap-1.5 rounded-xl border border-border bg-card px-4 text-sm font-semibold hover:bg-muted"
+            >
+              <ExternalLink aria-hidden className="size-4" /> معاينة المتجر
+            </a>
+            <Link
+              href="/admin/banners?edit=new"
+              scroll={false}
+              className="flex min-h-11 items-center justify-center gap-1.5 rounded-xl bg-primary px-4 text-sm font-bold text-primary-foreground"
+            >
+              <Plus aria-hidden className="size-4" /> بانر جديد
+            </Link>
+          </>
+        }
+      />
 
       <BannerList rows={rows} max={MAX_HOME_BANNERS} />
 

@@ -4,6 +4,7 @@ import Link from "next/link";
 import { Card } from "@/components/ui/card";
 import { requirePermission } from "@/lib/auth/session";
 import { NewShipmentForm } from "../forms";
+import { PageHeader } from "@/components/admin/page-header";
 
 export const metadata: Metadata = { title: "شحنة جديدة | غصن" };
 
@@ -16,7 +17,11 @@ export default async function NewShipmentPage() {
   });
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="font-display text-3xl font-bold">شحنة جديدة</h1>
+      <PageHeader
+        title="شحنة جديدة"
+        back={{ href: "/admin/shipments", label: "الشحنات" }}
+        description="المورد والعملة وتاريخ الشراء أولاً — الأصناف والتكاليف تُضاف في الخطوة التالية."
+      />
       <Card>
         {suppliers.length ? (
           <NewShipmentForm

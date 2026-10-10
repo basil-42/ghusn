@@ -13,6 +13,7 @@ import { getStockSettings } from "@/lib/settings";
 import { REASON_LABELS, STATUS_LABELS, listAdjustments } from "@/lib/stock-adjustments";
 import { cn } from "@/lib/utils";
 import { ApproveAdjustmentForm, RejectAdjustmentForm } from "./forms";
+import { PageHeader } from "@/components/admin/page-header";
 
 export const metadata: Metadata = { title: "تسويات المخزون | غصن" };
 
@@ -62,23 +63,20 @@ export default async function AdjustmentsPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <header className="flex flex-wrap items-end justify-between gap-3">
-        <div className="flex flex-col gap-1">
-          <Link href="/admin/stock" className="text-sm text-muted-foreground hover:underline">
-            المخزون ›
-          </Link>
-          <h1 className="font-display text-3xl font-bold">تسويات المخزون</h1>
-          <p className="text-muted-foreground">
-            لكل تسوية سبب ومن سجّلها ومن اعتمدها، ولا تُحذف — الخطأ يُصحَّح بتسوية عكسية.
-            {canApprove && !unlimited ? ` حد اعتمادك ${formatAmount(String(managerAdjustLimitUsd))} $.` : ""}
-          </p>
-        </div>
-        <Button asChild>
-          <Link href="/admin/stock/adjustments/new">
-            <Plus aria-hidden /> تسوية جديدة
-          </Link>
-        </Button>
-      </header>
+      <PageHeader
+        title="تسويات المخزون"
+        back={{ href: "/admin/stock", label: "المخزون" }}
+        description={`لكل تسوية سبب ومن سجّلها ومن اعتمدها، ولا تُحذف — الخطأ يُصحَّح بتسوية عكسية.${
+          canApprove && !unlimited ? ` حد اعتمادك ${formatAmount(String(managerAdjustLimitUsd))} $.` : ""
+        }`}
+        actions={
+          <Button asChild>
+            <Link href="/admin/stock/adjustments/new">
+              <Plus aria-hidden /> تسوية جديدة
+            </Link>
+          </Button>
+        }
+      />
 
       <Card className={pending.length ? "border-sand" : undefined}>
         <CardHeader>

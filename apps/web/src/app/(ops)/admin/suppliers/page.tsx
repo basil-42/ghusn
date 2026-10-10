@@ -9,6 +9,7 @@ import { requirePermission } from "@/lib/auth/session";
 import { formatAmount } from "@/lib/format";
 import { COUNTRIES, listSuppliers } from "@/lib/suppliers";
 import { BalanceBadge } from "./balance";
+import { PageHeader } from "@/components/admin/page-header";
 
 export const metadata: Metadata = { title: "الموردون | غصن" };
 
@@ -19,25 +20,27 @@ export default async function SuppliersPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <header className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="font-display text-3xl font-bold">الموردون</h1>
-          <p className="text-muted-foreground">
+      <PageHeader
+        title="الموردون"
+        description={
+          <>
             إجمالي المستحق للموردين:{" "}
             <bdi dir="ltr" className="font-semibold text-foreground tabular-nums">
               {formatAmount(owedUsd)} $
             </bdi>{" "}
             (بسعر يوم الشراء)
-          </p>
-        </div>
-        {roleCan(session.user.role, { supplier: ["create"] }) ? (
-          <Button asChild>
-            <Link href="/admin/suppliers/new">
-              <Plus aria-hidden /> إضافة مورد
-            </Link>
-          </Button>
-        ) : null}
-      </header>
+          </>
+        }
+        actions={
+          roleCan(session.user.role, { supplier: ["create"] }) ? (
+            <Button asChild>
+              <Link href="/admin/suppliers/new">
+                <Plus aria-hidden /> إضافة مورد
+              </Link>
+            </Button>
+          ) : null
+        }
+      />
 
       {suppliers.length === 0 ? (
         <EmptyState

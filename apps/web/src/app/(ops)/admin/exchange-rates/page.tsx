@@ -8,6 +8,7 @@ import { requirePermission } from "@/lib/auth/session";
 import { MANUAL_SOURCES, SOURCE_LABELS, getRateBoard, getRateHistory, type RateCard } from "@/lib/exchange-rates";
 import { formatDateTime, formatPercent, formatRate } from "@/lib/format";
 import { RateForm } from "./rate-form";
+import { PageHeader } from "@/components/admin/page-header";
 
 export const metadata: Metadata = { title: "سعر الصرف | غصن" };
 
@@ -18,10 +19,7 @@ export default async function ExchangeRatesPage() {
 
   return (
     <div className="flex flex-col gap-8">
-      <header className="flex flex-col gap-1">
-        <h1 className="font-display text-3xl font-bold">سعر الصرف</h1>
-        <p className="text-muted-foreground">كم وحدة من كل عملة تساوي دولاراً واحداً. الدولار هو عملة الأساس.</p>
-      </header>
+      <PageHeader title="سعر الصرف" description="كم وحدة من كل عملة تساوي دولاراً واحداً. الدولار هو عملة الأساس." />
 
       <section className="grid grid-cols-1 gap-4 sm:grid-cols-2">
         {board.map((card) => (
