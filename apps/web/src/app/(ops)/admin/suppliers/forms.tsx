@@ -1,5 +1,6 @@
 "use client";
 
+import { useActionToast } from "@/components/ui/toast";
 import { useActionState, useState } from "react";
 import { Field, SelectField } from "@/components/form-field";
 import { Alert } from "@/components/ui/alert";
@@ -16,12 +17,7 @@ import {
 type Option = { value: string; label: string };
 
 function Messages({ state }: { state: FormState }) {
-  return (
-    <>
-      {state.error ? <Alert variant="destructive">{state.error}</Alert> : null}
-      {state.success ? <Alert variant="success">{state.success}</Alert> : null}
-    </>
-  );
+  return <>{state.error ? <Alert variant="destructive">{state.error}</Alert> : null}</>;
 }
 
 export function NewSupplierForm({
@@ -34,6 +30,7 @@ export function NewSupplierForm({
   today: string;
 }) {
   const [state, action, pending] = useActionState<FormState, FormData>(createSupplierAction, {});
+  useActionToast(state);
   const [hasOpening, setHasOpening] = useState(false);
   return (
     <form action={action} className="flex flex-col gap-5">
@@ -104,6 +101,7 @@ export function PaymentForm({
   today: string;
 }) {
   const [state, action, pending] = useActionState<FormState, FormData>(recordPaymentAction, {});
+  useActionToast(state);
   const [walletId, setWalletId] = useState(
     wallets.find((w) => w.currency === supplierCurrency)?.value ?? wallets[0]?.value ?? "",
   );
@@ -163,6 +161,7 @@ export function PaymentForm({
 
 export function VoidEntryForm({ supplierId, entryId }: { supplierId: string; entryId: string }) {
   const [state, action, pending] = useActionState<FormState, FormData>(voidEntryAction, {});
+  useActionToast(state);
   const [open, setOpen] = useState(false);
   if (!open) {
     return (
@@ -211,6 +210,7 @@ export function EditSupplierForm({
   countries: Option[];
 }) {
   const [state, action, pending] = useActionState<FormState, FormData>(updateSupplierAction, {});
+  useActionToast(state);
   return (
     <form action={action} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
       <div className="flex flex-col gap-3 sm:col-span-2">

@@ -1,5 +1,6 @@
 "use client";
 
+import { useActionToast } from "@/components/ui/toast";
 import { useActionState, useState } from "react";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -24,6 +25,7 @@ export function StartCountForm({
 }) {
   const [scope, setScope] = useState<Scope>(suggest?.scope ?? "CATEGORY");
   const [state, action, pending] = useActionState<FormState, FormData>(startCountAction, {});
+  useActionToast(state);
   return (
     <form action={action} className="flex flex-col gap-4">
       {state.error ? <Alert variant="destructive">{state.error}</Alert> : null}
@@ -74,6 +76,7 @@ export function StartCountForm({
 
 export function RecountButton({ countId, lineId }: { countId: string; lineId: string }) {
   const [state, action, pending] = useActionState<FormState, FormData>(recountAction, {});
+  useActionToast(state);
   return (
     <form action={action} className="flex items-center gap-2">
       <input type="hidden" name="countId" value={countId} />
@@ -97,11 +100,12 @@ export function ApproveCountForm({
   disabled: boolean;
 }) {
   const [state, action, pending] = useActionState<FormState, FormData>(approveCountAction, {});
+  useActionToast(state);
   return (
     <form action={action} className="flex flex-col gap-3">
       <input type="hidden" name="id" value={countId} />
       {state.error ? <Alert variant="destructive">{state.error}</Alert> : null}
-      {state.success ? <Alert variant="success">{state.success}</Alert> : null}
+
       {costLines.length ? (
         <div className="flex flex-col gap-2 rounded-xl border border-sand p-3">
           <b className="text-sm">أصناف زائدة بلا تكلفة — أدخلي تكلفة الوحدة ($)</b>
@@ -122,6 +126,7 @@ export function ApproveCountForm({
 
 export function CancelCountForm({ countId }: { countId: string }) {
   const [state, action, pending] = useActionState<FormState, FormData>(cancelCountAction, {});
+  useActionToast(state);
   return (
     <form
       action={action}
@@ -136,7 +141,6 @@ export function CancelCountForm({ countId }: { countId: string }) {
         إلغاء الجرد
       </Button>
       {state.error ? <span className="text-sm text-destructive">{state.error}</span> : null}
-      {state.success ? <span className="text-sm">{state.success}</span> : null}
     </form>
   );
 }

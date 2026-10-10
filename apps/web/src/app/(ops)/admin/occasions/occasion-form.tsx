@@ -1,5 +1,6 @@
 "use client";
 
+import { useActionToast } from "@/components/ui/toast";
 import { useActionState } from "react";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -29,10 +30,11 @@ export interface OccasionFormValue {
 /** مناسبة: الاسم والوصف، الرابط، الصورة، الترتيب، التفعيل، وفترة بانر الموسم. */
 export function OccasionForm({ initial }: { initial: OccasionFormValue }) {
   const [state, action, pending] = useActionState<FormState, FormData>(saveOccasionAction, {});
+  useActionToast(state);
   return (
     <form action={action} className="flex flex-col gap-3">
       {state.error ? <Alert variant="destructive">{state.error}</Alert> : null}
-      {state.success ? <Alert>{state.success}</Alert> : null}
+
       {initial.id ? <input type="hidden" name="id" value={initial.id} /> : null}
       <div className="grid gap-3 sm:grid-cols-2">
         <label className={field}>

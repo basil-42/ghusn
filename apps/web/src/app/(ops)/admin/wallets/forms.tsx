@@ -1,5 +1,6 @@
 "use client";
 
+import { useActionToast } from "@/components/ui/toast";
 import { dec, planTransfer, rateChange, toLatinDigits, type TransferPlan } from "@ghusn/core";
 import { useActionState, useRef, useState } from "react";
 import { Alert } from "@/components/ui/alert";
@@ -29,12 +30,7 @@ function parseAmount(v: string): string | null {
 }
 
 function Messages({ state }: { state: FormState }) {
-  return (
-    <>
-      {state.error ? <Alert variant="destructive">{state.error}</Alert> : null}
-      {state.success ? <Alert variant="success">{state.success}</Alert> : null}
-    </>
-  );
+  return <>{state.error ? <Alert variant="destructive">{state.error}</Alert> : null}</>;
 }
 
 /**
@@ -49,6 +45,7 @@ export function TransferForm({ wallets, rates, today }: { wallets: WalletOption[
     if (result.success) setV(empty);
     return result;
   }, {});
+  useActionToast(state);
   const set = (k: keyof typeof empty) => (e: { target: { value: string } }) => setV({ ...v, [k]: e.target.value });
 
   const from = wallets.find((w) => w.id === v.fromWalletId);
@@ -206,6 +203,7 @@ export function TransferForm({ wallets, rates, today }: { wallets: WalletOption[
 /** الرصيد الافتتاحي (جرد) لمحفظة بلا رصيد افتتاحي. */
 export function OpeningForm({ walletId, symbol, today }: { walletId: string; symbol: string; today: string }) {
   const [state, action, pending] = useActionState<FormState, FormData>(openingAction, {});
+  useActionToast(state);
   return (
     <form action={action} className="flex flex-col gap-2">
       <Messages state={state} />
@@ -235,6 +233,7 @@ export function AdjustmentForm({ walletId, symbol, today }: { walletId: string; 
     if (result.success) formRef.current?.reset();
     return result;
   }, {});
+  useActionToast(state);
   return (
     <form ref={formRef} action={action} className="flex flex-col gap-2">
       <Messages state={state} />
@@ -274,6 +273,7 @@ export function NewWalletForm({ currencies }: { currencies: string[] }) {
     if (result.success) formRef.current?.reset();
     return result;
   }, {});
+  useActionToast(state);
   return (
     <form ref={formRef} action={action} className="flex flex-col gap-2">
       <Messages state={state} />
@@ -305,6 +305,7 @@ export function NewWalletForm({ currencies }: { currencies: string[] }) {
 
 export function ToggleWalletForm({ id, isActive }: { id: string; isActive: boolean }) {
   const [state, action, pending] = useActionState<FormState, FormData>(toggleWalletAction, {});
+  useActionToast(state);
   return (
     <form action={action} className="flex flex-col gap-1">
       {state.error ? <Alert variant="destructive">{state.error}</Alert> : null}

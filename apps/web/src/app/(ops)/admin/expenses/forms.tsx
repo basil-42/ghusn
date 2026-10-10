@@ -1,5 +1,6 @@
 "use client";
 
+import { useActionToast } from "@/components/ui/toast";
 import { useActionState, useRef } from "react";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -33,10 +34,11 @@ export function ExpenseForm({
     if (result.success) formRef.current?.reset();
     return result;
   }, {});
+  useActionToast(state);
   return (
     <form ref={formRef} action={action} className="flex flex-col gap-4">
       {state.error ? <Alert variant="destructive">{state.error}</Alert> : null}
-      {state.success ? <Alert variant="success">{state.success}</Alert> : null}
+
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <label className={field}>
           <span className="font-semibold">القسم</span>
@@ -104,6 +106,7 @@ export function ExpenseForm({
 
 export function VoidExpenseForm({ id }: { id: string }) {
   const [state, action, pending] = useActionState<FormState, FormData>(voidExpenseAction, {});
+  useActionToast(state);
   return (
     <form
       action={action}

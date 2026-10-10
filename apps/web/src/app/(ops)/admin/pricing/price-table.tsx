@@ -1,5 +1,6 @@
 "use client";
 
+import { useActionToast } from "@/components/ui/toast";
 import { actualMargin, dec, plainNumber, toLatinDigits } from "@ghusn/core";
 import Link from "next/link";
 import { useActionState, useState, useTransition } from "react";
@@ -40,6 +41,7 @@ export function PriceTable({
   emptyText?: string;
 }) {
   const [state, action] = useActionState<FormState, unknown>(approvePricesAction, {});
+  useActionToast(state);
   const [pending, startTransition] = useTransition();
   // التعديلات فقط؛ الصف بلا تعديل يأخذ القيمة الافتراضية من بياناته (تبقى صحيحة بعد تحديث القائمة)
   const [edits, setEdits] = useState<Record<string, Edit>>({});
@@ -85,7 +87,7 @@ export function PriceTable({
   return (
     <div className="flex flex-col gap-4">
       {state.error ? <Alert variant="destructive">{state.error}</Alert> : null}
-      {state.success ? <Alert variant="success">{state.success}</Alert> : null}
+
       {showProduct && selectable.length > 1 ? (
         <Button
           type="button"

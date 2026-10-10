@@ -1,5 +1,7 @@
+import { ShoppingBag } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { EmptyState } from "@/components/admin/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { requirePermission } from "@/lib/auth/session";
 import { formatAmount, formatDateTime } from "@/lib/format";
@@ -15,6 +17,16 @@ import {
 } from "@/lib/orders";
 
 export const metadata: Metadata = { title: "طلبات المتجر | غصن" };
+
+const EMPTY: Record<OrderTab, string> = {
+  new: "لا طلبات جديدة — كل طلب من ghusn.store يظهر هنا فوراً مع تنبيه.",
+  confirmed: "لا طلبات مؤكدة بانتظار التجهيز.",
+  preparing: "لا طلبات قيد التجهيز.",
+  ready: "لا طلبات جاهزة بانتظار الاستلام أو التوصيل.",
+  delivery: "لا طلبات مع التوصيل الآن.",
+  delivered: "لم يُسلَّم أي طلب بعد.",
+  cancelled: "لا طلبات ملغاة.",
+};
 
 export default async function OrdersPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
   await requirePermission({ order: ["read"] });
@@ -48,7 +60,7 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
         ))}
       </nav>
       {orders.length === 0 ? (
-        <p className="rounded-2xl border border-border bg-card p-6 text-muted-foreground">لا طلبات هنا.</p>
+        <EmptyState icon={ShoppingBag} title={EMPTY[tab]} />
       ) : (
         <ul className="flex flex-col gap-2">
           {orders.map((o) => (

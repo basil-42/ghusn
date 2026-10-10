@@ -1,5 +1,6 @@
 "use client";
 
+import { useActionToast } from "@/components/ui/toast";
 import { Plus, Search, Trash2 } from "lucide-react";
 import { useActionState, useEffect, useState, useTransition } from "react";
 import { Field, SelectField } from "@/components/form-field";
@@ -21,16 +22,12 @@ import {
 type Option = { value: string; label: string };
 
 function Messages({ state }: { state: FormState }) {
-  return (
-    <>
-      {state.error ? <Alert variant="destructive">{state.error}</Alert> : null}
-      {state.success ? <Alert variant="success">{state.success}</Alert> : null}
-    </>
-  );
+  return <>{state.error ? <Alert variant="destructive">{state.error}</Alert> : null}</>;
 }
 
 export function NewShipmentForm({ suppliers }: { suppliers: Option[] }) {
   const [state, action, pending] = useActionState<FormState, FormData>(createShipmentAction, {});
+  useActionToast(state);
   return (
     <form action={action} className="flex flex-col gap-4">
       <Messages state={state} />
@@ -55,6 +52,7 @@ export function NewShipmentForm({ suppliers }: { suppliers: Option[] }) {
 
 export function StatusActions({ id, next }: { id: string; next: Option[] }) {
   const [state, action, pending] = useActionState<FormState, FormData>(transitionAction, {});
+  useActionToast(state);
   return (
     <div className="flex flex-col gap-3">
       <Messages state={state} />
@@ -107,6 +105,7 @@ export function DetailsForm({
   disabled: boolean;
 }) {
   const [state, action, pending] = useActionState<FormState, FormData>(updateDetailsAction, {});
+  useActionToast(state);
   return (
     <form action={action} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
       <div className="flex flex-col gap-3 sm:col-span-2">
@@ -179,6 +178,7 @@ export function LinesEditor({
   categories?: Option[];
 }) {
   const [state, action] = useActionState<FormState, unknown>(saveLinesAction.bind(null, id), {});
+  useActionToast(state);
   const [pending, startTransition] = useTransition();
   const [rows, setRows] = useState<LineRow[]>(() => initial.map((l, i) => ({ ...l, key: `l${i}` })));
   const [query, setQuery] = useState("");
@@ -527,6 +527,7 @@ export function CostForm({
   today: string;
 }) {
   const [state, action, pending] = useActionState<FormState, FormData>(addCostAction, {});
+  useActionToast(state);
   return (
     <form action={action} key={state.success} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
       <div className="flex flex-col gap-3 sm:col-span-2">
@@ -572,6 +573,7 @@ export function CostForm({
 
 export function VoidCostForm({ id, costId }: { id: string; costId: string }) {
   const [state, action, pending] = useActionState<FormState, FormData>(voidCostAction, {});
+  useActionToast(state);
   const [open, setOpen] = useState(false);
   if (!open) {
     return (

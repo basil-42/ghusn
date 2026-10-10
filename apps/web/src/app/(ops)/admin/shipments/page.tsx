@@ -1,7 +1,8 @@
 import { SHIPMENT_STATUSES, type ShipmentStatus } from "@ghusn/core";
-import { Plus } from "lucide-react";
+import { Plus, Truck } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { EmptyState } from "@/components/admin/empty-state";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { roleCan } from "@/lib/auth/permissions";
@@ -59,9 +60,16 @@ export default async function ShipmentsPage({ searchParams }: { searchParams: Pr
       </nav>
 
       {shipments.length === 0 ? (
-        <p className="rounded-2xl border border-dashed border-border p-8 text-center text-muted-foreground">
-          لا توجد شحنات.
-        </p>
+        <EmptyState
+          icon={Truck}
+          title="لا توجد شحنات هنا."
+          hint="كل شراء من مورد يُسجَّل كشحنة: البضاعة وتكاليف الشحن والجمارك، فتُحسب تكلفة القطعة الحقيقية."
+          action={
+            roleCan(session.user.role, { shipment: ["create"] })
+              ? { href: "/admin/shipments/new", label: "شحنة جديدة" }
+              : null
+          }
+        />
       ) : (
         <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {shipments.map((s) => (

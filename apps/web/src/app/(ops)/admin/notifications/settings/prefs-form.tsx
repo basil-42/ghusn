@@ -1,5 +1,6 @@
 "use client";
 
+import { useActionToast } from "@/components/ui/toast";
 import { Check } from "lucide-react";
 import { useActionState } from "react";
 import { Alert } from "@/components/ui/alert";
@@ -37,10 +38,10 @@ export function PrefsForm({
   urgentInQuiet: boolean;
 }) {
   const [state, action, pending] = useActionState<PrefsState, FormData>(savePrefsAction, {});
+  useActionToast(state);
   return (
     <form action={action} className="flex flex-col gap-5">
       {state.error ? <Alert variant="destructive">{state.error}</Alert> : null}
-      {state.success ? <Alert variant="success">{state.success}</Alert> : null}
 
       <section className="flex flex-col gap-4 rounded-2xl border border-border bg-card p-5">
         <h2 className="text-lg font-bold">ساعات الهدوء</h2>

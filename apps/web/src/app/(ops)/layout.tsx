@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { DevServiceWorkerCleanup } from "@/components/dev-sw-cleanup";
+import { Toaster } from "@/components/ui/toast";
 import { fontVariables } from "@/lib/fonts";
 import "../globals.css";
 
@@ -16,6 +17,7 @@ export default function OpsLayout({ children }: { children: React.ReactNode }) {
       <body className="font-sans antialiased">
         <DevServiceWorkerCleanup />
         {children}
+        <Toaster />
       </body>
     </html>
   );

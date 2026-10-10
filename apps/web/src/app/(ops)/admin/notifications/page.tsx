@@ -1,6 +1,7 @@
-import { Check, Settings } from "lucide-react";
+import { BellOff, Check, Settings } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { EmptyState } from "@/components/admin/empty-state";
 import { NotificationIcon, PriorityTag } from "@/components/admin/notification-bell";
 import { Button } from "@/components/ui/button";
 import { requireSession } from "@/lib/auth/session";
@@ -116,9 +117,11 @@ export default async function NotificationsPage({ searchParams }: { searchParams
       </nav>
 
       {items.length === 0 ? (
-        <p className="rounded-2xl border border-dashed border-border p-8 text-center text-muted-foreground">
-          لا إشعارات هنا.
-        </p>
+        <EmptyState
+          icon={BellOff}
+          title="لا إشعارات هنا."
+          hint="الطلبات الجديدة، وإشعارات بنكك، والمخزون المنخفض، والتذكيرات تصل هنا وعلى الجوال."
+        />
       ) : (
         [...groups].map(([day, list]) => (
           <section key={day} className="flex flex-col gap-2">

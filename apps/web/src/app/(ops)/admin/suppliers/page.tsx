@@ -1,6 +1,7 @@
-import { Plus } from "lucide-react";
+import { Building2, Plus } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { EmptyState } from "@/components/admin/empty-state";
 import { dec, sum } from "@ghusn/core";
 import { Button } from "@/components/ui/button";
 import { roleCan } from "@/lib/auth/permissions";
@@ -39,9 +40,16 @@ export default async function SuppliersPage() {
       </header>
 
       {suppliers.length === 0 ? (
-        <p className="rounded-2xl border border-dashed border-border p-8 text-center text-muted-foreground">
-          لا يوجد موردون بعد.
-        </p>
+        <EmptyState
+          icon={Building2}
+          title="لا يوجد موردون بعد."
+          hint="سجّلي من تشترين منهم (في قطر أو الصين أو مصر أو السودان) لتتابعي المستحقات والدفعات بعملة كل مورد."
+          action={
+            roleCan(session.user.role, { supplier: ["create"] })
+              ? { href: "/admin/suppliers/new", label: "إضافة مورد" }
+              : null
+          }
+        />
       ) : (
         <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {suppliers.map((s) => (

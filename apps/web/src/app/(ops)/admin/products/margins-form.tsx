@@ -1,5 +1,6 @@
 "use client";
 
+import { useActionToast } from "@/components/ui/toast";
 import { useActionState } from "react";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -21,10 +22,11 @@ export function MarginsForm({
   categoryMin: string;
 }) {
   const [state, action, pending] = useActionState<FormState, FormData>(setMarginsAction, {});
+  useActionToast(state);
   return (
     <form action={action} className="flex flex-col gap-3">
       {state.error ? <Alert variant="destructive">{state.error}</Alert> : null}
-      {state.success ? <Alert variant="success">{state.success}</Alert> : null}
+
       <input type="hidden" name="productId" value={productId} />
       <div className="grid grid-cols-2 gap-3">
         <label className="flex min-w-0 flex-col gap-1">

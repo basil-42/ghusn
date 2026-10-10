@@ -8,6 +8,7 @@ import { ImageInput } from "@/components/image-input";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input, NativeSelect } from "@/components/ui/input";
+import { useActionToast } from "@/components/ui/toast";
 import type { AdminBanner } from "@/lib/banners";
 import { cn } from "@/lib/utils";
 import { deleteBannerAction, saveBannerAction, type FormState } from "./actions";
@@ -62,6 +63,7 @@ export function BannerDrawer({
 }) {
   const router = useRouter();
   const [state, action, pending] = useActionState<FormState, FormData>(saveBannerAction, {});
+  useActionToast(state);
   const [step, setStep] = useState(0);
   const [device, setDevice] = useState<"desktop" | "mobile">("desktop");
   const [lang, setLang] = useState<"ar" | "en">("ar");
