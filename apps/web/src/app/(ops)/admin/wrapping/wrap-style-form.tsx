@@ -1,5 +1,6 @@
 "use client";
 
+import { useActionToast } from "@/components/ui/toast";
 import { useActionState, useState } from "react";
 import { ImageInput } from "@/components/image-input";
 import { Alert } from "@/components/ui/alert";
@@ -30,12 +31,13 @@ export function WrapStyleForm({
   materialOptions: { value: string; label: string }[];
 }) {
   const [state, action, pending] = useActionState<FormState, FormData>(saveWrapStyleAction, {});
+  useActionToast(state);
   const [rows, setRows] = useState(initial.materials);
 
   return (
     <form action={action} className="flex flex-col gap-3">
       {state.error ? <Alert variant="destructive">{state.error}</Alert> : null}
-      {state.success ? <Alert>{state.success}</Alert> : null}
+
       <input type="hidden" name="id" value={initial.id} />
       <input type="hidden" name="materials" value={JSON.stringify(rows.filter((r) => r.variantId && r.qty))} readOnly />
       <div className="grid gap-3 sm:grid-cols-2">

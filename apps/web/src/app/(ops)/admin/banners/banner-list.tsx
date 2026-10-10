@@ -5,6 +5,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState, useTransition } from "react";
 import { Alert } from "@/components/ui/alert";
+import { toast } from "@/components/ui/toast";
 import { cn } from "@/lib/utils";
 import { reorderBannersAction } from "./actions";
 
@@ -71,7 +72,7 @@ export function BannerList({ rows, max }: { rows: BannerRow[]; max: number }) {
       if (res.error) {
         setError(res.error);
         setOrder(rows.map((r) => r.id));
-      }
+      } else if (res.success) toast(res.success);
       router.refresh();
     });
   }

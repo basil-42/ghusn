@@ -1,5 +1,6 @@
 "use client";
 
+import { useActionToast } from "@/components/ui/toast";
 import { useActionState } from "react";
 import { ImageInput } from "@/components/image-input";
 import { Alert } from "@/components/ui/alert";
@@ -9,10 +10,11 @@ import { saveGiftTileImageAction, type FormState } from "./actions";
 /** صورة بطاقة «صمّم هديتك» في الرئيسية — صورة واحدة ثابتة تختارها المديرة (D-102). */
 export function GiftTileForm({ imageUrl }: { imageUrl: string | null }) {
   const [state, action, pending] = useActionState<FormState, FormData>(saveGiftTileImageAction, {});
+  useActionToast(state);
   return (
     <form action={action} className="flex flex-col gap-3">
       {state.error ? <Alert variant="destructive">{state.error}</Alert> : null}
-      {state.success ? <Alert>{state.success}</Alert> : null}
+
       <span className="flex flex-wrap items-center gap-3">
         <ImageInput
           name="image"

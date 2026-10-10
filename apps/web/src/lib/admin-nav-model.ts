@@ -57,3 +57,21 @@ export function activeSection(model: NavModel, pathname: string): NavSection | n
 export function quickActionTitle(label: string): string {
   return label === "بيع جديد" || label.startsWith("سعر") ? label : `إضافة ${label}`;
 }
+
+/** الشريط السفلي على الجوال: أهم 4 أقسام يراها الدور (بأسماء قصيرة)، والخامس «المزيد» يفتح القائمة كاملة. */
+const BOTTOM: { key: string; label: string }[] = [
+  { key: "home", label: "الرئيسية" },
+  { key: "pos", label: "البيع" },
+  { key: "orders", label: "الطلبات" },
+  { key: "customers", label: "العملاء" },
+  { key: "catalog", label: "المنتجات" },
+  { key: "stock", label: "المخزون" },
+];
+
+export function bottomNav(model: NavModel): NavSection[] {
+  const all = model.groups.flatMap((g) => g.sections);
+  return BOTTOM.flatMap((b) => {
+    const s = all.find((x) => x.key === b.key);
+    return s ? [{ ...s, label: b.label }] : [];
+  }).slice(0, 4);
+}

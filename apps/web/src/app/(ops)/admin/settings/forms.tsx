@@ -1,5 +1,6 @@
 "use client";
 
+import { useActionToast } from "@/components/ui/toast";
 import { useActionState } from "react";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -24,12 +25,7 @@ import {
 } from "./actions";
 
 function Messages({ state }: { state: FormState }) {
-  return (
-    <>
-      {state.error ? <Alert variant="destructive">{state.error}</Alert> : null}
-      {state.success ? <Alert variant="success">{state.success}</Alert> : null}
-    </>
-  );
+  return <>{state.error ? <Alert variant="destructive">{state.error}</Alert> : null}</>;
 }
 
 const field = "flex min-w-0 flex-col gap-1";
@@ -42,6 +38,7 @@ export function PosSettingsForm({
   wallets: { value: string; label: string }[];
 }) {
   const [state, action, pending] = useActionState<FormState, FormData>(savePosSettingsAction, {});
+  useActionToast(state);
   return (
     <form action={action} className="flex flex-col gap-4">
       <Messages state={state} />
@@ -114,6 +111,7 @@ export function PosSettingsForm({
 
 export function ReceiptSettingsForm({ initial }: { initial: ReceiptSettings }) {
   const [state, action, pending] = useActionState<FormState, FormData>(saveReceiptSettingsAction, {});
+  useActionToast(state);
   const check = (name: keyof ReceiptSettings, label: string) => (
     <label className="flex min-h-11 items-center gap-2">
       <input type="checkbox" name={name} defaultChecked={initial[name] as boolean} className="size-5 accent-primary" />
@@ -174,6 +172,7 @@ export function ExpenseCategoryForm({
   category?: { id: string; name: string; staffAllowed: boolean; isActive: boolean };
 }) {
   const [state, action, pending] = useActionState<FormState, FormData>(saveExpenseCategoryAction, {});
+  useActionToast(state);
   return (
     <form action={action} className="flex flex-wrap items-center gap-2 rounded-xl border border-border p-2">
       {category ? <input type="hidden" name="id" value={category.id} /> : null}
@@ -211,7 +210,6 @@ export function ExpenseCategoryForm({
         {category ? "حفظ" : "إضافة"}
       </Button>
       {state.error ? <span className="text-sm text-destructive">{state.error}</span> : null}
-      {state.success ? <span className="text-sm text-muted-foreground">{state.success}</span> : null}
     </form>
   );
 }
@@ -225,6 +223,7 @@ export function StoreSettingsForm({
   wallets: { value: string; label: string }[];
 }) {
   const [state, action, pending] = useActionState<FormState, FormData>(saveStoreSettingsAction, {});
+  useActionToast(state);
   return (
     <form action={action} className="flex flex-col gap-3">
       <Messages state={state} />
@@ -278,6 +277,7 @@ export function StoreSettingsForm({
 /** رسائل واتساب للطلبات (D-113): التوقيع وساعات العمل بالعربية والإنجليزية. */
 export function MessageSettingsForm({ initial, address }: { initial: MessageSettings; address: string }) {
   const [state, action, pending] = useActionState<FormState, FormData>(saveMessageSettingsAction, {});
+  useActionToast(state);
   return (
     <form action={action} className="flex flex-col gap-3">
       <Messages state={state} />
@@ -325,6 +325,7 @@ export function MessageSettingsForm({ initial, address }: { initial: MessageSett
 /** تنبيهات المخزون في اللوحة (D-94). */
 export function StockSettingsForm({ initial }: { initial: StockSettings }) {
   const [state, action, pending] = useActionState<FormState, FormData>(saveStockSettingsAction, {});
+  useActionToast(state);
   return (
     <form action={action} className="flex flex-col gap-3">
       <Messages state={state} />
@@ -366,6 +367,7 @@ export function StockSettingsForm({ initial }: { initial: StockSettings }) {
 /** التحليلات (D-118): حد الراكد ومعادلة إعادة الطلب. */
 export function InsightsSettingsForm({ initial }: { initial: InsightsSettings }) {
   const [state, action, pending] = useActionState<FormState, FormData>(saveInsightsSettingsAction, {});
+  useActionToast(state);
   const fields: { name: keyof InsightsSettings; label: string; hint: string }[] = [
     { name: "deadStockDays", label: "حد «الراكد» (يوم)", hint: "صنف له رصيد ولم يُبع منه شيء طوال هذه المدة." },
     {

@@ -1,8 +1,9 @@
 import { variantLabel } from "@ghusn/core";
-import { Plus, Search } from "lucide-react";
+import { Package, Plus, Search } from "lucide-react";
 import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
+import { EmptyState } from "@/components/admin/empty-state";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
@@ -89,13 +90,27 @@ export default async function ProductsPage({ searchParams }: { searchParams: Sea
       </form>
 
       {items.length === 0 ? (
-        <p className="rounded-2xl border border-dashed border-border p-8 text-center text-muted-foreground">
-          {incomplete && !q && !category
-            ? "كل منتجات المتجر مكتملة."
-            : q || category || incomplete
-              ? "لا توجد نتائج مطابقة."
-              : "لا توجد منتجات بعد."}
-        </p>
+        incomplete && !q && !category ? (
+          <EmptyState
+            icon={Package}
+            title="كل منتجات المتجر مكتملة."
+            hint="لا منتج ظاهر في المتجر ينقصه صورة أو سعر أو وصف."
+          />
+        ) : q || category || incomplete ? (
+          <EmptyState
+            icon={Search}
+            title="لا توجد نتائج مطابقة."
+            hint="جرّبي كلمة أخرى أو جزءاً من الاسم أو الباركود، أو أزيلي الفلتر."
+            action={{ href: "/admin/products", label: "عرض كل المنتجات" }}
+          />
+        ) : (
+          <EmptyState
+            icon={Package}
+            title="لا توجد منتجات بعد."
+            hint="أضيفي المنتجات يدوياً، أو استوردي شحنة من ملف Excel فتُنشأ منتجاتها تلقائياً."
+            action={canCreate ? { href: "/admin/products/new", label: "إضافة أول منتج" } : null}
+          />
+        )
       ) : (
         <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2">
           {items.map((p) => {

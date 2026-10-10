@@ -32,6 +32,7 @@ import { logout } from "@/app/(ops)/login/actions";
 import {
   NAV_COOKIE,
   activeSection,
+  bottomNav,
   type NavIcon,
   type NavModel,
   type NavSection,
@@ -125,17 +126,6 @@ export function AdminShell({
 
       <div className={cn("flex min-h-screen min-w-0 flex-col", collapsed ? "md:ps-[4.5rem]" : "md:ps-60")}>
         <header className="sticky top-0 z-30 flex h-16 items-center gap-2 border-b border-border bg-card px-3 md:px-6">
-          <button
-            type="button"
-            aria-label="فتح القائمة"
-            onClick={() => {
-              setDrawerPath(pathname);
-              setDrawer(true);
-            }}
-            className="flex size-11 items-center justify-center rounded-xl border border-border md:hidden"
-          >
-            <Menu aria-hidden className="size-5" />
-          </button>
           <Link href="/admin" aria-label="الرئيسية" className="md:hidden">
             <Image src="/brand/logo-ar-mark-forest.svg" alt="غصن" width={74} height={38} loading="eager" />
           </Link>
@@ -146,12 +136,20 @@ export function AdminShell({
           <NotificationBell />
         </header>
         {notice}
-        <main className="mx-auto w-full max-w-6xl flex-1 px-4 py-6 md:px-8 md:py-8">
+        <main className="mx-auto w-full max-w-6xl flex-1 px-4 pt-6 pb-28 md:px-8 md:py-8">
           {current && current.pages.length > 1 && current.pages.some((p) => p.href === pathname) ? (
             <SectionTabs section={current} pathname={pathname} />
           ) : null}
           {children}
         </main>
+        <BottomNav
+          sections={bottomNav(nav)}
+          current={current}
+          onMore={() => {
+            setDrawerPath(pathname);
+            setDrawer(true);
+          }}
+        />
       </div>
     </div>
   );
@@ -374,5 +372,59 @@ function QuickMenu({ actions }: { actions: QuickAction[] }) {
         </div>
       ) : null}
     </div>
+  );
+}
+
+/**
+ * الشريط السفلي على الجوال (D-123): أهم 4 أقسام حسب الدور + «المزيد» يفتح القائمة كاملة. أهداف لمس كبيرة،
+ * ومسافة لشريط الإيماءات أسفل الآيفون.
+ */
+function BottomNav({
+  sections,
+  current,
+  onMore,
+}: {
+  sections: NavSection[];
+  current: NavSection | null;
+  onMore: () => void;
+}) {
+  const pending = usePendingOrders();
+  const item = "relative flex min-h-14 flex-1 flex-col items-center justify-center gap-0.5 text-[11px] font-semibold";
+  return (
+    <nav
+      aria-label="التنقل السفلي"
+      className="fixed inset-x-0 bottom-0 z-30 flex border-t border-border bg-card pb-[env(safe-area-inset-bottom)] shadow-[0_-4px_16px_rgb(47_59_44/0.06)] md:hidden"
+    >
+      {sections.map((s) => {
+        const Icon = ICONS[s.icon];
+        const active = current?.key === s.key;
+        const badge = s.badge === "orders" && pending ? pending : null;
+        return (
+          <Link
+            key={s.key}
+            href={s.href}
+            aria-current={active ? "page" : undefined}
+            className={cn(item, active ? "text-forest" : "text-muted-foreground")}
+          >
+            <span className={cn("flex h-7 w-12 items-center justify-center rounded-full", active && "bg-sage/20")}>
+              <Icon aria-hidden className="size-5" />
+            </span>
+            {s.label}
+            {badge ? (
+              <span className="absolute top-1 start-[calc(50%+6px)] flex h-5 min-w-5 items-center justify-center rounded-full bg-gold px-1 text-[10px] font-bold text-forest tabular-nums">
+                <span className="sr-only">بانتظار المتابعة: </span>
+                {badge}
+              </span>
+            ) : null}
+          </Link>
+        );
+      })}
+      <button type="button" onClick={onMore} className={cn(item, "text-muted-foreground")}>
+        <span className="flex h-7 w-12 items-center justify-center rounded-full">
+          <Menu aria-hidden className="size-5" />
+        </span>
+        المزيد
+      </button>
+    </nav>
   );
 }
