@@ -110,6 +110,7 @@ export async function orderMessages(orderId: string) {
   };
 
   return {
+    customerName: o.customerName,
     primary: primary ? option(primary) : null,
     others: others.filter((k) => k !== "ITEM_UNAVAILABLE").map((k) => option(k)),
     // صنف غير متوفر: رسالة لكل صنف في الطلب، تكملها الموظفة في واتساب (البديل)

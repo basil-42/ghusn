@@ -1,6 +1,8 @@
 import { describe, expect, it } from "vitest";
 import {
   assertTransition,
+  bulkTarget,
+  ORDER_STATUSES,
   availableQty,
   canTransition,
   isReserving,
@@ -112,5 +114,38 @@ describe("availability and totals", () => {
     expect(() => orderTotals([])).toThrow();
     expect(() => orderTotals([{ key: "a", qty: "1.5", unitPriceSdg: 1 }])).toThrow();
     expect(() => orderTotals([{ key: "a", qty: 0, unitPriceSdg: 1 }])).toThrow();
+  });
+});
+
+describe("bulkTarget (D-124)", () => {
+  const o = (
+    status: (typeof ORDER_STATUSES)[number],
+    fulfillment: "DELIVERY" | "PICKUP" = "DELIVERY",
+    payment: "COD" | "IN_SHOP" | "BANKAK" = "COD",
+  ) => ({
+    status,
+    fulfillment,
+    payment,
+  });
+  it("offers only the plain next step", () => {
+    expect(bulkTarget(o("NEW"))).toBe("CONFIRMED");
+    expect(bulkTarget(o("NEW", "DELIVERY", "BANKAK"))).toBeNull();
+    expect(bulkTarget(o("CONFIRMED"))).toBe("PREPARING");
+    expect(bulkTarget(o("PREPARING"))).toBe("READY");
+    expect(bulkTarget(o("READY"))).toBe("OUT_FOR_DELIVERY");
+    expect(bulkTarget(o("READY", "PICKUP", "IN_SHOP"))).toBeNull();
+    expect(bulkTarget(o("OUT_FOR_DELIVERY"))).toBe("DELIVERED");
+    expect(bulkTarget(o("AWAITING_PAYMENT", "DELIVERY", "BANKAK"))).toBeNull();
+    expect(bulkTarget(o("PAYMENT_REVIEW", "DELIVERY", "BANKAK"))).toBeNull();
+    expect(bulkTarget(o("DELIVERED"))).toBeNull();
+    expect(bulkTarget(o("CANCELLED"))).toBeNull();
+  });
+  it("never proposes a transition the state machine rejects", () => {
+    for (const status of ORDER_STATUSES)
+      for (const fulfillment of ["DELIVERY", "PICKUP"] as const)
+        for (const payment of ["COD", "IN_SHOP", "BANKAK"] as const) {
+          const to = bulkTarget({ status, fulfillment, payment });
+          if (to) expect(() => assertTransition(status, to, { fulfillment, payment })).not.toThrow();
+        }
   });
 });

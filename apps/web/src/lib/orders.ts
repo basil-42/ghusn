@@ -1,5 +1,6 @@
 import { randomBytes } from "node:crypto";
 import {
+  bulkTarget,
   assertTransition,
   consumeBatches,
   CoreError,
@@ -1075,4 +1076,62 @@ export async function getOrderByToken(token: string, locale: string) {
       lineTotalSdg: l.lineTotalSdg.toFixed(0),
     })),
   };
+}
+
+export const BULK_MAX = 50;
+
+export interface BulkResult {
+  id: string;
+  number: string;
+  ok: boolean;
+  error?: string;
+}
+
+/**
+ * إجراء جماعي (D-124): نفس transitionOrder لكل طلب على حدة وبالترتيب — كل طلب في معاملته، فتعذّر واحد
+ * (رصيد لا يكفي، تغيّرت حالته) لا يوقف البقية ولا يتراجع عنها. يُقبل الطلب فقط إن كان إجراؤه الجماعي
+ * هو المطلوب (bulkTarget) — لا إلغاء ولا مراجعة ولا تسليم استلام من المحل.
+ */
+export async function bulkTransition(
+  ids: string[],
+  to: OrderStatus,
+  actorId: string,
+  opts: { courierRef?: string | null } = {},
+): Promise<BulkResult[]> {
+  const unique = [...new Set(ids)].slice(0, BULK_MAX);
+  const orders = await prisma.order.findMany({
+    where: { id: { in: unique } },
+    select: { id: true, number: true, status: true, fulfillment: true, paymentMethod: true },
+  });
+  const byId = new Map(orders.map((o) => [o.id, o]));
+  const results: BulkResult[] = [];
+  for (const id of unique) {
+    const o = byId.get(id);
+    if (!o) {
+      results.push({ id, number: "—", ok: false, error: "الطلب غير موجود." });
+      continue;
+    }
+    const target = bulkTarget({
+      status: o.status as OrderStatus,
+      fulfillment: o.fulfillment,
+      payment: o.paymentMethod,
+    });
+    if (target !== to) {
+      results.push({ id, number: o.number, ok: false, error: "تغيّرت حالته أو لا يناسب هذا الإجراء — من صفحته." });
+      continue;
+    }
+    try {
+      await transitionOrder(id, to, actorId, { courierRef: to === "OUT_FOR_DELIVERY" ? opts.courierRef : null });
+      results.push({ id, number: o.number, ok: true });
+    } catch (e) {
+      if (!(e instanceof OrderActionError)) console.error("bulkTransition", o.number, e);
+      results.push({
+        id,
+        number: o.number,
+        ok: false,
+        error: e instanceof OrderActionError ? e.message : "تعذّر — افتحي الطلب وحاولي من صفحته.",
+      });
+    }
+  }
+  return results;
 }

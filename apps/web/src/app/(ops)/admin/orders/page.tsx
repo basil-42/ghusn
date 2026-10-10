@@ -1,10 +1,11 @@
 import { ShoppingBag } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { bulkTarget } from "@ghusn/core";
 import { EmptyState } from "@/components/admin/empty-state";
-import { Badge } from "@/components/ui/badge";
+import { roleCan } from "@/lib/auth/permissions";
 import { requirePermission } from "@/lib/auth/session";
-import { formatAmount, formatDateTime } from "@/lib/format";
+import { formatDateTime } from "@/lib/format";
 import {
   CITY_LABELS,
   ORDER_STATUS_LABELS,
@@ -15,8 +16,15 @@ import {
   statusVariant,
   type OrderTab,
 } from "@/lib/orders";
+import { BulkOrderList, type BulkAction, type OrderRow } from "./bulk-list";
 
 export const metadata: Metadata = { title: "طلبات المتجر | غصن" };
+
+/** لماذا لا يدخل طلب في إجراء تبويبه — يُنفَّذ من صفحته. */
+const INELIGIBLE: Partial<Record<OrderTab, string>> = {
+  new: "بنكك أو بانتظار الدفع — يُتابَع من صفحته (مراجعة الإشعار).",
+  ready: "استلام من المحل — يُسلَّم من صفحته (نقداً أو بنكك بالوردية).",
+};
 
 const EMPTY: Record<OrderTab, string> = {
   new: "لا طلبات جديدة — كل طلب من ghusn.store يظهر هنا فوراً مع تنبيه.",
@@ -28,13 +36,48 @@ const EMPTY: Record<OrderTab, string> = {
   cancelled: "لا طلبات ملغاة.",
 };
 
+/** الإجراء الجماعي لكل تبويب (D-124) — نفس الخطوة التالية في bulkTarget. */
+const BULK: Partial<Record<OrderTab, BulkAction>> = {
+  new: { to: "CONFIRMED", label: "تأكيد المحدد", done: "تم التأكيد" },
+  confirmed: { to: "PREPARING", label: "بدء التجهيز", done: "بدأ التجهيز" },
+  preparing: { to: "READY", label: "جاهز", done: "أصبحت جاهزة" },
+  ready: { to: "OUT_FOR_DELIVERY", label: "تسليم لشركة التوصيل", done: "سُلّمت لشركة التوصيل", courierRef: true },
+  delivery: { to: "DELIVERED", label: "تم التسليم", done: "تم التسليم", confirm: true },
+};
+
 export default async function OrdersPage({ searchParams }: { searchParams: Promise<{ tab?: string }> }) {
-  await requirePermission({ order: ["read"] });
+  const session = await requirePermission({ order: ["read"] });
   const { tab: t } = await searchParams;
   const tab = (ORDER_TABS.find((x) => x.key === t)?.key ?? "new") as OrderTab;
   // احتياط إن تأخر العامل الدوري: طلبات بنكك المنتهية مهلتها تُلغى
   await expireUnpaidOrders();
   const [orders, counts] = await Promise.all([listOrders(tab), orderTabCounts()]);
+  const action = roleCan(session.user.role, { order: ["update"] }) ? (BULK[tab] ?? null) : null;
+  const rows: OrderRow[] = orders.map((o) => {
+    const target = bulkTarget({ status: o.status, fulfillment: o.fulfillment, payment: o.paymentMethod });
+    const eligible = !!action && target === action.to;
+    return {
+      id: o.id,
+      number: o.number,
+      customerName: o.customerName,
+      sub: [
+        formatDateTime(o.createdAt),
+        `${o.lines} صنف`,
+        o.fulfillment === "PICKUP" ? "استلام من المحل" : `توصيل${o.city ? ` — ${CITY_LABELS[o.city]}` : ""}`,
+        o.paymentMethod === "BANKAK" ? "بنكك" : "",
+        o.wrapped ? "تغليف" : "",
+      ]
+        .filter(Boolean)
+        .join(" · "),
+      due:
+        o.status === "AWAITING_PAYMENT" && o.paymentDueAt ? `مهلة الدفع حتى ${formatDateTime(o.paymentDueAt)}` : null,
+      statusLabel: ORDER_STATUS_LABELS[o.status],
+      statusVariant: statusVariant(o.status),
+      totalSdg: o.totalSdg,
+      eligible,
+      ineligibleHint: eligible || !action ? undefined : INELIGIBLE[tab],
+    };
+  });
 
   return (
     <div className="flex flex-col gap-6">
@@ -59,45 +102,8 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
           </Link>
         ))}
       </nav>
-      {orders.length === 0 ? (
-        <EmptyState icon={ShoppingBag} title={EMPTY[tab]} />
-      ) : (
-        <ul className="flex flex-col gap-2">
-          {orders.map((o) => (
-            <li key={o.id}>
-              <Link
-                href={`/admin/orders/${o.id}`}
-                className="flex min-h-16 flex-wrap items-center justify-between gap-2 rounded-xl border border-border bg-card p-3 hover:border-primary"
-              >
-                <span className="flex flex-col">
-                  <span className="font-semibold">
-                    <bdi dir="ltr">{o.number}</bdi> · {o.customerName}
-                  </span>
-                  <span className="text-sm text-muted-foreground">
-                    {formatDateTime(o.createdAt)} · {o.lines} صنف ·{" "}
-                    {o.fulfillment === "PICKUP"
-                      ? "استلام من المحل"
-                      : `توصيل${o.city ? ` — ${CITY_LABELS[o.city]}` : ""}`}
-                    {o.paymentMethod === "BANKAK" ? " · بنكك" : ""}
-                    {o.wrapped ? " · تغليف" : ""}
-                  </span>
-                  {o.status === "AWAITING_PAYMENT" && o.paymentDueAt ? (
-                    <span className="text-sm text-muted-foreground">
-                      مهلة الدفع حتى {formatDateTime(o.paymentDueAt)}
-                    </span>
-                  ) : null}
-                </span>
-                <span className="flex items-center gap-2">
-                  <Badge variant={statusVariant(o.status)}>{ORDER_STATUS_LABELS[o.status]}</Badge>
-                  <bdi dir="ltr" className="font-bold tabular-nums">
-                    {formatAmount(o.totalSdg, 0)} ج.س
-                  </bdi>
-                </span>
-              </Link>
-            </li>
-          ))}
-        </ul>
-      )}
+      {/* دائماً في نفس المكان: نتيجة الإجراء الجماعي ورسائله تبقى بعد أن ينتقل كل الطلبات من التبويب */}
+      <BulkOrderList rows={rows} action={action} empty={<EmptyState icon={ShoppingBag} title={EMPTY[tab]} />} />
     </div>
   );
 }
