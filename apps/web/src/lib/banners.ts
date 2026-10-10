@@ -83,6 +83,9 @@ export interface AdminBanner {
   isActive: boolean;
   imageUrl: string;
   mobileImageUrl: string | null;
+  /** للمعاينة الحية في لوحة التحرير (أكبر من صورة القائمة) */
+  previewUrl: string;
+  mobilePreviewUrl: string | null;
   /** «يظهر الآن» أو «مجدول» أو «منتهٍ» أو «موقوف» — وأيضاً «زائد» إن تجاوز الحد. */
   status: BannerWindow | "off" | "overflow";
 }
@@ -115,6 +118,8 @@ export async function listBannersForAdmin(now = new Date()): Promise<AdminBanner
       isActive: b.isActive,
       imageUrl: imageUrl(b.imageKey, "thumb"),
       mobileImageUrl: b.mobileImageKey ? imageUrl(b.mobileImageKey, "thumb") : null,
+      previewUrl: imageUrl(b.imageKey, "full"),
+      mobilePreviewUrl: b.mobileImageKey ? imageUrl(b.mobileImageKey, "medium") : null,
       status,
     };
   });
@@ -234,18 +239,14 @@ export async function deleteBanner(id: string): Promise<void> {
   await prisma.banner.updateMany({ where: { id, deletedAt: null }, data: { deletedAt: new Date(), isActive: false } });
 }
 
-/** تحريك البانر خطوة للأعلى أو الأسفل؛ يعيد ترقيم الكل بالترتيب الحالي. */
-export async function moveBanner(id: string, direction: "up" | "down"): Promise<void> {
+/** ترتيب جديد بالسحب: القائمة كاملة بالترتيب المطلوب (يُرفض إن لم تطابق البانرات الحالية). */
+export async function reorderBanners(ids: string[]): Promise<void> {
   await prisma.$transaction(async (tx) => {
-    const rows = await tx.banner.findMany({
-      where: { deletedAt: null },
-      orderBy: [{ sortOrder: "asc" }, { createdAt: "asc" }],
-      select: { id: true },
-    });
-    const i = rows.findIndex((r) => r.id === id);
-    const j = direction === "up" ? i - 1 : i + 1;
-    if (i < 0 || j < 0 || j >= rows.length) return;
-    [rows[i], rows[j]] = [rows[j]!, rows[i]!];
-    for (const [k, r] of rows.entries()) await tx.banner.update({ where: { id: r.id }, data: { sortOrder: k } });
+    const rows = await tx.banner.findMany({ where: { deletedAt: null }, select: { id: true } });
+    const current = new Set(rows.map((r) => r.id));
+    if (ids.length !== current.size || new Set(ids).size !== ids.length || ids.some((id) => !current.has(id))) {
+      throw new BannerError("تغيّرت قائمة البانرات — حدّثي الصفحة وأعيدي الترتيب.");
+    }
+    for (const [k, id] of ids.entries()) await tx.banner.update({ where: { id }, data: { sortOrder: k } });
   });
 }

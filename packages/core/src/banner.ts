@@ -18,3 +18,20 @@ export function bannerWindow(today: string, start: string | null, end: string | 
 export function isValidBannerWindow(start: string | null, end: string | null): boolean {
   return !start || !end || start <= end;
 }
+
+export type BannerPeriod =
+  | { kind: "always" }
+  | { kind: "until"; end: string; daysLeft: number }
+  | { kind: "starts"; start: string; daysUntil: number }
+  | { kind: "ended"; end: string };
+
+const dayNumber = (day: string) => Date.parse(`${day}T00:00:00Z`) / 86_400_000;
+
+/** وصف المدة لقائمة البانرات: «دائم»، «باقي N يوماً» (اليوم الأخير = 0)، «يبدأ بعد N»، «انتهى». */
+export function bannerPeriod(today: string, start: string | null, end: string | null): BannerPeriod {
+  const w = bannerWindow(today, start, end);
+  if (w === "scheduled" && start) return { kind: "starts", start, daysUntil: dayNumber(start) - dayNumber(today) };
+  if (w === "ended" && end) return { kind: "ended", end };
+  if (end) return { kind: "until", end, daysLeft: dayNumber(end) - dayNumber(today) };
+  return { kind: "always" };
+}
