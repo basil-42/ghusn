@@ -4,6 +4,7 @@ import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/ca
 import { roleCan } from "@/lib/auth/permissions";
 import { requirePermission } from "@/lib/auth/session";
 import { CategoryForm, NewCategoryForm } from "./forms";
+import { PageHeader } from "@/components/admin/page-header";
 
 export const metadata: Metadata = { title: "الأقسام | غصن" };
 
@@ -19,15 +20,14 @@ export default async function CategoriesPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <header className="flex flex-col gap-1">
-        <h1 className="font-display text-3xl font-bold">الأقسام</h1>
-        {canEditMargin ? (
-          <p className="text-muted-foreground">
-            الهامش نسبة من سعر البيع (D-23). النظام يقترح السعر بالهامش المستهدف، وينبّه إن نزل الهامش الفعلي تحت الحد
-            الأدنى.
-          </p>
-        ) : null}
-      </header>
+      <PageHeader
+        title="الأقسام"
+        description={
+          canEditMargin
+            ? "الهامش نسبة من سعر البيع (D-23). النظام يقترح السعر بالهامش المستهدف، وينبّه إن نزل الهامش الفعلي تحت الحد الأدنى."
+            : "أقسام المتجر ونقطة البيع وترتيبها."
+        }
+      />
 
       <Card>
         <CardHeader>

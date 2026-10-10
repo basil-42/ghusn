@@ -22,6 +22,7 @@ import {
   StockSettingsForm,
   StoreSettingsForm,
 } from "./forms";
+import { PageHeader } from "@/components/admin/page-header";
 
 export const metadata: Metadata = { title: "الضبط | غصن" };
 
@@ -59,7 +60,10 @@ export default async function SettingsPage() {
   ]);
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="font-display text-3xl font-bold">الضبط</h1>
+      <PageHeader
+        title="الضبط"
+        description="إعدادات نقطة البيع والمتجر والرسائل والمخزون والتحليلات — تُطبَّق فور الحفظ."
+      />
       <Card>
         <CardHeader>
           <CardTitle>نقطة البيع</CardTitle>

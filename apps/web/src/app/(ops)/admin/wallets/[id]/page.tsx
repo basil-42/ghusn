@@ -9,6 +9,7 @@ import { formatAmount, formatDateTime } from "@/lib/format";
 import { MOVEMENT_LABELS, listWallets, walletStatement, type MovementKind } from "@/lib/wallets";
 import { voidAdjustmentAction } from "../actions";
 import { AdjustmentForm, OpeningForm, ToggleWalletForm } from "../forms";
+import { PageHeader } from "@/components/admin/page-header";
 
 export const metadata: Metadata = { title: "كشف محفظة | غصن" };
 
@@ -33,27 +34,27 @@ export default async function WalletPage({ params }: { params: Promise<{ id: str
 
   return (
     <div className="flex flex-col gap-6">
-      <header className="flex flex-col gap-1">
-        <Link href="/admin/wallets" className="text-sm text-muted-foreground underline">
-          المحافظ
-        </Link>
-        <h1 className="font-display text-3xl font-bold">{wallet.name}</h1>
-        <p>
-          الرصيد{" "}
-          <bdi
-            dir="ltr"
-            className={`text-xl font-bold tabular-nums ${wallet.balance.startsWith("-") ? "text-destructive" : ""}`}
-          >
-            {formatAmount(wallet.balance, decimals)} {wallet.symbol}
-          </bdi>
-          {wallet.balanceUsd && wallet.currencyCode !== "USD" ? (
-            <span className="text-sm text-muted-foreground">
-              {" "}
-              <bdi dir="ltr">≈ {formatAmount(wallet.balanceUsd)} $</bdi> بسعر اليوم
-            </span>
-          ) : null}
-        </p>
-      </header>
+      <PageHeader
+        title={wallet.name}
+        back={{ href: "/admin/wallets", label: "المحافظ" }}
+        description={
+          <>
+            الرصيد{" "}
+            <bdi
+              dir="ltr"
+              className={`text-xl font-bold text-foreground tabular-nums ${wallet.balance.startsWith("-") ? "text-destructive" : ""}`}
+            >
+              {formatAmount(wallet.balance, decimals)} {wallet.symbol}
+            </bdi>
+            {wallet.balanceUsd && wallet.currencyCode !== "USD" ? (
+              <>
+                {" "}
+                <bdi dir="ltr">≈ {formatAmount(wallet.balanceUsd)} $</bdi> بسعر اليوم
+              </>
+            ) : null}
+          </>
+        }
+      />
 
       {wallet.isActive ? (
         <div className="grid grid-cols-1 gap-4 lg:grid-cols-2">

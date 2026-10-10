@@ -3,6 +3,7 @@ import { requirePermission } from "@/lib/auth/session";
 import { listOccasionOptions } from "@/lib/occasions";
 import { PRODUCT_TYPE_LABELS, STOCK_UNIT_LABELS, listCategoryOptions } from "@/lib/catalog";
 import { ProductForm } from "../product-form";
+import { PageHeader } from "@/components/admin/page-header";
 
 export const metadata: Metadata = { title: "إضافة منتج | غصن" };
 
@@ -12,7 +13,11 @@ export default async function NewProductPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="font-display text-3xl font-bold">إضافة منتج</h1>
+      <PageHeader
+        title="إضافة منتج"
+        back={{ href: "/admin/products", label: "المنتجات" }}
+        description="الاسم والقسم والسعر كافية للبدء — الصور والوصف يمكن إضافتها لاحقاً."
+      />
       <ProductForm
         productId={null}
         categories={categories}

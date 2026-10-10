@@ -9,6 +9,7 @@ import { requirePermission } from "@/lib/auth/session";
 import { formatRate } from "@/lib/format";
 import { listPriceReview } from "@/lib/pricing";
 import { PriceTable } from "./price-table";
+import { PageHeader } from "@/components/admin/page-header";
 
 export const metadata: Metadata = { title: "مراجعة الأسعار | غصن" };
 
@@ -25,23 +26,25 @@ export default async function PricingPage({ searchParams }: { searchParams: Prom
 
   return (
     <div className="flex flex-col gap-6">
-      <header className="flex flex-col gap-1">
-        <h1 className="font-display text-3xl font-bold">مراجعة الأسعار</h1>
-        <p className="text-muted-foreground">
-          السعر لا يتغير تلقائياً: المقترح من متوسط التكلفة وهامش القسم بسعر الجنيه الحالي
-          {rate ? (
-            <>
-              {" "}
-              (
-              <bdi dir="ltr" className="tabular-nums">
-                {formatRate(rate)}
-              </bdi>
-              )
-            </>
-          ) : null}
-          ، مقرّباً للأعلى. الاعتماد يُسجَّل في سجل الأسعار.
-        </p>
-      </header>
+      <PageHeader
+        title="مراجعة الأسعار"
+        description={
+          <>
+            السعر لا يتغير تلقائياً: المقترح من متوسط التكلفة وهامش القسم بسعر الجنيه الحالي
+            {rate ? (
+              <>
+                {" "}
+                (
+                <bdi dir="ltr" className="tabular-nums">
+                  {formatRate(rate)}
+                </bdi>
+                )
+              </>
+            ) : null}
+            ، مقرّباً للأعلى. الاعتماد يُسجَّل في سجل الأسعار.
+          </>
+        }
+      />
 
       {!rate ? (
         <Alert variant="destructive">

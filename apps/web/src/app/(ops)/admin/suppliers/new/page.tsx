@@ -4,6 +4,7 @@ import type { Metadata } from "next";
 import { requirePermission } from "@/lib/auth/session";
 import { COUNTRIES } from "@/lib/suppliers";
 import { NewSupplierForm } from "../forms";
+import { PageHeader } from "@/components/admin/page-header";
 
 export const metadata: Metadata = { title: "إضافة مورد | غصن" };
 
@@ -16,7 +17,11 @@ export default async function NewSupplierPage() {
   });
   return (
     <div className="flex flex-col gap-6">
-      <h1 className="font-display text-3xl font-bold">إضافة مورد</h1>
+      <PageHeader
+        title="إضافة مورد"
+        back={{ href: "/admin/suppliers", label: "الموردون" }}
+        description="الاسم والبلد وعملة الحساب — والرصيد الافتتاحي إن كان عليك مستحق له."
+      />
       <NewSupplierForm
         today={shopDay(new Date())}
         countries={Object.entries(COUNTRIES).map(([value, label]) => ({ value, label }))}

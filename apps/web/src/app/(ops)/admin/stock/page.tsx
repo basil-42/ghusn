@@ -15,6 +15,7 @@ import { cn } from "@/lib/utils";
 import { countNegativeStock, listStock } from "@/lib/stock";
 import { countPendingFor, pendingByVariant } from "@/lib/stock-adjustments";
 import { COUNT_STATUS_LABELS, activeCount } from "@/lib/stock-counts";
+import { PageHeader } from "@/components/admin/page-header";
 
 export const metadata: Metadata = { title: "المخزون | غصن" };
 
@@ -37,48 +38,52 @@ export default async function StockPage({ searchParams }: { searchParams: Promis
 
   return (
     <div className="flex flex-col gap-6">
-      <header className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="font-display text-3xl font-bold">المخزون</h1>
-          {totalValueUsd !== null ? (
-            <p className="text-muted-foreground">
+      <PageHeader
+        title="المخزون"
+        description={
+          totalValueUsd !== null ? (
+            <>
               قيمة المخزون بالتكلفة:{" "}
               <bdi dir="ltr" className="font-bold text-foreground tabular-nums">
                 {formatAmount(totalValueUsd)} $
               </bdi>
-            </p>
-          ) : null}
-        </div>
-        {canAdjust || withCost ? (
-          <div className="flex flex-wrap gap-2">
-            {withCost ? <ExportLink href="/admin/export/stock" /> : null}
-            {canAdjust ? (
-              <>
-                <Button asChild variant="outline">
-                  <Link href="/admin/stock/adjustments">
-                    <ClipboardCheck aria-hidden /> التسويات
-                    {pendingCount ? (
-                      <span className="inline-flex min-w-6 items-center justify-center rounded-full bg-gold px-1.5 text-xs font-bold text-card">
-                        {pendingCount}
-                      </span>
-                    ) : null}
-                  </Link>
-                </Button>
-                <Button asChild variant="outline">
-                  <Link href="/admin/stock/counts">
-                    <ScanBarcode aria-hidden /> الجرد
-                  </Link>
-                </Button>
-                <Button asChild>
-                  <Link href="/admin/stock/adjustments/new">
-                    <Plus aria-hidden /> تسوية جديدة
-                  </Link>
-                </Button>
-              </>
-            ) : null}
-          </div>
-        ) : null}
-      </header>
+            </>
+          ) : (
+            "الرصيد الحالي لكل صنف، والتسويات والجرد."
+          )
+        }
+        actions={
+          canAdjust || withCost ? (
+            <>
+              {withCost ? <ExportLink href="/admin/export/stock" /> : null}
+              {canAdjust ? (
+                <>
+                  <Button asChild variant="outline">
+                    <Link href="/admin/stock/adjustments">
+                      <ClipboardCheck aria-hidden /> التسويات
+                      {pendingCount ? (
+                        <span className="inline-flex min-w-6 items-center justify-center rounded-full bg-gold px-1.5 text-xs font-bold text-card">
+                          {pendingCount}
+                        </span>
+                      ) : null}
+                    </Link>
+                  </Button>
+                  <Button asChild variant="outline">
+                    <Link href="/admin/stock/counts">
+                      <ScanBarcode aria-hidden /> الجرد
+                    </Link>
+                  </Button>
+                  <Button asChild>
+                    <Link href="/admin/stock/adjustments/new">
+                      <Plus aria-hidden /> تسوية جديدة
+                    </Link>
+                  </Button>
+                </>
+              ) : null}
+            </>
+          ) : null
+        }
+      />
 
       {count ? (
         <div className="flex flex-wrap items-center gap-3 rounded-2xl border border-sand bg-card p-4">

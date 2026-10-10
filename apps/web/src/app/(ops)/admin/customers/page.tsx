@@ -10,6 +10,7 @@ import { customerDirectory, filterDirectory, parseDirectoryQuery, type Directory
 import { formatAmount, formatDaysAgo } from "@/lib/format";
 import { cn } from "@/lib/utils";
 import { SegmentBadge } from "./segment-badge";
+import { PageHeader } from "@/components/admin/page-header";
 
 export const metadata: Metadata = { title: "العملاء | غصن" };
 
@@ -56,19 +57,19 @@ export default async function CustomersPage({ searchParams }: { searchParams: Pr
 
   return (
     <div className="flex flex-col gap-6">
-      <header className="flex flex-wrap items-end justify-between gap-3">
-        <div className="flex flex-col gap-1">
-          <h1 className="font-display text-3xl font-bold">العملاء</h1>
-          <p className="text-muted-foreground">كل من اشترى من المحل (برقم هاتفه) أو من المتجر — يُسجَّل تلقائياً.</p>
-        </div>
-        {canSeeValue ? (
-          <Button asChild variant="outline">
-            <a href={`/admin/customers/export${hrefWith(query, {}).replace("/admin/customers", "")}`}>
-              <Download aria-hidden /> تصدير Excel
-            </a>
-          </Button>
-        ) : null}
-      </header>
+      <PageHeader
+        title="العملاء"
+        description="كل من اشترى من المحل (برقم هاتفه) أو من المتجر — يُسجَّل تلقائياً."
+        actions={
+          canSeeValue ? (
+            <Button asChild variant="outline">
+              <a href={`/admin/customers/export${hrefWith(query, {}).replace("/admin/customers", "")}`}>
+                <Download aria-hidden /> تصدير Excel
+              </a>
+            </Button>
+          ) : null
+        }
+      />
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         <Card className="gap-1 p-4">

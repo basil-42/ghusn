@@ -4,6 +4,7 @@ import { ROLE_LABELS, ROLE_NAMES } from "@/lib/auth/permissions";
 import { requirePermission } from "@/lib/auth/session";
 import { setBanned, setRole } from "./actions";
 import { CreateUserForm, ResetPasswordForm } from "./forms";
+import { PageHeader } from "@/components/admin/page-header";
 
 export default async function UsersPage() {
   const session = await requirePermission({ user: ["list"] });
@@ -14,7 +15,10 @@ export default async function UsersPage() {
 
   return (
     <div className="flex flex-col gap-8">
-      <h1 className="font-display text-3xl font-bold">المستخدمون</h1>
+      <PageHeader
+        title="المستخدمون"
+        description="حسابات الفريق: الدخول برقم الجوال وكلمة المرور، والدور يحدد ما يراه كل حساب ويفعله."
+      />
 
       <section className="rounded-2xl border border-line bg-white p-6">
         <h2 className="mb-4 text-lg font-bold">إضافة مستخدم</h2>

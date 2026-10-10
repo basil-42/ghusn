@@ -20,6 +20,7 @@ import { ConfirmButton } from "../confirm-button";
 import { ProductForm } from "../product-form";
 import { PricingCard } from "../pricing-card";
 import { ProductImages } from "../product-images";
+import { PageHeader } from "@/components/admin/page-header";
 
 export const metadata: Metadata = { title: "منتج | غصن" };
 
@@ -45,12 +46,11 @@ export default async function ProductPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <header className="flex flex-col gap-1">
-        <h1 className="font-display text-3xl font-bold">{product.nameAr}</h1>
-        <p className="text-sm text-muted-foreground">
-          {product.category.nameAr} · آخر تعديل {formatDateTime(product.updatedAt)}
-        </p>
-      </header>
+      <PageHeader
+        title={product.nameAr}
+        back={{ href: "/admin/products", label: "المنتجات" }}
+        description={`${product.category.nameAr} · آخر تعديل ${formatDateTime(product.updatedAt)}`}
+      />
 
       {/* جاهزية المتجر (D-106): ما ينقص المنتج الظاهر في المتجر */}
       {missing?.length ? (

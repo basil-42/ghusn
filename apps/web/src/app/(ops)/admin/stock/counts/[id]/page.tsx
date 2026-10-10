@@ -12,6 +12,7 @@ import { getStockSettings } from "@/lib/settings";
 import { COUNT_STATUS_LABELS, UNIT_LABELS, countReview } from "@/lib/stock-counts";
 import { cn } from "@/lib/utils";
 import { ApproveCountForm, CancelCountForm, RecountButton } from "../forms";
+import { PageHeader } from "@/components/admin/page-header";
 
 export const metadata: Metadata = { title: "مراجعة الجرد | غصن" };
 
@@ -56,23 +57,21 @@ export default async function CountReviewPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <header className="flex flex-wrap items-end justify-between gap-3">
-        <div className="flex flex-col gap-1">
-          <Link href="/admin/stock/counts" className="text-sm text-muted-foreground hover:underline">
-            الجرد ›
-          </Link>
-          <h1 className="font-display text-3xl font-bold">{r.title}</h1>
-          <p className="text-muted-foreground">
+      <PageHeader
+        title={r.title}
+        back={{ href: "/admin/stock/counts", label: "الجرد" }}
+        description={
+          <span className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
+            <span className="rounded-lg bg-gold/15 px-2.5 py-0.5 text-xs font-bold text-warning">
+              {COUNT_STATUS_LABELS[r.status]}
+            </span>
             <bdi dir="ltr">{r.number}</bdi> · بدأته {r.createdBy} {formatDateTime(r.createdAt)}
             {r.submittedBy ? ` · أرسلته ${r.submittedBy} ${formatTime(r.submittedAt!)}` : ""}
             {r.decidedBy ? ` · ${r.status === "APPROVED" ? "اعتمدته" : "ألغته"} ${r.decidedBy}` : ""} · {counted.length}{" "}
             من {r.lines.length} صنفاً
-          </p>
-        </div>
-        <span className="rounded-lg bg-gold/15 px-3 py-1.5 text-sm font-bold text-warning">
-          {COUNT_STATUS_LABELS[r.status]}
-        </span>
-      </header>
+          </span>
+        }
+      />
 
       {r.status === "CANCELLED" && r.cancelReason ? <Alert>سبب الإلغاء: «{r.cancelReason}»</Alert> : null}
       {r.status === "APPROVED" ? (

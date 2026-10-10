@@ -13,6 +13,7 @@ import { cn } from "@/lib/utils";
 import { deleteNoteAction } from "../actions";
 import { AddNoteForm, RenameCustomer } from "../forms";
 import { SegmentBadge, whatsappChatUrl } from "../segment-badge";
+import { PageHeader } from "@/components/admin/page-header";
 
 export const metadata: Metadata = { title: "العميل | غصن" };
 
@@ -45,35 +46,33 @@ export default async function CustomerPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <header className="flex flex-wrap items-end justify-between gap-4">
-        <div className="flex min-w-0 flex-col gap-1">
-          <Link href="/admin/customers" className="text-sm text-muted-foreground hover:underline">
-            العملاء ›
-          </Link>
-          <h1 className="flex flex-wrap items-center gap-3 font-display text-3xl font-bold">
-            {c.name ?? <span className="text-muted-foreground">عميل بلا اسم</span>}
-            <SegmentBadge segment={c.segment} className="font-sans text-sm" />
-          </h1>
-          <p className="text-sm text-muted-foreground">
+      <PageHeader
+        title={c.name ?? <span className="text-muted-foreground">عميل بلا اسم</span>}
+        back={{ href: "/admin/customers", label: "العملاء" }}
+        description={
+          <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <SegmentBadge segment={c.segment} />
             <bdi dir="ltr">{formatPhone(c.phone)}</bdi> · عميل منذ {formatMonthYear(c.firstAt ?? c.createdAt)}
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          {canEdit ? <RenameCustomer customerId={c.id} name={c.name} /> : null}
-          <Button asChild variant="outline">
-            <a href={whatsappChatUrl(c.phone)} target="_blank" rel="noopener noreferrer">
-              <MessageCircle aria-hidden /> واتساب
-            </a>
-          </Button>
-          {canSell ? (
-            <Button asChild>
-              <Link href={`/pos?customer=${c.id}`}>
-                <ShoppingCart aria-hidden /> بيع الآن
-              </Link>
+          </span>
+        }
+        actions={
+          <>
+            {canEdit ? <RenameCustomer customerId={c.id} name={c.name} /> : null}
+            <Button asChild variant="outline">
+              <a href={whatsappChatUrl(c.phone)} target="_blank" rel="noopener noreferrer">
+                <MessageCircle aria-hidden /> واتساب
+              </a>
             </Button>
-          ) : null}
-        </div>
-      </header>
+            {canSell ? (
+              <Button asChild>
+                <Link href={`/pos?customer=${c.id}`}>
+                  <ShoppingCart aria-hidden /> بيع الآن
+                </Link>
+              </Button>
+            ) : null}
+          </>
+        }
+      />
 
       <div className="grid grid-cols-2 gap-3 lg:grid-cols-4">
         {canSeeValue ? (

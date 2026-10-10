@@ -8,6 +8,7 @@ import { formatDateTime } from "@/lib/format";
 import { COUNT_STATUS_LABELS, activeCount, countCategories, listCounts } from "@/lib/stock-counts";
 import { cn } from "@/lib/utils";
 import { StartCountForm } from "./forms";
+import { PageHeader } from "@/components/admin/page-header";
 
 export const metadata: Metadata = { title: "الجرد | غصن" };
 
@@ -26,15 +27,11 @@ export default async function CountsPage({ searchParams }: { searchParams: Promi
 
   return (
     <div className="flex flex-col gap-6">
-      <header className="flex flex-col gap-1">
-        <Link href="/admin/stock" className="text-sm text-muted-foreground hover:underline">
-          المخزون ›
-        </Link>
-        <h1 className="font-display text-3xl font-bold">الجرد</h1>
-        <p className="text-muted-foreground">
-          عدّ ما على الرف ومقارنته بالنظام. العدّ أعمى، والمقارنة برصيد لحظة عدّ كل صنف — فلا داعي لإغلاق المحل.
-        </p>
-      </header>
+      <PageHeader
+        title="الجرد"
+        back={{ href: "/admin/stock", label: "المخزون" }}
+        description="عدّ ما على الرف ومقارنته بالنظام. العدّ أعمى، والمقارنة برصيد لحظة عدّ كل صنف — فلا داعي لإغلاق المحل."
+      />
 
       {active ? (
         <Card className="border-sand">

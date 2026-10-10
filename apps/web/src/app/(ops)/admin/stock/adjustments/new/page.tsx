@@ -10,6 +10,7 @@ import { requirePermission } from "@/lib/auth/session";
 import { searchVariants } from "@/lib/shipments";
 import { adjustmentVariant, findVariantByCode } from "@/lib/stock-adjustments";
 import { AdjustmentForm } from "../forms";
+import { PageHeader } from "@/components/admin/page-header";
 
 export const metadata: Metadata = { title: "تسوية مخزون | غصن" };
 
@@ -34,13 +35,11 @@ export default async function NewAdjustmentPage({
 
   return (
     <div className="mx-auto flex w-full max-w-xl flex-col gap-6">
-      <header className="flex flex-col gap-1">
-        <Link href="/admin/stock/adjustments" className="text-sm text-muted-foreground hover:underline">
-          التسويات ›
-        </Link>
-        <h1 className="font-display text-3xl font-bold">تسوية مخزون</h1>
-        <p className="text-muted-foreground">تالف، منتهي الصلاحية، مفقود، استخدام داخلي، أو زيادة وُجدت.</p>
-      </header>
+      <PageHeader
+        title="تسوية مخزون"
+        back={{ href: "/admin/stock/adjustments", label: "التسويات" }}
+        description="تالف، منتهي الصلاحية، مفقود، استخدام داخلي، أو زيادة وُجدت."
+      />
 
       {variant ? (
         <Card>

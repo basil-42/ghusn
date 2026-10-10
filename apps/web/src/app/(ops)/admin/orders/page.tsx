@@ -17,6 +17,7 @@ import {
   type OrderTab,
 } from "@/lib/orders";
 import { BulkOrderList, type BulkAction, type OrderRow } from "./bulk-list";
+import { PageHeader } from "@/components/admin/page-header";
 
 export const metadata: Metadata = { title: "طلبات المتجر | غصن" };
 
@@ -81,12 +82,10 @@ export default async function OrdersPage({ searchParams }: { searchParams: Promi
 
   return (
     <div className="flex flex-col gap-6">
-      <header>
-        <h1 className="font-display text-3xl font-bold">طلبات المتجر</h1>
-        <p className="text-muted-foreground">
-          الأقدم أولاً. التوصيل عبر شركة التوصيل، والدفع عند الاستلام يدخل محفظتها عند التسليم (D-88).
-        </p>
-      </header>
+      <PageHeader
+        title="طلبات المتجر"
+        description="الأقدم أولاً. التوصيل عبر شركة التوصيل، والدفع عند الاستلام يدخل محفظتها عند التسليم (D-88)."
+      />
       <nav aria-label="حالات الطلبات" className="flex gap-1 overflow-x-auto">
         {ORDER_TABS.map((x) => (
           <Link

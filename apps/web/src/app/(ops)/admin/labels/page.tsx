@@ -4,6 +4,7 @@ import { requirePermission } from "@/lib/auth/session";
 import { prisma } from "@ghusn/db";
 import { shipmentLabelItems, type LabelItem } from "@/lib/stock";
 import { LabelPlanner } from "./planner";
+import { PageHeader } from "@/components/admin/page-header";
 
 export const metadata: Metadata = { title: "ملصقات الباركود | غصن" };
 
@@ -21,12 +22,10 @@ export default async function LabelsPage({ searchParams }: { searchParams: Promi
   }
   return (
     <div className="flex flex-col gap-6">
-      <header>
-        <h1 className="font-display text-3xl font-bold">ملصقات الباركود</h1>
-        <p className="text-muted-foreground">
-          طابعة TSC TE210 بملصقات 50×30 مم{source ? ` · من الشحنة ${source}` : ""}.
-        </p>
-      </header>
+      <PageHeader
+        title="ملصقات الباركود"
+        description={`طابعة TSC TE210 بملصقات 50×30 مم${source ? ` · من الشحنة ${source}` : ""}.`}
+      />
       <Card>
         <CardHeader>
           <CardTitle>ماذا نطبع؟</CardTitle>

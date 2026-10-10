@@ -13,6 +13,7 @@ import { listSales, listSalesToReview } from "@/lib/sales";
 import { markReviewedAction } from "./actions";
 import { listReturns } from "@/lib/returns";
 import { listShifts } from "@/lib/shifts";
+import { PageHeader } from "@/components/admin/page-header";
 
 export const metadata: Metadata = { title: "المبيعات | غصن" };
 
@@ -32,12 +33,15 @@ export default async function SalesPage() {
   const today = shopDay(new Date());
   return (
     <div className="flex flex-col gap-6">
-      <header className="flex flex-wrap items-end justify-between gap-3">
-        <h1 className="font-display text-3xl font-bold">المبيعات</h1>
-        {canExport ? (
-          <ExportRangeForm action="/admin/export/sales" from={`${today.slice(0, 7)}-01`} to={today} />
-        ) : null}
-      </header>
+      <PageHeader
+        title="المبيعات"
+        description="فواتير المحل وطلبات المتجر المسلّمة والمرتجعات والورديات."
+        actions={
+          canExport ? (
+            <ExportRangeForm action="/admin/export/sales" from={`${today.slice(0, 7)}-01`} to={today} />
+          ) : null
+        }
+      />
       {toReview.length ? (
         <Card className="border-gold/40">
           <CardHeader>

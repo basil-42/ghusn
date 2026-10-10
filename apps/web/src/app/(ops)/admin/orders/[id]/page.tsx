@@ -1,5 +1,4 @@
 import type { Metadata } from "next";
-import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
@@ -11,6 +10,7 @@ import { OrderActions } from "../order-actions";
 import { orderMessages } from "@/lib/order-messages";
 import { MarkOrderOpened } from "./mark-opened";
 import { OrderMessages } from "./order-messages";
+import { PageHeader } from "@/components/admin/page-header";
 
 export const metadata: Metadata = { title: "طلب | غصن" };
 
@@ -28,16 +28,16 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
   return (
     <div className="flex flex-col gap-6">
       <MarkOrderOpened orderId={o.id} />
-      <header className="flex flex-col gap-1">
-        <Link href="/admin/orders" className="text-sm text-muted-foreground underline">
-          طلبات المتجر
-        </Link>
-        <h1 className="flex flex-wrap items-center gap-3 font-display text-3xl font-bold">
-          <bdi dir="ltr">{o.number}</bdi>
-          <Badge variant={statusVariant(o.status)}>{ORDER_STATUS_LABELS[o.status]}</Badge>
-        </h1>
-        <p className="text-muted-foreground">{formatDateTime(o.createdAt)}</p>
-      </header>
+      <PageHeader
+        title={<bdi dir="ltr">{o.number}</bdi>}
+        back={{ href: "/admin/orders", label: "طلبات المتجر" }}
+        description={
+          <span className="flex flex-wrap items-center gap-x-2 gap-y-1">
+            <Badge variant={statusVariant(o.status)}>{ORDER_STATUS_LABELS[o.status]}</Badge>
+            {formatDateTime(o.createdAt)}
+          </span>
+        }
+      />
 
       <div className="grid gap-6 lg:grid-cols-[1fr_22rem]">
         <div className="flex flex-col gap-6">

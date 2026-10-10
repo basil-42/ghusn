@@ -18,6 +18,7 @@ import {
   productReadiness,
 } from "@/lib/catalog";
 import { imageUrl } from "@/lib/product-images";
+import { PageHeader } from "@/components/admin/page-header";
 
 export const metadata: Metadata = { title: "المنتجات | غصن" };
 
@@ -39,19 +40,19 @@ export default async function ProductsPage({ searchParams }: { searchParams: Sea
 
   return (
     <div className="flex flex-col gap-6">
-      <header className="flex flex-wrap items-end justify-between gap-3">
-        <div>
-          <h1 className="font-display text-3xl font-bold">المنتجات</h1>
-          <p className="text-muted-foreground">{total.toLocaleString("en-US")} منتج</p>
-        </div>
-        {canCreate ? (
-          <Button asChild>
-            <Link href="/admin/products/new">
-              <Plus aria-hidden /> إضافة منتج
-            </Link>
-          </Button>
-        ) : null}
-      </header>
+      <PageHeader
+        title="المنتجات"
+        description={`${total.toLocaleString("en-US")} منتج`}
+        actions={
+          canCreate ? (
+            <Button asChild>
+              <Link href="/admin/products/new">
+                <Plus aria-hidden /> إضافة منتج
+              </Link>
+            </Button>
+          ) : null
+        }
+      />
 
       {archived ? <Alert variant="success">تمت أرشفة المنتج.</Alert> : null}
 

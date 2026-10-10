@@ -14,6 +14,7 @@ import {
   type Range,
 } from "@/lib/insights";
 import { cn } from "@/lib/utils";
+import { PageHeader } from "@/components/admin/page-header";
 
 export const metadata: Metadata = { title: "التحليلات | غصن" };
 
@@ -116,43 +117,41 @@ export default async function InsightsPage({ searchParams }: { searchParams: Pro
 
   return (
     <div className="flex flex-col gap-6">
-      <header className="flex flex-wrap items-end justify-between gap-3">
-        <div className="flex flex-col gap-1">
-          <h1 className="font-display text-3xl font-bold">التحليلات</h1>
-          <p className="text-muted-foreground">
-            الربح والتكلفة بالدولار، والإيراد بالجنيه وبالدولار — فواتير المحل وطلبات المتجر المسلّمة.
-          </p>
-        </div>
-        {usesPeriod ? (
-          <div className="flex flex-wrap items-end gap-2">
-            {(["7", "30", "90"] as const).map((p) => (
-              <Link key={p} href={query({ tab }, { p })} className={chip(range.period === p)}>
-                {daysLabel(p)}
-              </Link>
-            ))}
-            <form className="flex items-end gap-2" aria-label="فترة مخصصة">
-              <input type="hidden" name="tab" value={tab} />
-              <input
-                type="date"
-                name="from"
-                defaultValue={range.fromDay}
-                aria-label="من"
-                className="min-h-11 rounded-xl border border-input bg-card px-2"
-              />
-              <input
-                type="date"
-                name="to"
-                defaultValue={range.toDay}
-                aria-label="إلى"
-                className="min-h-11 rounded-xl border border-input bg-card px-2"
-              />
-              <button type="submit" className={chip(range.period === null)}>
-                عرض
-              </button>
-            </form>
-          </div>
-        ) : null}
-      </header>
+      <PageHeader
+        title="التحليلات"
+        description="الربح والتكلفة بالدولار، والإيراد بالجنيه وبالدولار — فواتير المحل وطلبات المتجر المسلّمة."
+        actions={
+          usesPeriod ? (
+            <div className="flex flex-wrap items-end gap-2">
+              {(["7", "30", "90"] as const).map((p) => (
+                <Link key={p} href={query({ tab }, { p })} className={chip(range.period === p)}>
+                  {daysLabel(p)}
+                </Link>
+              ))}
+              <form className="flex flex-wrap items-end gap-2" aria-label="فترة مخصصة">
+                <input type="hidden" name="tab" value={tab} />
+                <input
+                  type="date"
+                  name="from"
+                  defaultValue={range.fromDay}
+                  aria-label="من"
+                  className="min-h-11 min-w-0 flex-1 rounded-xl border border-input bg-card px-2"
+                />
+                <input
+                  type="date"
+                  name="to"
+                  defaultValue={range.toDay}
+                  aria-label="إلى"
+                  className="min-h-11 min-w-0 flex-1 rounded-xl border border-input bg-card px-2"
+                />
+                <button type="submit" className={chip(range.period === null)}>
+                  عرض
+                </button>
+              </form>
+            </div>
+          ) : null
+        }
+      />
 
       <nav className="-mx-1 flex gap-1 overflow-x-auto border-b border-border px-1" aria-label="أقسام التحليلات">
         {TABS.map((t) => {

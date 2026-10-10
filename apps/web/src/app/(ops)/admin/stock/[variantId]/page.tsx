@@ -10,6 +10,7 @@ import { formatAmount, formatDateTime } from "@/lib/format";
 import { stockCard } from "@/lib/stock";
 import { REASON_LABELS } from "@/lib/stock-adjustments";
 import { cn } from "@/lib/utils";
+import { PageHeader } from "@/components/admin/page-header";
 
 export const metadata: Metadata = { title: "كارت الصنف | غصن" };
 
@@ -53,31 +54,31 @@ export default async function StockCardPage({
 
   return (
     <div className="flex flex-col gap-6">
-      <header className="flex flex-wrap items-end justify-between gap-3">
-        <div className="flex flex-col gap-1">
-          <Link href="/admin/stock" className="text-sm text-muted-foreground hover:underline">
-            المخزون ›
-          </Link>
-          <h1 className="font-display text-3xl font-bold">{card.label}</h1>
-          <p className="text-muted-foreground">
+      <PageHeader
+        title={card.label}
+        back={{ href: "/admin/stock", label: "المخزون" }}
+        description={
+          <>
             <bdi dir="ltr">{card.sku}</bdi> · الرصيد{" "}
             <b className={cn("tabular-nums", dec(card.qty).lt(0) ? "text-destructive" : "text-foreground")}>
               <bdi dir="ltr">{plainNumber(card.qty)}</bdi> {unit}
             </b>
             {card.avgCostUsd ? ` · متوسط التكلفة ${formatAmount(card.avgCostUsd)} $` : ""}
-          </p>
-        </div>
-        <div className="flex flex-wrap gap-2">
-          <Button asChild variant="outline">
-            <Link href={`/admin/products/${card.productId}`}>المنتج</Link>
-          </Button>
-          {roleCan(session.user.role, { stock: ["adjust"] }) ? (
-            <Button asChild>
-              <Link href={`/admin/stock/adjustments/new?variant=${card.variantId}`}>تسوية</Link>
+          </>
+        }
+        actions={
+          <>
+            <Button asChild variant="outline">
+              <Link href={`/admin/products/${card.productId}`}>المنتج</Link>
             </Button>
-          ) : null}
-        </div>
-      </header>
+            {roleCan(session.user.role, { stock: ["adjust"] }) ? (
+              <Button asChild>
+                <Link href={`/admin/stock/adjustments/new?variant=${card.variantId}`}>تسوية</Link>
+              </Button>
+            ) : null}
+          </>
+        }
+      />
 
       <nav className="flex flex-wrap gap-2" aria-label="تصفية الحركات">
         {FILTERS.map((x) => (

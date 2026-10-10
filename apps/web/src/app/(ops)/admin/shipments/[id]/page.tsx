@@ -22,6 +22,7 @@ import { listCategoryOptions } from "@/lib/catalog";
 import { CostForm, DetailsForm, LinesEditor, StatusActions, VoidCostForm } from "../forms";
 import { ImportPanel } from "../import-panel";
 import { StatusBadge } from "../page";
+import { PageHeader } from "@/components/admin/page-header";
 
 export const metadata: Metadata = { title: "شحنة | غصن" };
 
@@ -63,32 +64,31 @@ export default async function ShipmentPage({ params }: { params: Promise<{ id: s
 
   return (
     <div className="flex flex-col gap-6">
-      <header className="flex flex-col gap-2">
-        <div className="flex flex-wrap items-center gap-3">
-          <h1 className="font-display text-3xl font-bold">
-            <bdi dir="ltr">{s.number}</bdi>
-          </h1>
-          <StatusBadge status={s.status} />
-        </div>
-        <p className="text-muted-foreground">
-          <Link href={`/admin/suppliers/${s.supplier.id}`} className="font-semibold underline">
-            {s.supplier.name}
-          </Link>{" "}
-          · {COUNTRIES[s.origin] ?? s.origin} · قيمة البضاعة{" "}
-          <bdi dir="ltr" className="font-semibold text-foreground tabular-nums">
-            {formatAmount(s.goodsTotal, cur.decimals)} {cur.symbol}
-          </bdi>
-          {s.rateUsed ? (
-            <>
-              {" "}
-              · سعر الشراء{" "}
-              <bdi dir="ltr" className="tabular-nums">
-                {plainNumber(s.rateUsed)} {cur.code}/$
-              </bdi>
-            </>
-          ) : null}
-        </p>
-      </header>
+      <PageHeader
+        title={<bdi dir="ltr">{s.number}</bdi>}
+        back={{ href: "/admin/shipments", label: "الشحنات" }}
+        description={
+          <span className="flex flex-wrap items-center gap-x-1.5 gap-y-1">
+            <StatusBadge status={s.status} />
+            <Link href={`/admin/suppliers/${s.supplier.id}`} className="font-semibold underline">
+              {s.supplier.name}
+            </Link>
+            · {COUNTRIES[s.origin] ?? s.origin} · قيمة البضاعة{" "}
+            <bdi dir="ltr" className="font-semibold text-foreground tabular-nums">
+              {formatAmount(s.goodsTotal, cur.decimals)} {cur.symbol}
+            </bdi>
+            {s.rateUsed ? (
+              <>
+                {" "}
+                · سعر الشراء{" "}
+                <bdi dir="ltr" className="tabular-nums">
+                  {plainNumber(s.rateUsed)} {cur.code}/$
+                </bdi>
+              </>
+            ) : null}
+          </span>
+        }
+      />
 
       {canEdit ? (
         <StatusActions

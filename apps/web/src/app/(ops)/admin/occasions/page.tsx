@@ -6,6 +6,7 @@ import { requirePermission } from "@/lib/auth/session";
 import { listOccasionsForAdmin } from "@/lib/occasions";
 import { imageUrl } from "@/lib/product-images";
 import { OccasionForm } from "./occasion-form";
+import { PageHeader } from "@/components/admin/page-header";
 
 export const metadata: Metadata = { title: "المناسبات | غصن" };
 
@@ -17,13 +18,10 @@ export default async function OccasionsPage() {
 
   return (
     <div className="flex flex-col gap-6">
-      <header className="flex flex-col gap-1">
-        <h1 className="font-display text-3xl font-bold">المناسبات</h1>
-        <p className="text-muted-foreground">
-          تظهر في المتجر في «تسوّق حسب المناسبة» إذا كان فيها منتج متوفر. اربطي المنتجات من صفحة كل منتج. بانر الموسم
-          يظهر أعلى الرئيسية بين التاريخين (أول مناسبة بالترتيب إن تداخلت فترتان).
-        </p>
-      </header>
+      <PageHeader
+        title="المناسبات"
+        description="تظهر في المتجر في «تسوّق حسب المناسبة» إذا كان فيها منتج متوفر. اربطي المنتجات من صفحة كل منتج. بانر الموسم يظهر أعلى الرئيسية بين التاريخين (أول مناسبة بالترتيب إن تداخلت فترتان)."
+      />
       <div className="grid gap-4 xl:grid-cols-2">
         {occasions.map((o) => (
           <Card key={o.id}>
