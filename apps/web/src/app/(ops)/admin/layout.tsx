@@ -1,106 +1,50 @@
-import { AlertTriangle, LogOut } from "lucide-react";
-import Image from "next/image";
+import { AlertTriangle } from "lucide-react";
+import { cookies } from "next/headers";
 import Link from "next/link";
-import { logout } from "@/app/(ops)/login/actions";
-import { AdminNav, type NavItem } from "@/components/admin/nav";
-import { NotificationBell } from "@/components/admin/notification-bell";
 import { PushPrompt } from "@/components/admin/push-prompt";
-import { Button } from "@/components/ui/button";
+import { AdminShell } from "@/components/admin/shell";
+import { NAV_COOKIE, navFor, quickActionsFor } from "@/lib/admin-nav";
 import { ROLE_LABELS, isRoleName, roleCan } from "@/lib/auth/permissions";
 import { requireSession } from "@/lib/auth/session";
 import { isSellingRateStale } from "@/lib/exchange-rates";
 import { pushConfig } from "@/lib/push";
 import { RegisterServiceWorker } from "@/lib/pos-offline/register-sw";
 
-type Permissions = Parameters<typeof roleCan>[1];
-
-// كل رابط يظهر فقط لمن يملك صلاحيته (D-62)
-const NAV: (NavItem & { permission?: Permissions })[] = [
-  { href: "/admin", label: "الرئيسية", icon: "dashboard" },
-  { href: "/pos", label: "نقطة البيع", icon: "pos", permission: { pos: ["sell"] } },
-  { href: "/admin/orders", label: "طلبات المتجر", icon: "orders", permission: { order: ["read"] } },
-  { href: "/admin/customers", label: "العملاء", icon: "customers", permission: { customer: ["read"] } },
-  { href: "/admin/sales", label: "المبيعات", icon: "sales", permission: { sale: ["read"] } },
-  { href: "/admin/reports", label: "التقرير الشهري", icon: "reports", permission: { report: ["read"] } },
-  { href: "/admin/insights", label: "التحليلات", icon: "insights", permission: { report: ["read"], cost: ["read"] } },
-  { href: "/admin/expenses", label: "المصاريف", icon: "expenses", permission: { expense: ["create"] } },
-  { href: "/admin/wallets", label: "المحافظ", icon: "wallets", permission: { wallet: ["update"] } },
-  { href: "/admin/products", label: "المنتجات", icon: "products", permission: { product: ["read"] } },
-  { href: "/admin/stock", label: "المخزون", icon: "stock", permission: { stock: ["read"] } },
-  { href: "/admin/pricing", label: "الأسعار", icon: "pricing", permission: { price: ["approve"] } },
-  { href: "/admin/labels", label: "الملصقات", icon: "labels", permission: { product: ["read"] } },
-  { href: "/admin/banners", label: "البانرات", icon: "banners", permission: { settings: ["update"] } },
-  { href: "/admin/wrapping", label: "التغليف", icon: "wrapping", permission: { settings: ["update"] } },
-  { href: "/admin/occasions", label: "المناسبات", icon: "occasions", permission: { category: ["update"] } },
-  { href: "/admin/categories", label: "الأقسام", icon: "categories", permission: { category: ["update"] } },
-  { href: "/admin/shipments", label: "الشحنات", icon: "shipments", permission: { shipment: ["read"] } },
-  { href: "/admin/suppliers", label: "الموردون", icon: "suppliers", permission: { supplier: ["read"] } },
-  { href: "/admin/exchange-rates", label: "سعر الصرف", icon: "rates", permission: { exchangeRate: ["read"] } },
-  { href: "/admin/settings", label: "الضبط", icon: "settings", permission: { settings: ["update"] } },
-  { href: "/admin/users", label: "المستخدمون", icon: "users", permission: { user: ["list"] } },
-  { href: "/admin/audit", label: "سجل التدقيق", icon: "audit", permission: { audit: ["read"] } },
-];
-
+/** إطار الإدارة (D-119): القائمة المجمّعة الثابتة والشريط العلوي — كل رابط حسب صلاحية الدور (D-62). */
 export default async function AdminLayout({ children }: { children: React.ReactNode }) {
   const { user } = await requireSession();
   const roleLabel = isRoleName(user.role) ? ROLE_LABELS[user.role] : "";
-  const items = NAV.filter((i) => !i.permission || roleCan(user.role, i.permission)).map(({ href, label, icon }) => ({
-    href,
-    label,
-    icon,
-  }));
-  const rateMissing = roleCan(user.role, { exchangeRate: ["update"] }) && (await isSellingRateStale());
+  const [rateMissing, jar] = await Promise.all([
+    roleCan(user.role, { exchangeRate: ["update"] }) ? isSellingRateStale() : false,
+    cookies(),
+  ]);
 
   return (
-    <div className="min-h-screen md:grid md:grid-cols-[15rem_1fr]">
+    <>
       {/* نفس عامل نقطة البيع (النطاق /) — وفي التطوير يزيل أي نسخة قديمة */}
       <RegisterServiceWorker />
-      {/* شريط جانبي على الشاشات الكبيرة */}
-      <aside className="hidden border-e border-border bg-card md:flex md:flex-col md:gap-6 md:p-4">
-        <Link href="/admin" aria-label="الرئيسية" className="px-2 pt-2">
-          <Image src="/brand/logo-ar-mark-forest.svg" alt="غصن" width={110} height={57} loading="eager" />
-        </Link>
-        <AdminNav items={items} orientation="vertical" />
-      </aside>
-
-      <div className="flex min-w-0 flex-col">
-        <header className="border-b border-border bg-card">
-          <div className="flex items-center justify-between gap-3 px-4 py-2">
-            <Link href="/admin" aria-label="الرئيسية" className="md:hidden">
-              <Image src="/brand/logo-ar-mark-forest.svg" alt="غصن" width={88} height={45} loading="eager" />
-            </Link>
-            <span className="truncate text-sm md:ms-auto">
-              {user.name} <span className="text-muted-foreground">· {roleLabel}</span>
-            </span>
-            <div className="ms-auto flex items-center gap-2 md:ms-0">
-              <NotificationBell />
-              <form action={logout}>
-                <Button variant="outline" size="sm" type="submit">
-                  <LogOut aria-hidden /> خروج
-                </Button>
-              </form>
-            </div>
-          </div>
-          {/* قائمة أفقية على الجوال */}
-          <div className="px-2 pb-2 md:hidden">
-            <AdminNav items={items} orientation="horizontal" />
-          </div>
-        </header>
-
-        <PushPrompt publicKey={pushConfig()?.publicKey ?? null} />
-
-        {rateMissing ? (
-          <Link
-            href="/admin/exchange-rates"
-            className="flex items-center gap-2 border-b border-gold/40 bg-gold/10 px-4 py-3 text-sm font-semibold text-warning"
-          >
-            <AlertTriangle aria-hidden className="size-4 shrink-0" />
-            لم يُدخل سعر الجنيه لليوم بعد — اضغطي هنا لإدخاله
-          </Link>
-        ) : null}
-
-        <main className="mx-auto w-full max-w-5xl px-4 py-8">{children}</main>
-      </div>
-    </div>
+      <AdminShell
+        nav={navFor(user.role)}
+        quick={quickActionsFor(user.role)}
+        user={{ name: user.name, roleLabel }}
+        initialCollapsed={jar.get(NAV_COOKIE)?.value === "collapsed"}
+        notice={
+          <>
+            <PushPrompt publicKey={pushConfig()?.publicKey ?? null} />
+            {rateMissing ? (
+              <Link
+                href="/admin/exchange-rates"
+                className="flex items-center gap-2 border-b border-gold/40 bg-gold/10 px-4 py-3 text-sm font-semibold text-warning md:px-8"
+              >
+                <AlertTriangle aria-hidden className="size-4 shrink-0" />
+                لم يُدخل سعر الجنيه لليوم بعد — اضغطي هنا لإدخاله
+              </Link>
+            ) : null}
+          </>
+        }
+      >
+        {children}
+      </AdminShell>
+    </>
   );
 }
