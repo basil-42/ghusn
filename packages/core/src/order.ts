@@ -134,3 +134,29 @@ export function orderTotals(lines: readonly OrderLineInput[], wrapPriceSdg: Deci
   if (wrap.lt(0)) throw new CoreError("INVALID_AMOUNT", "Wrap price must be >= 0");
   return { lines: out, subtotalSdg, wrapPriceSdg: wrap, totalSdg: subtotalSdg.plus(wrap) };
 }
+
+/**
+ * الإجراء الجماعي المسموح لطلب (D-124): الخطوة التالية العادية التي لا تحتاج سبباً ولا مراجعة ولا اختيار
+ * طريقة قبض. غيرها (الإلغاء، مراجعة بنكك، تسليم الاستلام من المحل، تعذّر التسليم) فردي من صفحة الطلب.
+ */
+export function bulkTarget(order: {
+  status: OrderStatus;
+  fulfillment: Fulfillment;
+  payment: OrderPaymentMethod;
+}): OrderStatus | null {
+  switch (order.status) {
+    case "NEW":
+      return order.payment === "BANKAK" ? null : "CONFIRMED";
+    case "CONFIRMED":
+      return "PREPARING";
+    case "PREPARING":
+    case "AWAITING_PHOTO_APPROVAL":
+      return "READY";
+    case "READY":
+      return order.fulfillment === "DELIVERY" ? "OUT_FOR_DELIVERY" : null;
+    case "OUT_FOR_DELIVERY":
+      return "DELIVERED";
+    default:
+      return null;
+  }
+}

@@ -5,8 +5,8 @@ import { revalidatePath } from "next/cache";
 import { z } from "zod";
 import { requirePermission } from "@/lib/auth/session";
 import { markOrderOpened } from "@/lib/notifications";
-import { logOrderMessage } from "@/lib/order-messages";
-import { OrderActionError, transitionOrder } from "@/lib/orders";
+import { logOrderMessage, orderMessages } from "@/lib/order-messages";
+import { BULK_MAX, bulkTransition, OrderActionError, transitionOrder, type BulkResult } from "@/lib/orders";
 
 export type FormState = { error?: string; success?: string };
 
@@ -77,4 +77,59 @@ export async function logOrderMessageAction(orderId: string, key: string): Promi
   const session = await requirePermission({ order: ["read"] });
   await logOrderMessage(orderId.slice(0, 40), key.slice(0, 40), session.user.id);
   revalidatePath(`/admin/orders/${orderId}`);
+}
+
+const bulkSchema = z.object({
+  ids: z.array(z.string().min(1).max(40)).min(1).max(BULK_MAX),
+  to: z.enum(["CONFIRMED", "PREPARING", "READY", "OUT_FOR_DELIVERY", "DELIVERED"]),
+  courierRef: z
+    .string()
+    .trim()
+    .max(60)
+    .optional()
+    .transform((v) => v || null),
+});
+
+export interface BulkMessage {
+  orderId: string;
+  number: string;
+  customerName: string;
+  label: string;
+  key: string;
+  href: string;
+}
+
+export type BulkState = { results?: BulkResult[]; messages?: BulkMessage[]; error?: string };
+
+/**
+ * إجراء جماعي على الطلبات المحددة (D-124) — نفس صلاحية الإجراء الفردي («order:update»؛ لا إلغاء ولا مراجعة
+ * دفع جماعياً). بعده: رسالة واتساب المقترحة لكل طلب نجح ولم تُرسل له بعد، لتفتحها الموظفة واحدة تلو الأخرى.
+ */
+export async function bulkTransitionAction(input: {
+  ids: string[];
+  to: string;
+  courierRef?: string;
+}): Promise<BulkState> {
+  const session = await requirePermission({ order: ["update"] });
+  const parsed = bulkSchema.safeParse(input);
+  if (!parsed.success) return { error: "اختيار غير صحيح — حدّثي الصفحة." };
+  const { ids, to, courierRef } = parsed.data;
+  const results = await bulkTransition(ids, to, session.user.id, { courierRef });
+  const messages: BulkMessage[] = [];
+  for (const r of results.filter((x) => x.ok)) {
+    const m = await orderMessages(r.id);
+    if (m?.primary && !m.primary.lastSent) {
+      messages.push({
+        orderId: r.id,
+        number: r.number,
+        customerName: m.customerName,
+        label: m.primary.label,
+        key: m.primary.key,
+        href: m.primary.href,
+      });
+    }
+  }
+  revalidatePath("/admin/orders", "layout");
+  revalidatePath("/admin");
+  return { results, messages };
 }
