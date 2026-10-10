@@ -1,9 +1,10 @@
 "use server";
 
 import { revalidatePath } from "next/cache";
+import { redirect } from "next/navigation";
 import { z } from "zod";
 import { requirePermission } from "@/lib/auth/session";
-import { BannerError, deleteBanner, moveBanner, saveBanner } from "@/lib/banners";
+import { BannerError, deleteBanner, reorderBanners, saveBanner } from "@/lib/banners";
 
 export type FormState = { error?: string; success?: string };
 
@@ -82,13 +83,19 @@ export async function saveBannerAction(_prev: FormState, formData: FormData): Pr
 
 const idSchema = z.string().min(1).max(40);
 
-export async function moveBannerAction(formData: FormData): Promise<void> {
+/** ترتيب بالسحب (D-122): القائمة كاملة بالترتيب الجديد. */
+export async function reorderBannersAction(ids: string[]): Promise<FormState> {
   await requirePermission({ settings: ["update"] });
-  const id = idSchema.safeParse(formData.get("id"));
-  const dir = formData.get("direction") === "up" ? "up" : "down";
-  if (!id.success) return;
-  await moveBanner(id.data, dir);
+  const parsed = z.array(idSchema).max(100).safeParse(ids);
+  if (!parsed.success) return { error: "ترتيب غير صحيح." };
+  try {
+    await reorderBanners(parsed.data);
+  } catch (e) {
+    if (e instanceof BannerError) return { error: e.message };
+    throw e;
+  }
   refresh();
+  return { success: "تم حفظ الترتيب." };
 }
 
 export async function deleteBannerAction(formData: FormData): Promise<void> {
@@ -97,4 +104,5 @@ export async function deleteBannerAction(formData: FormData): Promise<void> {
   if (!id.success) return;
   await deleteBanner(id.data);
   refresh();
+  redirect("/admin/banners");
 }

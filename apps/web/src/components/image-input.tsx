@@ -18,6 +18,8 @@ type ImageInputProps = Omit<InputHTMLAttributes<HTMLInputElement>, "type" | "onC
   preparingMessage?: string;
   /** معاينة بشكل المكان: الصورة الحالية، ثم المختارة فور اختيارها. */
   preview?: { shape: PreviewShape; current?: string | null };
+  /** يُبلَّغ بالصورة المختارة (أو بإلغائها) — للمعاينة الحية خارج الحقل. */
+  onPicked?: (file: File | null) => void;
 };
 
 /**
@@ -28,6 +30,7 @@ export function ImageInput({
   tooLargeMessage = "الصورة أكبر من 10 ميغابايت.",
   preparingMessage = "جارٍ تجهيز الصورة…",
   preview,
+  onPicked,
   ...props
 }: ImageInputProps) {
   const [error, setError] = useState<string | null>(null);
@@ -40,6 +43,7 @@ export function ImageInput({
     setError(null);
     input.setCustomValidity("");
     setPicked(file && preview ? URL.createObjectURL(file) : null);
+    onPicked?.(file ?? null);
     if (!file) return;
     input.setCustomValidity(preparingMessage);
     const small = await shrinkImage(file);
@@ -48,6 +52,7 @@ export function ImageInput({
     if (small.size > MAX_UPLOAD_BYTES) {
       input.value = "";
       setPicked(null);
+      onPicked?.(null);
       setError(tooLargeMessage);
       return;
     }
