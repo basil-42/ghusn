@@ -58,17 +58,42 @@ export function useMuted(): boolean {
   );
 }
 
+const audioListeners = new Set<() => void>();
+const notifyAudio = () => {
+  for (const l of audioListeners) l();
+};
+
 /** يُستدعى من ضغطة المستخدمة — المتصفح يسمح بالصوت بعدها. */
 export function unlockAudio(): void {
   try {
-    ctx ??= new AudioContext();
-    if (ctx.state === "suspended") void ctx.resume();
+    if (!ctx) {
+      ctx = new AudioContext();
+      // أي تغيّر في حالة الصوت (تفعيل، تعليق Safari) يحدّث الأيقونة فوراً
+      ctx.onstatechange = notifyAudio;
+    }
+    if (ctx.state === "suspended") void ctx.resume().then(notifyAudio, notifyAudio);
   } catch {
     ctx = null;
   }
+  notifyAudio();
 }
 
 export const audioReady = () => ctx?.state === "running";
+
+/**
+ * هل الصوت مفعّل في هذا التبويب؟ المتصفحات تمنعه حتى أول ضغطة بعد كل تحميل.
+ * على الخادم «نعم» حتى لا تومض الأيقونة؛ في المتصفح تُقرأ الحالة الفعلية.
+ */
+export function useAudioReady(): boolean {
+  return useSyncExternalStore(
+    (cb) => {
+      audioListeners.add(cb);
+      return () => audioListeners.delete(cb);
+    },
+    audioReady,
+    () => true,
+  );
+}
 
 /** وقت آخر رنّة عاجلة في أي تبويب (ms)، أو null. */
 export function sharedLastUrgent(): number | null {
