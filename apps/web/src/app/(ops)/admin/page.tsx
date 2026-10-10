@@ -15,6 +15,7 @@ import { currentShopMonth, monthlyReport } from "@/lib/reports";
 import { countSalesToReview } from "@/lib/sales";
 import { listLargeShortages } from "@/lib/shifts";
 import { listDueSoon } from "@/lib/shipments";
+import { countPendingFor } from "@/lib/stock-adjustments";
 import { listWallets } from "@/lib/wallets";
 
 const sdg = (v: string) => `${formatAmount(v, 0)} ج.س`;
@@ -40,11 +41,12 @@ export default async function AdminHome() {
     can({ stock: ["read"] }) ? expiringBatches(8) : null,
     can({ wallet: ["update"] }) ? listWallets() : null,
   ]);
-  const [due, priceReview, salesReview, shortages] = await Promise.all([
+  const [due, priceReview, salesReview, shortages, adjustments] = await Promise.all([
     can({ supplier: ["read"] }) ? listDueSoon(7) : [],
     can({ price: ["approve"] }) ? countPriceReview() : 0,
     seeSales ? countSalesToReview() : 0,
     can({ report: ["read"] }) ? listLargeShortages() : [],
+    can({ stock: ["approve"] }) ? countPendingFor({ id: user.id, role: user.role }) : 0,
   ]);
   const sdgRate = rates?.find((c) => c.currency.code === SELLING_CURRENCY);
   const paymentReview = can({ order: ["payment"] }) ? (orders?.paymentReview ?? 0) : 0;
@@ -60,6 +62,11 @@ export default async function AdminHome() {
       tone: "danger",
     },
     priceReview && { href: "/admin/pricing", text: `${priceReview} صنف يحتاج مراجعة سعر`, tone: "gold" },
+    adjustments && {
+      href: "/admin/stock/adjustments",
+      text: `${adjustments} تسوية مخزون بانتظار اعتمادك`,
+      tone: "gold",
+    },
     due.length && {
       href: "/admin/suppliers",
       text: `${due.length} دفعة لمورد خلال 7 أيام`,
@@ -104,6 +111,37 @@ export default async function AdminHome() {
           </Link>
         ) : null}
       </header>
+
+      {/* ما يحتاج انتباهك أولاً (D-119): بطاقات تفتح الإجراء مباشرة */}
+      <section aria-label="ما يحتاج انتباهك" className="flex flex-col gap-3">
+        <h2 className="text-lg font-bold">ما يحتاج انتباهك</h2>
+        {attention.length ? (
+          <ul className="grid grid-cols-1 gap-3 sm:grid-cols-2 xl:grid-cols-4">
+            {attention.map((a) => (
+              <li key={a.text}>
+                <Link
+                  href={a.href}
+                  className={`flex h-full min-h-16 items-center justify-between gap-3 rounded-2xl border bg-card p-4 font-semibold hover:bg-muted ${
+                    a.tone === "danger" ? "border-danger/50" : "border-sand"
+                  }`}
+                >
+                  <span className="flex flex-col gap-0.5">
+                    <span className={`text-xs font-bold ${a.tone === "danger" ? "text-danger" : "text-warning"}`}>
+                      {a.tone === "danger" ? "عاجل" : "يحتاج إجراء"}
+                    </span>
+                    {a.text}
+                  </span>
+                  <ArrowLeft aria-hidden className="size-4 shrink-0" />
+                </Link>
+              </li>
+            ))}
+          </ul>
+        ) : (
+          <p className="flex items-center gap-2 rounded-2xl border border-border bg-card p-4 text-muted-foreground">
+            <CheckCircle2 aria-hidden className="size-5 text-sage" /> لا شيء معلّق — كل شيء على ما يرام.
+          </p>
+        )}
+      </section>
 
       {/* أرقام اليوم والشهر */}
       {kpis ? (
@@ -170,33 +208,6 @@ export default async function AdminHome() {
               )}
             </Card>
           ) : null}
-
-          <Card>
-            <CardHeader>
-              <CardTitle>ما يحتاج انتباهك</CardTitle>
-            </CardHeader>
-            {attention.length ? (
-              <ul className="flex flex-col gap-2">
-                {attention.map((a) => (
-                  <li key={a.text}>
-                    <Link
-                      href={a.href}
-                      className={`flex min-h-12 items-center justify-between gap-3 rounded-xl border p-3 font-semibold ${
-                        a.tone === "danger" ? "border-danger/40 bg-danger/10" : "border-gold/40 bg-gold/10"
-                      }`}
-                    >
-                      {a.text}
-                      <ArrowLeft aria-hidden className="size-4 shrink-0" />
-                    </Link>
-                  </li>
-                ))}
-              </ul>
-            ) : (
-              <p className="flex items-center gap-2 text-muted-foreground">
-                <CheckCircle2 aria-hidden className="size-5 text-sage" /> لا شيء معلّق.
-              </p>
-            )}
-          </Card>
 
           {tabs ? (
             <Card>

@@ -38,7 +38,7 @@ export default async function ExpensesPage({ searchParams }: { searchParams: Pro
           <ExportLink href={`/admin/export/expenses?from=${month}-01&to=${lastDay}`} label={`تصدير ${month}`} />
         ) : null}
       </header>
-      <Card>
+      <Card id="new" className="scroll-mt-24">
         <CardHeader>
           <CardTitle>مصروف جديد</CardTitle>
           <CardDescription>
