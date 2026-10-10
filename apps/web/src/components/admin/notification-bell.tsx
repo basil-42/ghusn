@@ -26,7 +26,7 @@ import { useCallback, useEffect, useRef, useState } from "react";
 import { formatRelative } from "@/lib/format";
 import type { NotificationItem } from "@/lib/notifications";
 import { cn } from "@/lib/utils";
-import { markUrgentChimed, playChime, setMuted, sharedLastUrgent, unlockAudio, useAudioReady, useMuted } from "./chime";
+import { markUrgentChimed, playChime, setMuted, sharedLastUrgent, unlockAudio, useMuted } from "./chime";
 import { setPendingOrders } from "./pending-orders";
 
 const POLL_MS = 30_000;
@@ -116,7 +116,6 @@ export function NotificationBell() {
   const [tab, setTab] = useState<Tab>("all");
   const [toast, setToast] = useState<NotificationItem | null>(null);
   const muted = useMuted();
-  const soundOn = useAudioReady();
   const seen = useRef(new Set<string>());
   const lastUrgentAt = useRef<number | null>(null);
   const firstPoll = useRef(true);
@@ -214,34 +213,6 @@ export function NotificationBell() {
 
   return (
     <div ref={root} className="relative flex items-center gap-1.5">
-      {/* أيقونة صوت ثابتة المكان (لا تظهر وتختفي): تعمل · تنتظر أول ضغطة · مكتومة */}
-      <button
-        type="button"
-        onClick={() => {
-          if (soundOn && !muted) {
-            setMuted(true);
-            return;
-          }
-          setMuted(false);
-          unlockAudio();
-          setTimeout(() => playChime("important", true), 50);
-        }}
-        aria-label={muted ? "تشغيل صوت التنبيه" : soundOn ? "كتم صوت التنبيه" : "تفعيل صوت التنبيه"}
-        title={
-          muted
-            ? "الصوت مكتوم — اضغطي للتشغيل"
-            : soundOn
-              ? "صوت التنبيه يعمل — اضغطي للكتم"
-              : "المتصفح ينتظر ضغطة لتفعيل صوت التنبيه — اضغطي هنا"
-        }
-        className={cn(
-          "relative flex size-11 items-center justify-center rounded-xl hover:bg-muted",
-          muted ? "text-muted-foreground" : soundOn ? "text-forest" : "text-warning",
-        )}
-      >
-        {muted ? <VolumeX aria-hidden className="size-5" /> : <Volume2 aria-hidden className="size-5" />}
-        {!muted && !soundOn ? <span aria-hidden className="absolute end-2 top-2 size-2 rounded-full bg-gold" /> : null}
-      </button>
       <button
         type="button"
         onClick={() => setOpen((v) => !v)}
