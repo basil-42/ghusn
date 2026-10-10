@@ -52,3 +52,8 @@ export function activeSection(model: NavModel, pathname: string): NavSection | n
   }
   return best?.section ?? null;
 }
+
+/** اسم الإجراء خارج قائمة «+ جديد» (في البحث): «مصروف» ← «إضافة مصروف». */
+export function quickActionTitle(label: string): string {
+  return label === "بيع جديد" || label.startsWith("سعر") ? label : `إضافة ${label}`;
+}
