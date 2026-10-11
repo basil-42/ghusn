@@ -5,11 +5,18 @@ import { getTranslations, setRequestLocale } from "next-intl/server";
 import { notFound } from "next/navigation";
 import { Gallery } from "@/components/store/gallery";
 import { ProductCard } from "@/components/store/product-card";
+import { ShareButton } from "@/components/store/share-button";
 import { VariantPicker } from "@/components/store/variant-picker";
 import { Link } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
 import { getReceiptSettings } from "@/lib/settings";
-import { getStoreProduct, listRelatedProducts, type StoreVariant } from "@/lib/storefront";
+import {
+  getProductShareInfo,
+  getStoreProduct,
+  listRelatedProducts,
+  type ProductShareInfo,
+  type StoreVariant,
+} from "@/lib/storefront";
 import { alternates, localePath, siteUrl, whatsappLink } from "@/lib/site";
 
 export const dynamic = "force-dynamic";
@@ -18,13 +25,27 @@ type Props = { params: Promise<{ locale: string; id: string }> };
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { locale, id } = await params;
-  const p = await getStoreProduct(locale as Locale, id);
-  if (!p) return {};
+  const [p, share] = await Promise.all([
+    getStoreProduct(locale as Locale, id),
+    getProductShareInfo(locale as Locale, id),
+  ]);
+  if (!share) return {};
+  // بطاقة المعاينة (D-126): الاسم والسعر في العنوان، وصورة غصن 1200×630 — تتجدد بتغيّر الاسم أو السعر أو الصورة
+  const title = share.priceLabel ? `${share.name} — ${share.priceLabel}` : share.name;
+  const description =
+    p?.description?.slice(0, 160) ?? (locale === "en" ? "Gifts made to be remembered" : "هدايا تُصنع لتُذكر");
+  const image = {
+    url: `/api/v1/og/product/${share.id}?locale=${locale}&v=${share.version}`,
+    width: 1200,
+    height: 630,
+    alt: share.name,
+  };
   return {
-    title: p.name,
-    description: p.description?.slice(0, 160) ?? undefined,
-    alternates: alternates(locale, `/p/${p.id}`),
-    openGraph: p.images[0] ? { images: [p.images[0].full] } : undefined,
+    title,
+    description,
+    alternates: alternates(locale, `/p/${share.id}`),
+    openGraph: { title, description, images: [image] },
+    twitter: { card: "summary_large_image", title, description, images: [image.url] },
   };
 }
 
@@ -33,10 +54,16 @@ export default async function ProductPage({ params }: Props) {
   const locale = l as Locale;
   setRequestLocale(locale);
   const product = await getStoreProduct(locale, id);
-  if (!product) notFound();
-  const [t, th, related, receipt] = await Promise.all([
+  if (!product) {
+    // رابط مشارَك لمنتج نفد: صفحة «نفد حالياً» ومنتجات مشابهة بدل خطأ (D-126)
+    const share = await getProductShareInfo(locale, id);
+    if (!share) notFound();
+    return <Unavailable locale={locale} product={share} />;
+  }
+  const [t, th, ts, related, receipt] = await Promise.all([
     getTranslations("product"),
     getTranslations("home"),
+    getTranslations("share"),
     listRelatedProducts(locale, product),
     getReceiptSettings(),
   ]);
@@ -47,6 +74,13 @@ export default async function ProductPage({ params }: Props) {
   const high = prices.reduce((a, b) => (b.gt(a) ? b : a));
   const url = `${siteUrl()}${localePath(locale, `/p/${product.id}`)}`;
   const whatsapp = whatsappLink(receipt.whatsapp, t("whatsappText", { name: product.name, url }));
+  const shareLabels = {
+    share: ts("share"),
+    whatsapp: ts("whatsapp"),
+    copy: ts("copy"),
+    copied: ts("copied"),
+    facebook: ts("facebook"),
+  };
 
   // جدول المواصفات: خيارات المتغيّرات المتاحة، ثم القسم والمناسبات
   const distinct = (pick: (v: StoreVariant) => string | null) =>
@@ -130,7 +164,10 @@ export default async function ProductPage({ params }: Props) {
             <Link href={`/c/${product.category.slug}`} className="text-sm font-semibold text-gold hover:underline">
               {product.category.name}
             </Link>
-            <h1 className="font-display text-3xl leading-tight font-bold md:text-4xl">{product.name}</h1>
+            <div className="flex items-start justify-between gap-3">
+              <h1 className="font-display text-3xl leading-tight font-bold md:text-4xl">{product.name}</h1>
+              <ShareButton url={url} title={product.name} kind="product" labels={shareLabels} className="shrink-0" />
+            </div>
           </div>
           <VariantPicker variants={product.variants} />
           {whatsapp ? (
@@ -193,6 +230,63 @@ export default async function ProductPage({ params }: Props) {
           <ul className="-mx-4 flex snap-x gap-3 overflow-x-auto px-4 pb-1 sm:mx-0 sm:grid sm:grid-cols-3 sm:overflow-visible sm:px-0 lg:grid-cols-5 lg:gap-3.5">
             {related.map((p) => (
               <li key={p.id} className="flex w-[46%] shrink-0 snap-start sm:w-auto">
+                <ProductCard product={p} />
+              </li>
+            ))}
+          </ul>
+        </section>
+      ) : null}
+    </div>
+  );
+}
+
+/** المنتج المنشور الذي نفد (D-126): صورته واسمه و«نفد حالياً»، وسؤال على واتساب، ومنتجات مشابهة. */
+async function Unavailable({ locale, product }: { locale: Locale; product: ProductShareInfo }) {
+  const [t, related, receipt] = await Promise.all([
+    getTranslations("product"),
+    listRelatedProducts(locale, product, 10),
+    getReceiptSettings(),
+  ]);
+  const url = `${siteUrl()}${localePath(locale, `/p/${product.id}`)}`;
+  const whatsapp = whatsappLink(receipt.whatsapp, t("whatsappText", { name: product.name, url }));
+  return (
+    <div className="mx-auto flex max-w-[1240px] flex-col gap-8 px-4 py-8 md:px-6">
+      <section className="grid items-center gap-6 rounded-2xl border border-line bg-card p-5 md:grid-cols-[minmax(0,320px)_1fr] md:p-7">
+        {product.imageMedium ? (
+          // eslint-disable-next-line @next/next/no-img-element -- صورة جاهزة بمقاس 800
+          <img
+            src={product.imageMedium}
+            alt={product.name}
+            className="aspect-square w-full rounded-xl object-cover opacity-80 grayscale-[35%]"
+          />
+        ) : null}
+        <div className="flex flex-col items-start gap-3">
+          <Link href={`/c/${product.category.slug}`} className="text-sm font-semibold text-gold hover:underline">
+            {product.category.name}
+          </Link>
+          <h1 className="font-display text-3xl leading-tight font-bold">{product.name}</h1>
+          <span className="rounded-full bg-muted px-3 py-1 text-sm font-semibold">{t("unavailableTitle")}</span>
+          <p className="max-w-prose leading-relaxed text-muted-foreground">{t("unavailableText")}</p>
+          {whatsapp ? (
+            <a
+              href={whatsapp}
+              target="_blank"
+              rel="noreferrer"
+              data-umami-event="whatsapp_inquiry"
+              className="flex min-h-12 items-center justify-center gap-2 rounded-xl border-[1.5px] border-forest bg-card px-4 font-semibold text-forest hover:bg-muted"
+            >
+              <MessageCircle aria-hidden className="size-5" />
+              {t("askWhatsapp")}
+            </a>
+          ) : null}
+        </div>
+      </section>
+      {related.length ? (
+        <section className="flex flex-col gap-4">
+          <h2 className="font-display text-2xl font-bold">{t("related")}</h2>
+          <ul className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-5 lg:gap-3.5">
+            {related.map((p) => (
+              <li key={p.id} className="flex">
                 <ProductCard product={p} />
               </li>
             ))}

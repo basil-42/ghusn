@@ -10,7 +10,8 @@ export default function robots(): MetadataRoute.Robots {
     rules: [
       {
         userAgent: "*",
-        allow: "/",
+        // صور معاينة الروابط (D-126): زواحف فيسبوك وغيرها تحترم robots — مسموحة رغم منع /api/
+        allow: ["/", "/api/v1/og/"],
         disallow: [
           "/admin",
           "/pos",

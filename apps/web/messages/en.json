@@ -92,7 +92,10 @@
     "specs": "Details",
     "category": "Category",
     "occasions": "Good for",
-    "related": "You may also like"
+    "related": "You may also like",
+    "unavailableTitle": "Out of stock",
+    "unavailableText": "This item isn't available right now — it will be back soon. Ask us on WhatsApp, or pick something similar below.",
+    "outOfStock": "Out of stock"
   },
   "footer": {
     "rights": "© {year} GHUSN. All rights reserved.",
@@ -290,5 +293,12 @@
     "step3": "We wrap your gift in the style you chose and print your card, then deliver it or you collect it from the shop.",
     "styles": "Wrapping styles",
     "cta": "Start shopping"
+  },
+  "share": {
+    "share": "Share",
+    "whatsapp": "WhatsApp",
+    "copy": "Copy link",
+    "copied": "Copied",
+    "facebook": "Facebook"
   }
 }

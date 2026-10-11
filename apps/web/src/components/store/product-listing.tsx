@@ -22,7 +22,10 @@ export async function ProductListing({
   products,
   empty,
   cover = null,
+  action = null,
 }: {
+  /** زر بجانب العنوان (المشاركة في صفحة المناسبة) */
+  action?: React.ReactNode;
   /** غلاف عريض أعلى الصفحة (صفحة المناسبة، D-102). */
   cover?: string | null;
   title: string;
@@ -51,7 +54,10 @@ export async function ProductListing({
       ) : null}
       <header className="flex flex-wrap items-end justify-between gap-3">
         <div className="flex flex-col gap-1">
-          <h1 className="font-display text-4xl font-bold">{title}</h1>
+          <div className="flex items-center gap-3">
+            <h1 className="font-display text-4xl font-bold">{title}</h1>
+            {action}
+          </div>
           {subtitle ? <p className="max-w-2xl text-muted-foreground">{subtitle}</p> : null}
           <p className="text-muted-foreground">{t("products", { count: products.length })}</p>
         </div>

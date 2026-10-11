@@ -21,6 +21,8 @@ import { ProductForm } from "../product-form";
 import { PricingCard } from "../pricing-card";
 import { ProductImages } from "../product-images";
 import { PageHeader } from "@/components/admin/page-header";
+import { StoreLinkActions } from "@/components/admin/store-link-actions";
+import { siteUrl } from "@/lib/site";
 
 export const metadata: Metadata = { title: "منتج | غصن" };
 
@@ -50,6 +52,11 @@ export default async function ProductPage({
         title={product.nameAr}
         back={{ href: "/admin/products", label: "المنتجات" }}
         description={`${product.category.nameAr} · آخر تعديل ${formatDateTime(product.updatedAt)}`}
+        actions={
+          product.isActive && product.isWebVisible && product.type === "STOCK" ? (
+            <StoreLinkActions url={`${siteUrl()}/p/${product.id}`} name={product.nameAr} />
+          ) : null
+        }
       />
 
       {/* جاهزية المتجر (D-106): ما ينقص المنتج الظاهر في المتجر */}
