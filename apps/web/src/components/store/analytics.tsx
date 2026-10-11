@@ -44,6 +44,10 @@ export function Analytics({ src, websiteId }: { src: string; websiteId: string }
       onReady={() => {
         ready.current = true;
         pageview(window.location.pathname);
+        // زيارة من رابط مشارَك (D-126): المصدر فقط (share من العميل، staff من المحل) — الرابط يُنظَّف من الـ query
+        const ref = new URLSearchParams(window.location.search).get("ref");
+        if (ref === "share" || ref === "staff")
+          track("shared_visit", { ref, path: analyticsPath(window.location.pathname) });
       }}
     />
   );

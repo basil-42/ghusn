@@ -3,9 +3,10 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { Price } from "@/components/store/price";
+import { ShareButton } from "@/components/store/share-button";
 import { Link } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
-import { alternates } from "@/lib/site";
+import { alternates, localePath, siteUrl } from "@/lib/site";
 import { listStoreWrapStyles } from "@/lib/wrapping";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
@@ -20,14 +21,28 @@ export const dynamic = "force-dynamic";
 export default async function GiftPage({ params }: { params: Promise<{ locale: string }> }) {
   const locale = (await params).locale as Locale;
   setRequestLocale(locale);
-  const t = await getTranslations("gift");
+  const [t, ts] = await Promise.all([getTranslations("gift"), getTranslations("share")]);
   const styles = await listStoreWrapStyles(locale);
   const Arrow = locale === "ar" ? ArrowLeft : ArrowRight;
   const steps = [t("step1"), t("step2"), t("step3")];
   return (
     <div className="mx-auto flex max-w-[1240px] flex-col gap-8 px-4 md:px-6 py-10">
       <header className="flex max-w-2xl flex-col gap-2">
-        <h1 className="font-display text-4xl font-bold">{t("title")}</h1>
+        <div className="flex items-center gap-3">
+          <h1 className="font-display text-4xl font-bold">{t("title")}</h1>
+          <ShareButton
+            url={`${siteUrl()}${localePath(locale, "/gift")}`}
+            title={t("title")}
+            kind="gift"
+            labels={{
+              share: ts("share"),
+              whatsapp: ts("whatsapp"),
+              copy: ts("copy"),
+              copied: ts("copied"),
+              facebook: ts("facebook"),
+            }}
+          />
+        </div>
         <p className="text-muted-foreground">{t("intro")}</p>
       </header>
       <ol className="grid gap-3 md:grid-cols-3">

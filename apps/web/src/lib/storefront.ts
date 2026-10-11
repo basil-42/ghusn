@@ -1,3 +1,4 @@
+import { createHash } from "node:crypto";
 import {
   dec,
   isBannerDay,
@@ -11,7 +12,8 @@ import {
 import { prisma, type Prisma } from "@ghusn/db";
 import type { Locale } from "@/i18n/routing";
 import { availableQtyByVariant, availableVariantIds } from "./orders";
-import { imageUrl } from "./product-images";
+import { imageFileKey, imageUrl } from "./product-images";
+import { formatAmount } from "./format";
 import { getStockSettings } from "./settings";
 
 /**
@@ -427,5 +429,83 @@ export async function searchSuggestions(locale: Locale, q: string): Promise<Sear
       .filter((o) => matchesAll(terms, o.name))
       .slice(0, 3)
       .map((o) => ({ slug: o.slug, name: o.name })),
+  };
+}
+
+export interface ProductShareInfo {
+  id: string;
+  name: string;
+  category: { slug: string; name: string };
+  occasions: { slug: string; name: string }[];
+  /** مفتاح ملف الصورة الكبيرة في التخزين (لبطاقة المعاينة) */
+  imageFile: string | null;
+  imageMedium: string | null;
+  available: boolean;
+  /** السعر للبطاقة والعنوان: «185,000 ج.س» أو «من 120,000 ج.س» — فارغ إن لم يكن متاحاً */
+  priceLabel: string | null;
+  /** يتغيّر بتغيّر ما في البطاقة — يُضاف لرابط الصورة فتأخذ واتساب النسخة الجديدة */
+  version: string;
+}
+
+/**
+ * بيانات مشاركة المنتج (D-126): للمنتج المنشور في المتجر حتى لو نفد — فيعرض الرابط المشارَك «نفد حالياً»
+ * ومنتجات مشابهة بدل صفحة خطأ. المخفي أو المحذوف يبقى غير موجود.
+ */
+export async function getProductShareInfo(locale: Locale, id: string): Promise<ProductShareInfo | null> {
+  const p = await prisma.product.findFirst({
+    where: { id, ...visibleProduct },
+    select: {
+      id: true,
+      nameAr: true,
+      nameEn: true,
+      category: { select: { slug: true, nameAr: true, nameEn: true } },
+      occasions: {
+        where: { occasion: { isActive: true } },
+        select: { occasion: { select: { slug: true, nameAr: true, nameEn: true } } },
+      },
+      images: { orderBy: { sortOrder: "asc" }, take: 1, select: { key: true } },
+      variants: {
+        where: { deletedAt: null, isActive: true, priceSdg: { not: null } },
+        select: { id: true, priceSdg: true },
+      },
+    },
+  });
+  if (!p) return null;
+  const ids = new Set(await availableVariantIds());
+  const prices = p.variants.filter((v) => ids.has(v.id)).map((v) => dec(v.priceSdg?.toString() ?? "0"));
+  const en = locale === "en";
+  let priceLabel: string | null = null;
+  if (prices.length) {
+    const low = prices.reduce((a, b) => (b.lt(a) ? b : a));
+    const many = prices.some((x) => !x.eq(low));
+    const amount = formatAmount(low.toFixed(0), 0);
+    priceLabel = en ? `${many ? "From " : ""}SDG ${amount}` : `${many ? "من " : ""}${amount} ج.س`;
+  }
+  const name = nameOf(locale, p.nameAr, p.nameEn);
+  const key = p.images[0]?.key ?? null;
+  return {
+    id: p.id,
+    name,
+    category: { slug: p.category.slug, name: en ? p.category.nameEn : p.category.nameAr },
+    occasions: p.occasions.map(({ occasion: o }) => ({ slug: o.slug, name: en ? o.nameEn : o.nameAr })),
+    imageFile: key ? imageFileKey(key, "full") : null,
+    imageMedium: key ? imageUrl(key, "medium") : null,
+    available: prices.length > 0,
+    priceLabel,
+    version: createHash("sha1").update([name, priceLabel, key, locale].join("|")).digest("hex").slice(0, 10),
+  };
+}
+
+/** بيانات مشاركة المناسبة: الاسم وصورة الغلاف (أو الأيقونة). */
+export async function getOccasionShareInfo(locale: Locale, slug: string) {
+  const o = await prisma.occasion.findFirst({ where: { slug, isActive: true } });
+  if (!o) return null;
+  const name = locale === "en" ? o.nameEn : o.nameAr;
+  const key = o.coverKey ?? o.imageKey;
+  return {
+    slug: o.slug,
+    name,
+    imageFile: key ? imageFileKey(key, "full") : null,
+    version: createHash("sha1").update([name, key, locale].join("|")).digest("hex").slice(0, 10),
   };
 }
