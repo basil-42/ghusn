@@ -68,3 +68,35 @@ body {
 html[lang="en"] {
   --font-display: var(--font-cormorant), "Times New Roman", serif;
 }
+
+/* تقارير الإدارة كـ PDF (D-127): طباعة المتصفح ← «حفظ كـ PDF»، صفحة A4 باسم «report» حتى لا تمس
+   مقاسات الإيصال والملصقات والكرت. */
+@page report {
+  size: A4;
+  margin: 14mm 12mm 16mm;
+  @bottom-center {
+    content: "هدايا تُصنع لتُذكر — صفحة " counter(page) " من " counter(pages);
+    font-size: 9pt;
+    color: #7d8a6e;
+  }
+}
+
+@media print {
+  .print-report {
+    page: report;
+    font-size: 11pt;
+  }
+  /* رأس الطباعة يحمل العنوان والفترة، فرأس الشاشة يختفي */
+  .print-report > header {
+    display: none;
+  }
+  .print-report :is(section, [data-slot="card"], tr) {
+    break-inside: avoid;
+  }
+  html,
+  body {
+    background: #fff;
+    print-color-adjust: exact;
+    -webkit-print-color-adjust: exact;
+  }
+}

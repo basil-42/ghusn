@@ -1,6 +1,7 @@
-import { dec, shopDay, shopDayStart, variantLabel, type AdjustmentReason } from "@ghusn/core";
+import { dec, shopDay, shopDayStart, shopMonthRange, variantLabel, type AdjustmentReason } from "@ghusn/core";
 import { prisma } from "@ghusn/db";
-import { monthlyReport } from "./reports";
+import { monthlyReport, monthlyTrend, type TrendRow } from "./reports";
+import { walletFlows, type WalletFlow } from "./wallets";
 import { daysLabel } from "./format";
 import { REASON_LABELS } from "./stock-adjustments";
 import {
@@ -487,6 +488,68 @@ export async function insightSheets(tab: InsightTab, range: Range): Promise<Shee
       ],
       rows: s.reorder,
       totals: true,
+    }),
+  ];
+}
+
+/** الاتجاه (D-127): آخر 12 شهراً حتى end بنفس أرقام الشاشة. */
+export async function trendSheets(end: string): Promise<Sheet<never>[]> {
+  const rows = await monthlyTrend(end, 12);
+  return [
+    sheet<TrendRow>({
+      name: "الاتجاه",
+      title: `آخر 12 شهراً حتى ${end} — بالدولار (عملة الأساس)`,
+      columns: [
+        { header: "الشهر", value: (r) => (r.complete ? r.month : `${r.month} (جزئي)`), width: 16 },
+        { header: "صافي المبيعات (ج.س)", kind: "sdg", value: (r) => r.netSalesSdg },
+        { header: "المبيعات $", kind: "usd", value: (r) => r.revenueUsd },
+        { header: "مجمل الربح $", kind: "usd", value: (r) => r.grossProfitUsd },
+        { header: "الهامش", kind: "percent", value: (r) => r.margin },
+        { header: "المصاريف $", kind: "usd", value: (r) => r.expensesUsd },
+        { header: "صافي الربح $", kind: "usd", value: (r) => r.netProfitUsd },
+      ],
+      rows: [...rows].reverse(),
+      totals: true,
+    }),
+  ];
+}
+
+/** التدفق النقدي (D-127): سطر لكل نوع حركة في كل محفظة بعملتها، والرصيد أول الشهر وآخره. */
+export async function cashFlowSheets(month: string): Promise<Sheet<never>[]> {
+  const flows = await walletFlows(shopMonthRange(month));
+  type Line = { wallet: string; currency: string; label: string; amount: string };
+  const lines = flows.flatMap((w: WalletFlow): Line[] => [
+    { wallet: w.name, currency: w.currencyCode, label: "رصيد أول الشهر", amount: w.opening },
+    ...w.lines.map((l) => ({ wallet: w.name, currency: w.currencyCode, label: l.label, amount: l.amount })),
+    { wallet: w.name, currency: w.currencyCode, label: "رصيد آخر الشهر", amount: w.closing },
+  ]);
+  return [
+    sheet<Line>({
+      name: "التدفق النقدي",
+      title: `التدفق النقدي — ${month} (بعملة كل محفظة)`,
+      columns: [
+        { header: "المحفظة", value: (l) => l.wallet, width: 24 },
+        { header: "العملة", value: (l) => l.currency, width: 8 },
+        { header: "البند", value: (l) => l.label, width: 28 },
+        { header: "المبلغ", kind: "amount", value: (l) => l.amount },
+      ],
+      rows: lines,
+      note: "التحويلات بين المحافظ تظهر في كل محفظة لكنها ليست دخلاً ولا خرجاً للمحل.",
+    }),
+    sheet<WalletFlow>({
+      name: "الملخص",
+      title: `الدخل والخرج — ${month}`,
+      columns: [
+        { header: "المحفظة", value: (w) => w.name, width: 24 },
+        { header: "العملة", value: (w) => w.currencyCode, width: 8 },
+        { header: "دخل", kind: "amount", value: (w) => w.inflow },
+        { header: "خرج", kind: "amount", value: (w) => w.outflow },
+        { header: "دخل ≈ $", kind: "usd", value: (w) => w.inflowUsd },
+        { header: "خرج ≈ $", kind: "usd", value: (w) => w.outflowUsd },
+      ],
+      rows: flows,
+      totals: true,
+      note: "الدولار تقريبي بسعر يوم التصدير، بلا التحويلات بين المحافظ.",
     }),
   ];
 }

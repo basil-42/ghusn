@@ -111,7 +111,7 @@ export const ROLE_LABELS: Record<RoleName, string> = {
   STAFF: "موظفة",
 };
 
-type Permissions = { [K in keyof typeof statements]?: (typeof statements)[K][number][] };
+export type Permissions = { [K in keyof typeof statements]?: (typeof statements)[K][number][] };
 
 export function isRoleName(value: unknown): value is RoleName {
   return typeof value === "string" && value in roles;

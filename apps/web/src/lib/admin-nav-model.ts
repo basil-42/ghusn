@@ -15,7 +15,6 @@ export type NavIcon =
   | "wallets"
   | "rates"
   | "reports"
-  | "insights"
   | "store"
   | "settings";
 

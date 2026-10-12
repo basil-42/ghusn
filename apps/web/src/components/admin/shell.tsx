@@ -3,7 +3,6 @@
 import {
   ArrowLeftRight,
   ChartColumn,
-  ChartNoAxesCombined,
   ChevronsLeft,
   ChevronsRight,
   Contact,
@@ -56,7 +55,6 @@ const ICONS: Record<NavIcon, LucideIcon> = {
   wallets: Landmark,
   rates: ArrowLeftRight,
   reports: ChartColumn,
-  insights: ChartNoAxesCombined,
   store: Store,
   settings: Settings,
 };
@@ -103,7 +101,7 @@ export function AdminShell({
       <aside
         aria-label="القائمة"
         className={cn(
-          "fixed inset-y-0 start-0 z-40 hidden flex-col bg-forest text-ivory md:flex",
+          "fixed inset-y-0 start-0 z-40 hidden flex-col bg-forest text-ivory md:flex print:hidden",
           collapsed ? "w-[4.5rem]" : "w-60",
         )}
       >
@@ -124,8 +122,8 @@ export function AdminShell({
         </div>
       ) : null}
 
-      <div className={cn("flex min-h-screen min-w-0 flex-col", collapsed ? "md:ps-[4.5rem]" : "md:ps-60")}>
-        <header className="sticky top-0 z-30 flex h-16 items-center gap-2 border-b border-border bg-card px-3 md:px-6">
+      <div className={cn("flex min-h-screen min-w-0 flex-col print:ps-0", collapsed ? "md:ps-[4.5rem]" : "md:ps-60")}>
+        <header className="sticky top-0 z-30 flex h-16 items-center gap-2 border-b border-border bg-card px-3 md:px-6 print:hidden">
           <Link href="/admin" aria-label="الرئيسية" className="md:hidden">
             <Image src="/brand/logo-ar-mark-forest.svg" alt="غصن" width={74} height={38} loading="eager" />
           </Link>
@@ -135,8 +133,8 @@ export function AdminShell({
           {quick.length ? <QuickMenu actions={quick} /> : null}
           <NotificationBell />
         </header>
-        {notice}
-        <main className="mx-auto w-full max-w-6xl flex-1 px-4 pt-6 pb-28 md:px-8 md:py-8">
+        {notice ? <div className="print:hidden">{notice}</div> : null}
+        <main className="mx-auto w-full max-w-6xl flex-1 px-4 pt-6 pb-28 md:px-8 md:py-8 print:max-w-none print:p-0">
           {current && current.pages.length > 1 && current.pages.some((p) => p.href === pathname) ? (
             <SectionTabs section={current} pathname={pathname} />
           ) : null}
@@ -303,7 +301,10 @@ function NavLink({ section, active, collapsed }: { section: NavSection; active: 
 /** تبويبات صفحات القسم الواحد (المنتجات · الأسعار · الملصقات…). */
 function SectionTabs({ section, pathname }: { section: NavSection; pathname: string }) {
   return (
-    <nav aria-label={section.label} className="-mx-1 mb-6 flex gap-1 overflow-x-auto border-b border-border px-1">
+    <nav
+      aria-label={section.label}
+      className="-mx-1 mb-6 flex gap-1 overflow-x-auto border-b border-border px-1 print:hidden"
+    >
       {section.pages.map((p) => (
         <Link
           key={p.href}
@@ -393,7 +394,7 @@ function BottomNav({
   return (
     <nav
       aria-label="التنقل السفلي"
-      className="fixed inset-x-0 bottom-0 z-30 flex border-t border-border bg-card pb-[env(safe-area-inset-bottom)] shadow-[0_-4px_16px_rgb(47_59_44/0.06)] md:hidden"
+      className="fixed inset-x-0 bottom-0 z-30 flex border-t border-border bg-card pb-[env(safe-area-inset-bottom)] shadow-[0_-4px_16px_rgb(47_59_44/0.06)] md:hidden print:hidden"
     >
       {sections.map((s) => {
         const Icon = ICONS[s.icon];

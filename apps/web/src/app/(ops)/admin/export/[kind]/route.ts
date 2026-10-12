@@ -4,12 +4,14 @@ import { roleCan } from "@/lib/auth/permissions";
 import { getSession } from "@/lib/auth/session";
 import {
   INSIGHT_TABS,
+  cashFlowSheets,
   expenseSheets,
   insightSheets,
   monthlyReportSheets,
   parseDayRange,
   salesSheets,
   stockSheets,
+  trendSheets,
   type InsightTab,
 } from "@/lib/exports";
 import { parsePeriod } from "@/lib/insights";
@@ -24,6 +26,8 @@ const KINDS: Record<string, { label: string; permission: Permissions }> = {
   expenses: { label: "المصاريف", permission: { expense: ["read"] } },
   stock: { label: "المخزون وقيمته", permission: { stock: ["read"], cost: ["read"] } },
   insights: { label: "التحليلات", permission: { report: ["read"], cost: ["read"] } },
+  trend: { label: "الاتجاه", permission: { report: ["read"] } },
+  cash: { label: "التدفق النقدي", permission: { report: ["read"], wallet: ["update"] } },
 };
 
 /** تنزيل ملف Excel — يُسجَّل في سجل التدقيق (من صدّر ماذا ومتى). */
@@ -37,11 +41,16 @@ export async function GET(request: Request, { params }: { params: Promise<{ kind
   let sheets: Sheet<never>[];
   let suffix: string;
   try {
-    if (kind === "report") {
+    if (kind === "report" || kind === "cash") {
       const month = url.searchParams.get("month") ?? "";
       if (!/^\d{4}-\d{2}$/.test(month)) return new Response("Bad month", { status: 400 });
-      sheets = await monthlyReportSheets(month);
+      sheets = kind === "report" ? await monthlyReportSheets(month) : await cashFlowSheets(month);
       suffix = month;
+    } else if (kind === "trend") {
+      const end = url.searchParams.get("end") ?? "";
+      if (!/^\d{4}-\d{2}$/.test(end)) return new Response("Bad month", { status: 400 });
+      sheets = await trendSheets(end);
+      suffix = `to-${end}`;
     } else if (kind === "insights") {
       const tab = url.searchParams.get("tab") ?? "";
       if (!(INSIGHT_TABS as readonly string[]).includes(tab)) return new Response("Bad tab", { status: 400 });

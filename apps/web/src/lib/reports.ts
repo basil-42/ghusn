@@ -2,6 +2,7 @@ import {
   capitalRecovery,
   dec,
   monthProfit,
+  monthsEndingAt,
   shopDay,
   shopMonthRange,
   sum,
@@ -225,4 +226,51 @@ export async function reportMonths(): Promise<string[]> {
     }
   }
   return months.reverse();
+}
+
+export interface TrendRow {
+  month: string;
+  /** شهر مكتمل (الجاري جزئي حتى اليوم) */
+  complete: boolean;
+  netSalesSdg: string;
+  revenueUsd: string;
+  grossProfitUsd: string;
+  margin: string | null;
+  expensesUsd: string;
+  netProfitUsd: string;
+}
+
+/**
+ * الاتجاه (D-127): ربح وخسارة كل شهر بنفس تعريفات التقرير الشهري (figures + monthProfit) — بلا حساب
+ * رأس المال التراكمي (لا يلزم هنا). الأشهر قبل أول نشاط تُستبعد.
+ */
+export async function monthlyTrend(endMonth: string, count = 12): Promise<TrendRow[]> {
+  const first = await firstActivity();
+  const firstMonth = first ? shopDay(first).slice(0, 7) : endMonth;
+  const current = currentShopMonth();
+  const months = monthsEndingAt(endMonth, count).filter((m) => m >= firstMonth);
+  return Promise.all(
+    months.map(async (month) => {
+      const f = await figures(shopMonthRange(month));
+      const p = monthProfit({
+        revenueUsd: f.revenueUsd,
+        refundUsd: f.refundUsd,
+        cogsUsd: f.cogsUsd,
+        restockCostUsd: f.restockCostUsd,
+        expensesUsd: f.expensesUsd,
+        stockLossUsd: f.stockLossUsd,
+        cashDifferenceUsd: f.cashDifferenceUsd,
+      });
+      return {
+        month,
+        complete: month < current,
+        netSalesSdg: dec(f.salesSdg).plus(f.ordersSdg).minus(f.refundSdg).toFixed(0),
+        revenueUsd: p.netRevenueUsd.toFixed(2),
+        grossProfitUsd: p.grossProfitUsd.toFixed(2),
+        margin: p.grossMargin?.toString() ?? null,
+        expensesUsd: dec(f.expensesUsd).toFixed(2),
+        netProfitUsd: p.netProfitUsd.toFixed(2),
+      };
+    }),
+  );
 }

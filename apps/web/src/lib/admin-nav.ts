@@ -133,15 +133,16 @@ const GROUPS: Group[] = [
     sections: [
       {
         key: "reports",
-        label: "التقرير الشهري",
+        label: "التقارير",
         icon: "reports",
-        pages: [{ href: "/admin/reports", label: "التقرير الشهري", permission: { report: ["read"] } }],
-      },
-      {
-        key: "insights",
-        label: "التحليلات",
-        icon: "insights",
-        pages: [{ href: "/admin/insights", label: "التحليلات", permission: { report: ["read"], cost: ["read"] } }],
+        // D-127: مركز التقارير أولاً، ثم الشهري والاتجاه والنقد والتحليلات كتبويبات
+        pages: [
+          { href: "/admin/reports/overview", label: "المركز", permission: { report: ["read"] } },
+          { href: "/admin/reports", label: "الشهري", permission: { report: ["read"] } },
+          { href: "/admin/reports/trend", label: "الاتجاه", permission: { report: ["read"] } },
+          { href: "/admin/reports/cash", label: "النقد", permission: { report: ["read"], wallet: ["update"] } },
+          { href: "/admin/insights", label: "التحليلات", permission: { report: ["read"], cost: ["read"] } },
+        ],
       },
     ],
   },
