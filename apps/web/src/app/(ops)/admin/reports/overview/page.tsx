@@ -68,12 +68,16 @@ const GROUPS: { label: string; soon?: boolean; reports: Report[] }[] = [
         answer: "ربحية الشحنات والموردين — كم بيع من كل شحنة وكم ربحت",
         href: "/admin/reports/shipments?view=suppliers",
         permission: INSIGHTS,
-        isNew: true,
       },
       {
         question: "متى يشتري الناس؟",
         answer: "أوقات البيع — أيام الأسبوع وساعات اليوم",
         href: "/admin/reports/times",
+      },
+      {
+        question: "أين يتسرّب المال؟",
+        answer: "الخصومات والمرتجعات وإلغاءات المتجر — حسب الموظفة والصنف والسبب",
+        href: "/admin/reports/discounts",
         isNew: true,
       },
     ],

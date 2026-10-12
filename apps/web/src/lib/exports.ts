@@ -2,6 +2,8 @@ import { dec, shopDay, shopDayStart, shopMonthRange, variantLabel, type Adjustme
 import { prisma } from "@ghusn/db";
 import { monthlyReport, monthlyTrend, type TrendRow } from "./reports";
 import { walletFlows, type WalletFlow } from "./wallets";
+import { cancellationReport, discountReport, returnReport } from "./discounts-report";
+import { reasonLabel } from "./return-reasons";
 import {
   SHIPMENT_PERIOD_LABELS,
   salesTimes,
@@ -657,6 +659,92 @@ export async function timesSheets(weeks: number): Promise<Sheet<never>[]> {
       rows,
       totals: true,
       note: "المتجر بوقت إنشاء الطلب (بلا الملغاة).",
+    }),
+  ];
+}
+
+/** الخصومات والمرتجعات وإلغاءات المتجر (D-129) — بالجنيه، بلا تكاليف. */
+export async function discountSheets(range: Range): Promise<Sheet<never>[]> {
+  const [d, r, c] = await Promise.all([discountReport(range), returnReport(range), cancellationReport(range)]);
+  const period = `${range.fromDay} ← ${range.toDay}`;
+  return [
+    sheet<(typeof d.staff)[number]>({
+      name: "الخصومات حسب الموظفة",
+      title: `الخصومات — ${period}`,
+      columns: [
+        { header: "الموظفة", value: (s) => s.name, width: 22 },
+        { header: "الفواتير", kind: "int", value: (s) => s.invoices },
+        { header: "بخصم", kind: "int", value: (s) => s.discountedInvoices },
+        { header: "بموافقة", kind: "int", value: (s) => s.approvedInvoices },
+        { header: "قبل الخصم", kind: "sdg", value: (s) => s.grossSdg },
+        { header: "الخصم", kind: "sdg", value: (s) => s.discountSdg },
+        { header: "النسبة", kind: "percent", value: (s) => s.rate },
+      ],
+      rows: d.staff,
+      totals: true,
+    }),
+    sheet<(typeof d.largest)[number]>({
+      name: "أكبر الفواتير خصماً",
+      title: `أكبر الفواتير خصماً — ${period}`,
+      columns: [
+        { header: "الفاتورة", value: (i) => i.number, width: 18 },
+        { header: "التاريخ", kind: "datetime", value: (i) => i.createdAt },
+        { header: "الموظفة", value: (i) => i.cashier, width: 18 },
+        { header: "وافقت", value: (i) => i.approvedBy, width: 18 },
+        { header: "قبل الخصم", kind: "sdg", value: (i) => i.grossSdg },
+        { header: "الخصم", kind: "sdg", value: (i) => i.discountSdg },
+        { header: "النسبة", kind: "percent", value: (i) => i.rate },
+      ],
+      rows: d.largest,
+    }),
+    sheet<(typeof r.recent)[number]>({
+      name: "المرتجعات",
+      title: `المرتجعات — ${period} (آخر 15)`,
+      columns: [
+        { header: "المرتجع", value: (x) => x.number, width: 18 },
+        { header: "الفاتورة", value: (x) => x.saleNumber, width: 18 },
+        { header: "التاريخ", kind: "datetime", value: (x) => x.createdAt },
+        { header: "السبب", value: (x) => reasonLabel(x.reasonCode), width: 18 },
+        { header: "ملاحظة", value: (x) => x.reason, width: 28 },
+        { header: "الموظفة", value: (x) => x.cashier, width: 18 },
+        { header: "بعد البيع (يوم)", kind: "int", value: (x) => x.daysAfterSale },
+        { header: "المسترد", kind: "sdg", value: (x) => x.refundSdg },
+        { header: "استبدال", value: (x) => (x.isExchange ? "نعم" : ""), width: 8 },
+      ],
+      rows: r.recent,
+    }),
+    sheet<(typeof r.reasons)[number]>({
+      name: "أسباب المرتجع",
+      title: `أسباب المرتجع — ${period}`,
+      columns: [
+        { header: "السبب", value: (x) => reasonLabel(x.code), width: 22 },
+        { header: "العدد", kind: "int", value: (x) => x.count },
+        { header: "المسترد", kind: "sdg", value: (x) => x.refundSdg },
+      ],
+      rows: r.reasons,
+      totals: true,
+    }),
+    sheet<(typeof r.products)[number]>({
+      name: "الأصناف المرتجعة",
+      title: `أكثر الأصناف إرجاعاً — ${period}`,
+      columns: [
+        { header: "الصنف", value: (p) => p.label, width: 32 },
+        { header: "أُرجع", kind: "qty", value: (p) => p.returnedQty },
+        { header: "تالف", kind: "qty", value: (p) => p.damagedQty },
+        { header: "بيع في الفترة", kind: "qty", value: (p) => p.soldQty },
+        { header: "المسترد", kind: "sdg", value: (p) => p.refundSdg },
+      ],
+      rows: r.products,
+    }),
+    sheet<(typeof c.reasons)[number]>({
+      name: "إلغاءات المتجر",
+      title: `إلغاءات المتجر — ${period}: ${c.count} طلب، منها ${c.afterPayment} بعد الدفع`,
+      columns: [
+        { header: "السبب", value: (x) => x.reason, width: 40 },
+        { header: "العدد", kind: "int", value: (x) => x.count },
+      ],
+      rows: c.reasons,
+      totals: true,
     }),
   ];
 }

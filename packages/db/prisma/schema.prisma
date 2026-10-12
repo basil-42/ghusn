@@ -925,6 +925,15 @@ model SalePayment {
 
 // ---------- المرتجعات والاستبدال (D-81) ----------
 // مرتجع مرتبط بفاتورة البيع — RET-2026-000001. المعرّف من الجهاز (D-61)
+enum ReturnReason {
+  SIZE // مقاس أو لون
+  DEFECT // عيب مصنعي
+  CHANGED_MIND // غيّر رأيه
+  DAMAGED // تالف عند الاستلام
+  WRONG_ITEM // صنف خطأ
+  OTHER // أخرى (بملاحظة)
+}
+
 model SaleReturn {
   id             String   @id
   number         String   @unique
@@ -937,6 +946,9 @@ model SaleReturn {
   // بعد مدة المرتجع يحتاج موافقة
   approvedBy     User?    @relation("returnApprovedBy", fields: [approvedById], references: [id])
   approvedById   String?
+  // سبب ثابت للتقارير (D-129)؛ المرتجعات الأقدم بلا سبب = «غير محدد»
+  reasonCode     ReturnReason?
+  // ملاحظة حرة (مطلوبة مع «أخرى»)
   reason         String?
   // المسترد بالسعر الفعلي بعد الخصم، وما يعادله بالدولار بسعر يوم البيع (عكس الإيراد)
   refundSdg      Decimal  @db.Decimal(18, 2)
