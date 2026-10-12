@@ -21,7 +21,7 @@ const nextConfig: NextConfig = {
     return [{ source: "/:path*", headers: SECURITY_HEADERS }];
   },
   transpilePackages: ["@ghusn/db", "@ghusn/core"],
-  serverExternalPackages: ["@prisma/client", "sharp", "pg-boss"],
+  serverExternalPackages: ["@prisma/client", "sharp", "pg-boss", "playwright-core"],
   experimental: {
     // صورة واحدة لكل طلب (تُصغَّر في المتصفح أولاً)؛ الحد الأعلى 10MB + هامش multipart
     serverActions: { bodySizeLimit: "11mb" },

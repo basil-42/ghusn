@@ -64,6 +64,7 @@ model User {
   adjustmentsVoided  WalletAdjustment[]      @relation("adjustmentVoidedBy")
   orderStatusBy      OrderStatusHistory[]    @relation("orderStatusBy")
   orderPaymentsBy    OrderPayment[]          @relation("orderPaymentBy")
+  statementsIssued   PartnerStatement[]      @relation("statementIssuedBy")
   proofsReviewed     PaymentProof[]          @relation("proofReviewedBy")
   returnsApproved    SaleReturn[]            @relation("returnApprovedBy")
   giftPhotos         GiftPhoto[]             @relation("giftPhotoBy")
@@ -1047,6 +1048,38 @@ model Expense {
 }
 
 // تمويل الشركاء (باسل الآن): يُسترد من الربح أولاً قبل أي توزيع (D-83)
+/// الشركاء الأربعة (D-06): 25% لكل واحد بعد استرداد التمويل (D-83، D-129). للكشف الشهري وإرساله.
+model Partner {
+  id        String   @id @default(cuid())
+  name      String
+  /// E.164 عبر normalizePhone — لرابط واتساب
+  phone     String
+  isActive  Boolean  @default(true)
+  sortOrder Int      @default(0)
+  createdAt DateTime @default(now())
+  updatedAt DateTime @updatedAt
+
+  statements PartnerStatement[]
+}
+
+/// كشف شريك لشهر (D-130): ملف PDF ثابت كما صدر (أرشيف)؛ إعادة الإصدار تستبدل الملف وتُسجَّل.
+model PartnerStatement {
+  id         String   @id @default(cuid())
+  partner    Partner  @relation(fields: [partnerId], references: [id])
+  partnerId  String
+  /// YYYY-MM
+  month      String
+  /// مفتاح الملف في التخزين (private/statements/…)
+  fileKey    String
+  /// نصيب الشريك ساعة الإصدار (لقائمة الأرشيف)
+  shareUsd   Decimal  @db.Decimal(18, 2)
+  issuedAt   DateTime @default(now())
+  issuedBy   User?    @relation("statementIssuedBy", fields: [issuedById], references: [id])
+  issuedById String?
+
+  @@unique([partnerId, month])
+}
+
 model CapitalContribution {
   id            String    @id @default(cuid())
   partnerName   String
@@ -1401,6 +1434,7 @@ enum NotificationType {
   STOCK_ADJUSTED // اعتُمدت تسوية (للمالك) أو رُفضت (لمن سجّلتها)
   STOCK_COUNT // جرد أُرسل للمراجعة، أو موعد جرد (D-112)
   SECURITY_ALERT // محاولات دخول فاشلة متكررة (D-114)
+  PARTNER_STATEMENTS // كشوف الشركاء الشهرية جاهزة للإرسال (D-130)
 }
 
 enum NotificationPriority {

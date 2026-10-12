@@ -144,6 +144,7 @@ const GROUPS: Group[] = [
           { href: "/admin/reports/shipments", label: "الشحنات", permission: { report: ["read"], cost: ["read"] } },
           { href: "/admin/reports/times", label: "الأوقات", permission: { report: ["read"] } },
           { href: "/admin/reports/discounts", label: "الخصومات", permission: { report: ["read"] } },
+          { href: "/admin/reports/partners", label: "الشركاء", permission: { partner: ["read"] } },
           { href: "/admin/insights", label: "التحليلات", permission: { report: ["read"], cost: ["read"] } },
         ],
       },
