@@ -14,7 +14,30 @@ export function internalUrl(path: string): string {
   return `${base.replace(/\/$/, "")}${path}`;
 }
 
-export async function renderPdf(url: string): Promise<Buffer> {
+export interface RenderOptions {
+  /** كوكيز طلب المستخدم: الصفحة تُفتح بجلسته نفسها فتفحص صلاحياته كالمعتاد */
+  cookieHeader?: string | null;
+  /** يرفض النتيجة إن انتهت الصفحة إلى مسار غير هذا (تحويل للدخول أو للرئيسية = لا صلاحية) */
+  expectPath?: string;
+}
+
+export class PdfForbidden extends Error {}
+
+function parseCookies(header: string, url: string) {
+  const host = new URL(url).hostname;
+  return header
+    .split(";")
+    .map((c) => c.trim())
+    .filter(Boolean)
+    .map((c) => {
+      const i = c.indexOf("=");
+      const name = c.slice(0, i);
+      return { name, value: c.slice(i + 1), domain: host, path: "/", secure: name.startsWith("__Secure-") };
+    })
+    .filter((c) => c.name);
+}
+
+export async function renderPdf(url: string, options: RenderOptions = {}): Promise<Buffer> {
   let browser;
   try {
     browser = await chromium.launch({
@@ -26,9 +49,12 @@ export async function renderPdf(url: string): Promise<Buffer> {
     throw new PdfUnavailable("تعذّر تشغيل مولّد PDF على الخادم.");
   }
   try {
-    const page = await browser.newPage();
+    const context = await browser.newContext();
+    if (options.cookieHeader) await context.addCookies(parseCookies(options.cookieHeader, url));
+    const page = await context.newPage();
     await page.emulateMedia({ media: "print" });
     const res = await page.goto(url, { waitUntil: "networkidle", timeout: 30_000 });
+    if (options.expectPath && new URL(page.url()).pathname !== options.expectPath) throw new PdfForbidden("forbidden");
     if (!res?.ok()) throw new Error(`PDF source returned ${res?.status() ?? "no response"}`);
     await page.evaluate(() => document.fonts.ready);
     return await page.pdf({ preferCSSPageSize: true, printBackground: true });
