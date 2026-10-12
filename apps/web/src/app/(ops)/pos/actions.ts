@@ -8,6 +8,7 @@ import { requirePermission } from "@/lib/auth/session";
 import { customerCardByPhone } from "@/lib/customers";
 import { saleSchema } from "@/lib/sale-schema";
 import { ApprovalRequired, SaleError, createSale, findPosItems } from "@/lib/sales";
+import { RETURN_REASONS } from "@/lib/return-reasons";
 import { ReturnError, cashOutCredit, createReturn, findSaleForReturn } from "@/lib/returns";
 import { ShiftError, closeShift, openShift } from "@/lib/shifts";
 
@@ -105,41 +106,44 @@ export async function findSaleForReturnAction(number: string) {
   return findSaleForReturn(String(number).slice(0, 30));
 }
 
-const returnSchema = z.object({
-  id: z.string().regex(/^[a-z0-9]{20,32}$/),
-  saleId: z.string().min(1),
-  lines: z
-    .array(
-      z.object({
-        saleLineId: z.string().min(1),
-        qty: z
-          .string()
-          .transform(clean)
-          .refine((v) => /^\d{1,6}(\.\d{1,3})?$/.test(v), "الكمية غير صحيحة"),
-        damagedQty: z
-          .string()
-          .transform(clean)
-          .refine((v) => /^\d{1,6}(\.\d{1,3})?$/.test(v), "التالف غير صحيح"),
-      }),
-    )
-    .min(1)
-    .max(100),
-  mode: z.enum(["REFUND", "EXCHANGE"]),
-  refundMethod: z.enum(["CASH", "BANKAK"]),
-  reference: z
-    .string()
-    .trim()
-    .max(60)
-    .nullish()
-    .transform((v) => v || null),
-  reason: z
-    .string()
-    .trim()
-    .max(200)
-    .nullish()
-    .transform((v) => v || null),
-  approval: z.object({ phone: z.string().max(20), password: z.string().max(200) }).nullish(),
-});
+const returnSchema = z
+  .object({
+    id: z.string().regex(/^[a-z0-9]{20,32}$/),
+    saleId: z.string().min(1),
+    lines: z
+      .array(
+        z.object({
+          saleLineId: z.string().min(1),
+          qty: z
+            .string()
+            .transform(clean)
+            .refine((v) => /^\d{1,6}(\.\d{1,3})?$/.test(v), "الكمية غير صحيحة"),
+          damagedQty: z
+            .string()
+            .transform(clean)
+            .refine((v) => /^\d{1,6}(\.\d{1,3})?$/.test(v), "التالف غير صحيح"),
+        }),
+      )
+      .min(1)
+      .max(100),
+    mode: z.enum(["REFUND", "EXCHANGE"]),
+    refundMethod: z.enum(["CASH", "BANKAK"]),
+    reference: z
+      .string()
+      .trim()
+      .max(60)
+      .nullish()
+      .transform((v) => v || null),
+    reasonCode: z.enum(RETURN_REASONS, { message: "اختاري سبب المرتجع" }),
+    reason: z
+      .string()
+      .trim()
+      .max(200)
+      .nullish()
+      .transform((v) => v || null),
+    approval: z.object({ phone: z.string().max(20), password: z.string().max(200) }).nullish(),
+  })
+  .refine((v) => v.reasonCode !== "OTHER" || v.reason, { message: "اكتبي السبب مع «أخرى»", path: ["reason"] });
 
 export async function createReturnAction(input: unknown): Promise<SaleResult> {
   const session = await requirePermission({ pos: ["sell"] });

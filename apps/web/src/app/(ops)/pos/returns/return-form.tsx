@@ -9,6 +9,8 @@ import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatAmount, formatDateTime } from "@/lib/format";
+import { RETURN_REASONS, RETURN_REASON_LABELS, type ReturnReasonCode } from "@/lib/return-reasons";
+import { cn } from "@/lib/utils";
 import { createReturnAction, findSaleForReturnAction } from "../actions";
 import { ApprovalDialog } from "../approval-dialog";
 
@@ -35,6 +37,7 @@ export function ReturnForm({ initialNumber, initialSale }: { initialNumber: stri
   const [mode, setMode] = useState<"REFUND" | "EXCHANGE">("REFUND");
   const [method, setMethod] = useState<"CASH" | "BANKAK">("CASH");
   const [reference, setReference] = useState("");
+  const [reasonCode, setReasonCode] = useState<ReturnReasonCode | null>(null);
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
   const [approval, setApproval] = useState<string[] | null>(null);
@@ -91,6 +94,7 @@ export function ReturnForm({ initialNumber, initialSale }: { initialNumber: stri
         mode,
         refundMethod: method,
         reference,
+        reasonCode,
         reason,
         approval: credentials ?? null,
       });
@@ -252,17 +256,44 @@ export function ReturnForm({ initialNumber, initialSale }: { initialNumber: stri
                 المبلغ يصبح رصيداً يُخصم من الفاتورة الجديدة، والفائض يُرد نقداً.
               </p>
             )}
-            <Input
-              value={reason}
-              onChange={(e) => setReason(e.target.value)}
-              placeholder="السبب (اختياري): مقاس، عيب، تغيير رأي…"
-              aria-label="سبب المرتجع"
-              maxLength={200}
-            />
+            <fieldset className="flex flex-col gap-2">
+              <legend className="mb-1 text-sm font-semibold">سبب المرتجع</legend>
+              <div className="flex flex-wrap gap-2">
+                {RETURN_REASONS.map((code) => (
+                  <button
+                    key={code}
+                    type="button"
+                    aria-pressed={reasonCode === code}
+                    onClick={() => setReasonCode(code)}
+                    className={cn(
+                      "min-h-11 rounded-full border px-4 text-sm font-semibold",
+                      reasonCode === code
+                        ? "border-primary bg-primary text-primary-foreground"
+                        : "border-border bg-card",
+                    )}
+                  >
+                    {RETURN_REASON_LABELS[code]}
+                  </button>
+                ))}
+              </div>
+              <Input
+                value={reason}
+                onChange={(e) => setReason(e.target.value)}
+                placeholder={reasonCode === "OTHER" ? "اكتبي السبب" : "ملاحظة (اختياري)"}
+                aria-label="ملاحظة عن المرتجع"
+                maxLength={200}
+              />
+            </fieldset>
             <Button
               type="button"
               className="min-h-14 text-lg"
-              disabled={pending || total.lte(0) || issues.length > 0}
+              disabled={
+                pending ||
+                total.lte(0) ||
+                issues.length > 0 ||
+                !reasonCode ||
+                (reasonCode === "OTHER" && !reason.trim())
+              }
               onClick={() => submit()}
             >
               {mode === "REFUND" ? `استرداد ${sdg(total)}` : `استبدال — رصيد ${sdg(total)}`}

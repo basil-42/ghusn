@@ -1,4 +1,5 @@
 import { dec, plainNumber } from "@ghusn/core";
+import { reasonLabel } from "@/lib/return-reasons";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -100,7 +101,13 @@ export default async function ReturnReceiptPage({ params }: { params: Promise<{ 
             </div>
           ))}
         </dl>
-        {r.reason ? <p>السبب: {r.reason}</p> : null}
+        {r.reasonCode || r.reason ? (
+          <p>
+            السبب: {r.reasonCode ? reasonLabel(r.reasonCode) : null}
+            {r.reasonCode && r.reason ? " — " : null}
+            {r.reason}
+          </p>
+        ) : null}
       </article>
     </div>
   );

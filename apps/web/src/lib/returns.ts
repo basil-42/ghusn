@@ -13,6 +13,7 @@ import { ApprovalError, verifyApprover } from "./approvals";
 import { nextDocumentNumber } from "./documents";
 import { ApprovalRequired, availableCredit } from "./sales";
 import { getPosSettings, posWallets } from "./settings";
+import type { ReturnReasonCode } from "./return-reasons";
 
 export class ReturnError extends Error {}
 
@@ -68,6 +69,7 @@ export interface ReturnInput {
   mode: "REFUND" | "EXCHANGE";
   refundMethod: "CASH" | "BANKAK";
   reference: string | null;
+  reasonCode: ReturnReasonCode;
   reason: string | null;
   approval: { phone: string; password: string } | null;
 }
@@ -210,6 +212,7 @@ export async function createReturn(input: ReturnInput, cashierId: string): Promi
           shiftId: shift.id,
           cashierId,
           approvedById,
+          reasonCode: input.reasonCode,
           reason: input.reason,
           refundSdg: refundSdg.toFixed(2),
           // عكس الإيراد بسعر يوم البيع
@@ -285,6 +288,7 @@ export async function getReturn(id: string) {
     approvedBy: r.approvedBy?.name ?? null,
     sale: r.sale,
     reason: r.reason,
+    reasonCode: r.reasonCode,
     isExchange: r.isExchange,
     refundSdg: r.refundSdg.toString(),
     creditLeftSdg: credit.toString(),

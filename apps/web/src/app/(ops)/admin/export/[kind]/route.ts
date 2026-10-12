@@ -5,6 +5,7 @@ import { getSession } from "@/lib/auth/session";
 import {
   INSIGHT_TABS,
   cashFlowSheets,
+  discountSheets,
   expenseSheets,
   insightSheets,
   monthlyReportSheets,
@@ -33,6 +34,7 @@ const KINDS: Record<string, { label: string; permission: Permissions }> = {
   cash: { label: "التدفق النقدي", permission: { report: ["read"], wallet: ["update"] } },
   shipments: { label: "ربحية الشحنات", permission: { report: ["read"], cost: ["read"] } },
   times: { label: "أوقات البيع", permission: { report: ["read"] } },
+  discounts: { label: "الخصومات والمرتجعات", permission: { report: ["read"] } },
 };
 
 /** تنزيل ملف Excel — يُسجَّل في سجل التدقيق (من صدّر ماذا ومتى). */
@@ -61,6 +63,10 @@ export async function GET(request: Request, { params }: { params: Promise<{ kind
       if (!(TIME_WEEKS as readonly string[]).includes(w)) return new Response("Bad weeks", { status: 400 });
       sheets = await timesSheets(Number(w));
       suffix = `${w}w-${shopDay(new Date())}`;
+    } else if (kind === "discounts") {
+      const range = parsePeriod(Object.fromEntries(url.searchParams));
+      sheets = await discountSheets(range);
+      suffix = `${range.fromDay}_${range.toDay}`;
     } else if (kind === "trend") {
       const end = url.searchParams.get("end") ?? "";
       if (!/^\d{4}-\d{2}$/.test(end)) return new Response("Bad month", { status: 400 });
