@@ -94,3 +94,6 @@ export function formatMonthKey(month: string): string {
   const [y, m] = month.split("-").map(Number) as [number, number];
   return monthYearFormat.format(new Date(Date.UTC(y, m - 1, 15, 12)));
 }
+
+/** مدة الوصول: «نفس اليوم» أو «40 يوماً». */
+export const leadDaysLabel = (n: number) => (n <= 0 ? "نفس اليوم" : daysLabel(n));
