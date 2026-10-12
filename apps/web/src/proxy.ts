@@ -8,7 +8,8 @@ const intl = createMiddleware(routing);
 
 /** مسارات التشغيل (عربية دائماً، لا تمر بتوجيه اللغات). */
 const PROTECTED = ["/admin", "/print", "/pos"];
-const OPS = [...PROTECTED, "/login"];
+/** /doc: صفحات تُحوَّل PDF داخل الخادم، و/d: روابط الكشوف المرسلة — كلاهما برمز موقّع لا بكوكي (D-130). */
+const OPS = [...PROTECTED, "/login", "/doc", "/d"];
 const under = (pathname: string, base: string) => pathname === base || pathname.startsWith(`${base}/`);
 
 /**
