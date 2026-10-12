@@ -28,3 +28,4 @@ export * from "./audit";
 export * from "./customer";
 export * from "./insights";
 export * from "./trend";
+export * from "./purchasing";

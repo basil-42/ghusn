@@ -2,6 +2,14 @@ import { dec, shopDay, shopDayStart, shopMonthRange, variantLabel, type Adjustme
 import { prisma } from "@ghusn/db";
 import { monthlyReport, monthlyTrend, type TrendRow } from "./reports";
 import { walletFlows, type WalletFlow } from "./wallets";
+import {
+  SHIPMENT_PERIOD_LABELS,
+  salesTimes,
+  shipmentReport,
+  type ShipmentPeriod,
+  type ShipmentView,
+  type SupplierView,
+} from "./purchasing-report";
 import { daysLabel } from "./format";
 import { REASON_LABELS } from "./stock-adjustments";
 import {
@@ -550,6 +558,105 @@ export async function cashFlowSheets(month: string): Promise<Sheet<never>[]> {
       rows: flows,
       totals: true,
       note: "الدولار تقريبي بسعر يوم التصدير، بلا التحويلات بين المحافظ.",
+    }),
+  ];
+}
+
+/** ربحية الشحنات والموردين (D-128) — تقديرية، نفس أرقام الشاشة. */
+export async function shipmentSheets(period: ShipmentPeriod): Promise<Sheet<never>[]> {
+  const r = await shipmentReport(period);
+  const note =
+    "تقديري: المباع = المستلم − المتبقي − التالف المسجّل؛ الربح = المباع × متوسط سعر البيع منذ الوصول − تكلفة الوصول.";
+  type Line = ShipmentView["lines"][number] & { number: string; supplier: string };
+  return [
+    sheet<ShipmentView>({
+      name: "الشحنات",
+      title: `ربحية الشحنات — ${SHIPMENT_PERIOD_LABELS[period]}`,
+      columns: [
+        { header: "الشحنة", value: (s) => s.number, width: 16 },
+        { header: "المورد", value: (s) => s.supplierName, width: 22 },
+        { header: "الاستلام", kind: "date", value: (s) => s.receivedAt },
+        { header: "مدة الوصول (يوم)", kind: "int", value: (s) => s.leadDays },
+        { header: "قيمة الشراء $", kind: "usd", value: (s) => s.purchaseUsd },
+        { header: "تكاليف إضافية $", kind: "usd", value: (s) => s.extraUsd },
+        { header: "التكلفة واصلة $", kind: "usd", value: (s) => s.totals.costUsd },
+        { header: "بيع منها", kind: "percent", value: (s) => s.totals.sellThrough },
+        { header: "إيراد تقديري $", kind: "usd", value: (s) => s.totals.revenueUsd },
+        { header: "ربح تقديري $", kind: "usd", value: (s) => s.totals.profitUsd },
+        { header: "الهامش", kind: "percent", value: (s) => s.totals.margin },
+        { header: "تالف $", kind: "usd", value: (s) => s.totals.lostUsd },
+        { header: "المتبقي $", kind: "usd", value: (s) => s.totals.remainingUsd },
+      ],
+      rows: r.shipments,
+      totals: true,
+      note,
+    }),
+    sheet<SupplierView>({
+      name: "الموردون",
+      title: `ربحية الموردين — ${SHIPMENT_PERIOD_LABELS[period]}`,
+      columns: [
+        { header: "المورد", value: (s) => s.name, width: 22 },
+        { header: "العملة", value: (s) => s.currencyCode, width: 8 },
+        { header: "الشحنات", kind: "int", value: (s) => s.shipments },
+        { header: "قيمة الشراء $", kind: "usd", value: (s) => s.purchaseUsd },
+        { header: "تكاليف إضافية", kind: "percent", value: (s) => s.extraRatio },
+        { header: "متوسط مدة الوصول (يوم)", kind: "int", value: (s) => s.leadDays },
+        { header: "بيع منها", kind: "percent", value: (s) => s.totals.sellThrough },
+        { header: "ربح تقديري $", kind: "usd", value: (s) => s.totals.profitUsd },
+        { header: "الهامش", kind: "percent", value: (s) => s.totals.margin },
+        { header: "المتبقي $", kind: "usd", value: (s) => s.totals.remainingUsd },
+        { header: "نُدين له (بعملته)", kind: "amount", value: (s) => s.balance },
+      ],
+      rows: r.suppliers,
+      note,
+    }),
+    sheet<Line>({
+      name: "بنود الشحنات",
+      title: "كل صنف في كل شحنة",
+      columns: [
+        { header: "الشحنة", value: (l) => l.number, width: 16 },
+        { header: "المورد", value: (l) => l.supplier, width: 20 },
+        { header: "الصنف", value: (l) => l.label, width: 32 },
+        { header: "SKU", value: (l) => l.sku, width: 14 },
+        { header: "المستلم", kind: "qty", value: (l) => l.receivedQty },
+        { header: "المباع", kind: "qty", value: (l) => l.soldQty },
+        { header: "تالف", kind: "qty", value: (l) => l.lostQty },
+        { header: "المتبقي", kind: "qty", value: (l) => l.remainingQty },
+        { header: "تكلفة القطعة $", kind: "unitUsd", value: (l) => l.landedUnitUsd },
+        { header: "متوسط البيع $", kind: "unitUsd", value: (l) => l.avgPriceUsd },
+        { header: "ربح تقديري $", kind: "usd", value: (l) => l.profitUsd },
+        { header: "الهامش", kind: "percent", value: (l) => l.margin },
+      ],
+      rows: r.shipments.flatMap((s) => s.lines.map((l) => ({ ...l, number: s.number, supplier: s.supplierName }))),
+      note,
+    }),
+  ];
+}
+
+const WEEK_DAYS = ["السبت", "الأحد", "الاثنين", "الثلاثاء", "الأربعاء", "الخميس", "الجمعة"];
+
+/** أوقات البيع (D-128): صف لكل يوم وساعة وقناة. */
+export async function timesSheets(weeks: number): Promise<Sheet<never>[]> {
+  const t = await salesTimes(weeks);
+  type Row = { channel: string; day: number; hour: number; count: number; amount: string };
+  const rows: Row[] = [
+    ...t.shop.map((c) => ({ ...c, channel: "المحل", amount: c.amount.toString() })),
+    ...t.web.map((c) => ({ ...c, channel: "المتجر", amount: c.amount.toString() })),
+  ].sort((a, b) => a.day - b.day || a.hour - b.hour || a.channel.localeCompare(b.channel));
+  return [
+    sheet<Row>({
+      name: "أوقات البيع",
+      title: `أوقات البيع — آخر ${weeks} أسابيع (بتوقيت الخرطوم)`,
+      columns: [
+        { header: "اليوم", value: (r) => WEEK_DAYS[r.day] ?? "", width: 12 },
+        { header: "الساعة", value: (r) => `${String(r.hour).padStart(2, "0")}:00`, width: 10 },
+        { header: "القناة", value: (r) => r.channel, width: 10 },
+        { header: "الفواتير/الطلبات", kind: "int", value: (r) => r.count },
+        { header: "المبيعات", kind: "sdg", value: (r) => r.amount },
+      ],
+      rows,
+      totals: true,
+      note: "المتجر بوقت إنشاء الطلب (بلا الملغاة).",
     }),
   ];
 }

@@ -10,11 +10,14 @@ import {
   monthlyReportSheets,
   parseDayRange,
   salesSheets,
+  shipmentSheets,
   stockSheets,
+  timesSheets,
   trendSheets,
   type InsightTab,
 } from "@/lib/exports";
 import { parsePeriod } from "@/lib/insights";
+import { SHIPMENT_PERIODS, TIME_WEEKS, type ShipmentPeriod } from "@/lib/purchasing-report";
 import { buildWorkbook, xlsxResponse, type Sheet } from "@/lib/xlsx";
 
 type Permissions = Parameters<typeof roleCan>[1];
@@ -28,6 +31,8 @@ const KINDS: Record<string, { label: string; permission: Permissions }> = {
   insights: { label: "التحليلات", permission: { report: ["read"], cost: ["read"] } },
   trend: { label: "الاتجاه", permission: { report: ["read"] } },
   cash: { label: "التدفق النقدي", permission: { report: ["read"], wallet: ["update"] } },
+  shipments: { label: "ربحية الشحنات", permission: { report: ["read"], cost: ["read"] } },
+  times: { label: "أوقات البيع", permission: { report: ["read"] } },
 };
 
 /** تنزيل ملف Excel — يُسجَّل في سجل التدقيق (من صدّر ماذا ومتى). */
@@ -46,6 +51,16 @@ export async function GET(request: Request, { params }: { params: Promise<{ kind
       if (!/^\d{4}-\d{2}$/.test(month)) return new Response("Bad month", { status: 400 });
       sheets = kind === "report" ? await monthlyReportSheets(month) : await cashFlowSheets(month);
       suffix = month;
+    } else if (kind === "shipments") {
+      const p = url.searchParams.get("p") ?? "12";
+      if (!(SHIPMENT_PERIODS as readonly string[]).includes(p)) return new Response("Bad period", { status: 400 });
+      sheets = await shipmentSheets(p as ShipmentPeriod);
+      suffix = `${p}-${shopDay(new Date())}`;
+    } else if (kind === "times") {
+      const w = url.searchParams.get("w") ?? "4";
+      if (!(TIME_WEEKS as readonly string[]).includes(w)) return new Response("Bad weeks", { status: 400 });
+      sheets = await timesSheets(Number(w));
+      suffix = `${w}w-${shopDay(new Date())}`;
     } else if (kind === "trend") {
       const end = url.searchParams.get("end") ?? "";
       if (!/^\d{4}-\d{2}$/.test(end)) return new Response("Bad month", { status: 400 });

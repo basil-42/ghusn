@@ -28,14 +28,12 @@ const GROUPS: { label: string; soon?: boolean; reports: Report[] }[] = [
         question: "هل نكبر أم نتراجع؟",
         answer: "الاتجاه — آخر 12 شهراً مع ملاحظات تلقائية",
         href: "/admin/reports/trend",
-        isNew: true,
       },
       {
         question: "من أين دخل المال وأين ذهب؟",
         answer: "التدفق النقدي — كل محفظة بعملتها",
         href: "/admin/reports/cash",
         permission: { report: ["read"], wallet: ["update"] },
-        isNew: true,
       },
     ],
   },
@@ -63,11 +61,21 @@ const GROUPS: { label: string; soon?: boolean; reports: Report[] }[] = [
     ],
   },
   {
-    label: "قريباً",
-    soon: true,
+    label: "المبيعات والمشتريات",
     reports: [
-      { question: "أي مورد أربح لنا؟", answer: "ربحية الشحنات والموردين" },
-      { question: "متى يشتري الناس؟", answer: "أوقات البيع خلال الأسبوع واليوم" },
+      {
+        question: "أي مورد أربح لنا؟",
+        answer: "ربحية الشحنات والموردين — كم بيع من كل شحنة وكم ربحت",
+        href: "/admin/reports/shipments?view=suppliers",
+        permission: INSIGHTS,
+        isNew: true,
+      },
+      {
+        question: "متى يشتري الناس؟",
+        answer: "أوقات البيع — أيام الأسبوع وساعات اليوم",
+        href: "/admin/reports/times",
+        isNew: true,
+      },
     ],
   },
 ];
