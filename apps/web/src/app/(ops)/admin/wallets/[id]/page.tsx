@@ -1,11 +1,11 @@
-import { shopDay } from "@ghusn/core";
+import { shopDay, shopMonthRange } from "@ghusn/core";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { Button } from "@/components/ui/button";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { requirePermission } from "@/lib/auth/session";
-import { formatAmount, formatDateTime } from "@/lib/format";
+import { formatAmount, formatDateTime, formatMonthKey } from "@/lib/format";
 import { MOVEMENT_LABELS, listWallets, walletStatement, type MovementKind } from "@/lib/wallets";
 import { voidAdjustmentAction } from "../actions";
 import { AdjustmentForm, OpeningForm, ToggleWalletForm } from "../forms";
@@ -23,12 +23,23 @@ const LINKS: Partial<Record<MovementKind, (id: string) => string>> = {
   ORDER_REFUND: (id) => `/admin/orders/${id}`,
 };
 
-export default async function WalletPage({ params }: { params: Promise<{ id: string }> }) {
+export default async function WalletPage({
+  params,
+  searchParams,
+}: {
+  params: Promise<{ id: string }>;
+  searchParams: Promise<{ kind?: string; month?: string }>;
+}) {
   await requirePermission({ wallet: ["update"] });
   const { id } = await params;
+  const q = await searchParams;
   const wallet = (await listWallets()).find((w) => w.id === id);
   if (!wallet) notFound();
-  const rows = await walletStatement(id);
+  // فلتر من التدفق النقدي (D-127): نوع حركة و/أو شهر
+  const kind = q.kind && q.kind in MOVEMENT_LABELS ? (q.kind as MovementKind) : undefined;
+  const month = q.month && /^\d{4}-\d{2}$/.test(q.month) ? q.month : undefined;
+  const filtered = Boolean(kind || month);
+  const rows = await walletStatement(id, 200, { kind, range: month ? shopMonthRange(month) : undefined });
   const today = shopDay(new Date());
   const decimals = wallet.currencyCode === "SDG" ? 0 : 2;
 
@@ -89,7 +100,22 @@ export default async function WalletPage({ params }: { params: Promise<{ id: str
       <Card>
         <CardHeader>
           <CardTitle>كشف الحساب</CardTitle>
-          <CardDescription>أحدث 200 حركة، والرصيد بعد كل حركة.</CardDescription>
+          <CardDescription>
+            {filtered ? (
+              <>
+                مفلتر:{" "}
+                {[kind ? MOVEMENT_LABELS[kind] : null, month ? formatMonthKey(month) : null]
+                  .filter(Boolean)
+                  .join(" · ")}{" "}
+                —{" "}
+                <Link href={`/admin/wallets/${wallet.id}`} className="font-semibold underline underline-offset-4">
+                  كل الحركات
+                </Link>
+              </>
+            ) : (
+              "أحدث 200 حركة، والرصيد بعد كل حركة."
+            )}
+          </CardDescription>
         </CardHeader>
         {rows.length === 0 ? (
           <p className="text-muted-foreground">لا حركات.</p>

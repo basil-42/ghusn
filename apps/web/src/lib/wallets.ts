@@ -157,7 +157,21 @@ export interface StatementRow {
 }
 
 /** كشف حساب المحفظة: أحدث الحركات مع الرصيد بعد كل حركة. */
-export async function walletStatement(walletId: string, take = 200): Promise<StatementRow[]> {
+export interface StatementFilter {
+  kind?: MovementKind;
+  range?: { start: Date; end: Date };
+}
+
+/** الفلتر يُطبَّق بعد حساب الرصيد التراكمي، فيبقى «الرصيد بعد الحركة» صحيحاً (D-127). */
+export async function walletStatement(
+  walletId: string,
+  take = 200,
+  filter: StatementFilter = {},
+): Promise<StatementRow[]> {
+  const kind = filter.kind ? Prisma.sql`AND x."kind" = ${filter.kind}::text` : Prisma.empty;
+  const range = filter.range
+    ? Prisma.sql`AND x."at" >= ${filter.range.start} AND x."at" < ${filter.range.end}`
+    : Prisma.empty;
   const rows = await prisma.$queryRaw<
     {
       at: Date;
@@ -173,7 +187,8 @@ export async function walletStatement(walletId: string, take = 200): Promise<Sta
     SELECT * FROM (
       SELECT c.*, SUM(c."amount") OVER (ORDER BY c."at", c."kind" = 'OPENING' DESC, c."rowId") AS "balance"
         FROM (${COUNTED}) c WHERE c."walletId" = ${walletId}
-    ) x ORDER BY x."at" DESC, x."kind" = 'OPENING', x."rowId" DESC LIMIT ${take}`;
+    ) x WHERE TRUE ${kind} ${range}
+     ORDER BY x."at" DESC, x."kind" = 'OPENING', x."rowId" DESC LIMIT ${take}`;
   return rows.map((r) => ({ ...r, amount: r.amount.toFixed(2), balance: r.balance.toFixed(2) }));
 }
 
@@ -412,4 +427,84 @@ export async function setWalletActive(id: string, isActive: boolean): Promise<vo
     }
   }
   await prisma.wallet.update({ where: { id }, data: { isActive } });
+}
+
+/** تصنيف حركات المحافظ في التدفق النقدي (D-127). التحويلات داخلية؛ الرصيد الافتتاحي ليس دخلاً. */
+export const INTERNAL_KINDS: MovementKind[] = ["TRANSFER_IN", "TRANSFER_OUT"];
+
+export interface WalletFlow {
+  id: string;
+  name: string;
+  currencyCode: string;
+  symbol: string;
+  decimals: number;
+  isActive: boolean;
+  opening: string;
+  closing: string;
+  /** صافي كل نوع حركة في الفترة (بإشارة) */
+  lines: { kind: MovementKind; label: string; amount: string }[];
+  inflow: string;
+  outflow: string;
+  /** تقريبي بسعر اليوم */
+  inflowUsd: string | null;
+  outflowUsd: string | null;
+}
+
+/**
+ * التدفق النقدي لفترة (D-127): لكل محفظة رصيدها قبل الفترة وآخرها وصافي كل نوع حركة بعملتها — بنفس
+ * حركات كشف المحفظة (COUNTED). الدخل والخرج بلا تحويلات بين المحافظ ولا رصيد افتتاحي.
+ */
+export async function walletFlows(range: { start: Date; end: Date }, now = new Date()): Promise<WalletFlow[]> {
+  const [wallets, before, during] = await Promise.all([
+    prisma.wallet.findMany({
+      orderBy: [{ isActive: "desc" }, { createdAt: "asc" }],
+      include: { currency: { select: { symbol: true, decimals: true } } },
+    }),
+    prisma.$queryRaw<{ walletId: string; balance: Prisma.Decimal }[]>`
+      SELECT c."walletId", SUM(c."amount") AS "balance" FROM (${COUNTED}) c
+       WHERE c."at" < ${range.start} GROUP BY c."walletId"`,
+    prisma.$queryRaw<{ walletId: string; kind: MovementKind; amount: Prisma.Decimal }[]>`
+      SELECT c."walletId", c."kind", SUM(c."amount") AS "amount" FROM (${COUNTED}) c
+       WHERE c."at" >= ${range.start} AND c."at" < ${range.end} GROUP BY c."walletId", c."kind"`,
+  ]);
+  const rates = new Map<string, string | null>();
+  for (const code of new Set(wallets.map((w) => w.currencyCode))) {
+    rates.set(code, (await getRateInfoAt(code, now))?.unitsPerUsd ?? null);
+  }
+  return wallets
+    .map((w) => {
+      const opening = dec(before.find((b) => b.walletId === w.id)?.balance.toString() ?? "0");
+      const rows = during.filter((d) => d.walletId === w.id && !dec(d.amount.toString()).isZero());
+      const lines = rows
+        .map((r) => ({
+          kind: r.kind,
+          label: MOVEMENT_LABELS[r.kind] ?? r.kind,
+          amount: dec(r.amount.toString()).toFixed(2),
+        }))
+        .sort((a, b) => Number(dec(b.amount).gt(a.amount)) - Number(dec(a.amount).gt(b.amount)));
+      const flow = rows.filter((r) => !INTERNAL_KINDS.includes(r.kind) && r.kind !== "OPENING");
+      const inflow = flow.reduce((a, r) => (dec(r.amount.toString()).gt(0) ? a.plus(r.amount.toString()) : a), dec(0));
+      const outflow = flow.reduce(
+        (a, r) => (dec(r.amount.toString()).lt(0) ? a.minus(r.amount.toString()) : a),
+        dec(0),
+      );
+      const closing = lines.reduce((a, l) => a.plus(l.amount), opening);
+      const rate = rates.get(w.currencyCode);
+      return {
+        id: w.id,
+        name: w.name,
+        currencyCode: w.currencyCode,
+        symbol: w.currency.symbol,
+        decimals: w.currency.decimals,
+        isActive: w.isActive,
+        opening: opening.toFixed(2),
+        closing: closing.toFixed(2),
+        lines,
+        inflow: inflow.toFixed(2),
+        outflow: outflow.toFixed(2),
+        inflowUsd: rate ? roundMoney(toUsdExact(inflow, rate)).toFixed(2) : null,
+        outflowUsd: rate ? roundMoney(toUsdExact(outflow, rate)).toFixed(2) : null,
+      };
+    })
+    .filter((w) => w.isActive || w.lines.length > 0 || !dec(w.opening).isZero());
 }

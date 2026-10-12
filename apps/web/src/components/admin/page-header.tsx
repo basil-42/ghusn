@@ -21,7 +21,7 @@ export function PageHeader({
       {back ? (
         <Link
           href={back.href}
-          className="inline-flex min-h-9 items-center gap-1.5 self-start text-sm font-semibold text-muted-foreground hover:text-foreground"
+          className="inline-flex min-h-9 items-center gap-1.5 self-start text-sm print:hidden font-semibold text-muted-foreground hover:text-foreground"
         >
           <ArrowRight aria-hidden className="size-4" />
           {back.label}
@@ -33,7 +33,7 @@ export function PageHeader({
           {description ? <div className="text-sm text-muted-foreground">{description}</div> : null}
         </div>
         {actions ? (
-          <div className="flex flex-wrap items-center gap-2 max-sm:*:flex-1 sm:shrink-0">{actions}</div>
+          <div className="flex flex-wrap items-center gap-2 max-sm:*:flex-1 sm:shrink-0 print:hidden">{actions}</div>
         ) : null}
       </div>
     </header>

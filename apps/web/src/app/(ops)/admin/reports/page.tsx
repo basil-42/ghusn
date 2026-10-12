@@ -5,10 +5,12 @@ import { ExportLink } from "@/components/admin/export-button";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { roleCan } from "@/lib/auth/permissions";
 import { requirePermission } from "@/lib/auth/session";
-import { formatAmount, formatMargin } from "@/lib/format";
+import { formatAmount, formatMargin, formatMonthKey } from "@/lib/format";
 import { currentShopMonth, monthlyReport, reportMonths } from "@/lib/reports";
 import { REASON_LABELS } from "@/lib/stock-adjustments";
 import { PageHeader } from "@/components/admin/page-header";
+import { PrintButton } from "@/components/admin/print-button";
+import { PrintHeader } from "@/components/admin/print-header";
 
 export const metadata: Metadata = { title: "التقرير الشهري | غصن" };
 
@@ -38,7 +40,8 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
   const loss = dec(r.netProfitUsd).lt(0);
 
   return (
-    <div className="flex flex-col gap-6">
+    <div className="print-report flex flex-col gap-6">
+      <PrintHeader title="التقرير الشهري" period={formatMonthKey(month)} issuedBy={session.user.name} />
       <PageHeader
         title="التقرير الشهري"
         description="الربح بالدولار (عملة الأساس)، والمبالغ الفعلية بالجنيه بجانبه للمعلومة."
@@ -62,6 +65,7 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
               </button>
             </form>
             <ExportLink href={`/admin/export/report?month=${month}`} />
+            <PrintButton />
           </>
         }
       />

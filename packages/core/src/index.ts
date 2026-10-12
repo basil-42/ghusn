@@ -27,3 +27,4 @@ export * from "./notification";
 export * from "./audit";
 export * from "./customer";
 export * from "./insights";
+export * from "./trend";

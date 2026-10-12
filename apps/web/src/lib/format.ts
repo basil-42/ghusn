@@ -88,3 +88,9 @@ export function formatAmount(value: { toString(): string }, decimals = 2): strin
 export function formatMargin(fraction: { toString(): string }): string {
   return `${dec(fraction.toString()).mul(100).toFixed(1)}%`;
 }
+
+/** شهر بصيغة YYYY-MM ← «أكتوبر 2026». */
+export function formatMonthKey(month: string): string {
+  const [y, m] = month.split("-").map(Number) as [number, number];
+  return monthYearFormat.format(new Date(Date.UTC(y, m - 1, 15, 12)));
+}
