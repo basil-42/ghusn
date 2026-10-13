@@ -2,6 +2,7 @@ import {
   DASHBOARD_PERIODS,
   type DashboardPeriod,
   type DashboardRange,
+  type WeekStart,
   SHOP_TIME_ZONE,
   addDays,
   dashboardRange,
@@ -70,7 +71,6 @@ const weekdayDay = new Intl.DateTimeFormat("ar-u-nu-latn", {
   month: "long",
   timeZone: "UTC",
 });
-const weekdayShort = new Intl.DateTimeFormat("ar-u-nu-latn", { weekday: "long", day: "numeric", timeZone: "UTC" });
 
 /** أسماء أعمدة الرسم: الكامل للتلميح والجدول، والمختصر تحت المحور (لبعضها في الشهر). */
 function bucketLabel(key: string, bucket: DashboardRange["bucket"]) {
@@ -78,10 +78,12 @@ function bucketLabel(key: string, bucket: DashboardRange["bucket"]) {
     ? weekdayDay.format(new Date(`${key}T00:00:00Z`))
     : monthLabel.format(new Date(`${key}-01T00:00:00Z`));
 }
-function bucketTick(key: string, i: number, n: number, bucket: DashboardRange["bucket"]) {
-  if (bucket === "month") return monthShort.format(new Date(`${key}-01T00:00:00Z`));
-  // أسبوع أو آخر 7 أيام: اسم اليوم ورقمه؛ الشهر: رقم كل ثالث يوم
-  return n <= 7 ? weekdayShort.format(new Date(`${key}T00:00:00Z`)) : i % 3 === 0 ? String(Number(key.slice(8))) : "";
+/** اسم العمود تحت المحور بسطرين (على نمط Zoho): اليوم ثم الشهر، أو الشهر ثم السنة. */
+function bucketTick(key: string, bucket: DashboardRange["bucket"]) {
+  if (bucket === "month") {
+    return { top: monthShort.format(new Date(`${key}-01T00:00:00Z`)), sub: key.slice(0, 4) };
+  }
+  return { top: key.slice(8), sub: monthShort.format(new Date(`${key}T00:00:00Z`)) };
 }
 
 /** مبلغ مختصر للمحور وفوق الأعمدة: 1.5م، 750 ألف (عرض فقط — الحساب بالـ Decimal في الخادم). */
@@ -177,25 +179,30 @@ async function OwnerHome({ user, can, period }: { user: User; can: Can; period: 
     },
   ].filter(Boolean) as { href: string; text: string; urgent: boolean }[];
 
-  // المحور: خطوط بأرقام مستديرة، والأعمدة نسبة من أعلاها
-  const axis = niceAxis(series.reduce((m, pt) => Math.max(m, dec(pt.totalSdg).toNumber()), 0));
+  // الأعمدة حتى اليوم فقط (لا أيام فارغة قادمة)، والمحور بأرقام مستديرة والأعمدة نسبة من أعلاه
+  const shown = series.filter((pt) => !pt.future);
+  const axis = niceAxis(shown.reduce((m, pt) => Math.max(m, dec(pt.totalSdg).toNumber()), 0));
   const axisTop = axis[axis.length - 1] ?? 0;
   const ratio = (v: string) => (axisTop > 0 ? Math.max(dec(v).toNumber() / axisTop, 0) : 0);
   const nowKey = range.bucket === "day" ? shopDay(now) : shopDay(now).slice(0, 7);
-  const points: ChartPoint[] = series.map((pt, i) => ({
-    key: pt.key,
-    label: bucketLabel(pt.key, range.bucket),
-    tick: period === "today" && pt.key === nowKey ? "اليوم" : bucketTick(pt.key, i, series.length, range.bucket),
-    shop: formatAmount(pt.shopSdg, 0),
-    store: formatAmount(pt.storeSdg, 0),
-    total: formatAmount(pt.totalSdg, 0),
-    short: compactSdg(dec(pt.totalSdg).toNumber()),
-    ratio: ratio(pt.totalSdg),
-    future: pt.future,
-    current: !range.complete && pt.key === nowKey,
-  }));
-  const chartTotal = series.reduce((a, pt) => a.plus(pt.totalSdg), dec(0));
-  const hasSales = chartTotal.gt(0) || series.some((pt) => dec(pt.totalSdg).gt(0));
+  const every = shown.length > 16 ? 2 : 1; // الشهر: كل يومين اسم
+  const points: ChartPoint[] = shown.map((pt, i) => {
+    const tick = bucketTick(pt.key, range.bucket);
+    const labelled = i % every === 0 || i === shown.length - 1;
+    return {
+      key: pt.key,
+      label: bucketLabel(pt.key, range.bucket),
+      tick: labelled ? tick.top : "",
+      tickSub: labelled ? tick.sub : "",
+      shop: formatAmount(pt.shopSdg, 0),
+      store: formatAmount(pt.storeSdg, 0),
+      total: formatAmount(pt.totalSdg, 0),
+      short: compactSdg(dec(pt.totalSdg).toNumber()),
+      ratio: ratio(pt.totalSdg),
+      current: !range.complete && pt.key === nowKey,
+    };
+  });
+  const hasSales = shown.some((pt) => dec(pt.totalSdg).gt(0));
 
   const pipeline = tabs
     ? [
@@ -223,40 +230,7 @@ async function OwnerHome({ user, can, period }: { user: User; can: Can; period: 
         <div className="flex flex-wrap items-stretch gap-2">
           {rate ? <RateCard rate={rate} /> : null}
           {/* قائمة الفترة (D-133): تتحكم في الأرقام والرسم معاً، وتُحفظ في الرابط */}
-          <details key={period} className="group relative">
-            <summary className="flex min-h-12 cursor-pointer list-none items-center gap-2 rounded-xl bg-forest px-4 text-sm font-bold text-ivory [&::-webkit-details-marker]:hidden">
-              <span className="flex flex-col leading-tight">
-                {PERIOD_LABELS[period]}
-                <span className="text-xs font-normal opacity-80">{periodHint(range, period)}</span>
-              </span>
-              <ChevronDown aria-hidden className="size-4 transition-transform group-open:rotate-180" />
-            </summary>
-            <nav
-              aria-label="فترة الأرقام"
-              className="absolute end-0 top-full z-20 mt-2 flex w-64 flex-col rounded-xl border border-line bg-card p-1.5 text-sm shadow-lg"
-            >
-              {MENU.map((g) => (
-                <div key={g.group} className="flex flex-col">
-                  <span className="px-3 pt-2 pb-1 text-xs font-semibold text-muted-foreground">{g.group}</span>
-                  {g.periods.map((k) => (
-                    <Link
-                      key={k}
-                      href={k === "today" ? "/admin" : `/admin?p=${k}`}
-                      aria-current={k === period ? "page" : undefined}
-                      className={`flex min-h-10 items-center justify-between gap-2 rounded-lg px-3 hover:bg-muted ${
-                        k === period ? "bg-muted font-bold" : ""
-                      }`}
-                    >
-                      {PERIOD_LABELS[k]}
-                      <span className="text-xs text-muted-foreground">
-                        {periodHint(dashboardRange(k, now, weekStartsOn), k)}
-                      </span>
-                    </Link>
-                  ))}
-                </div>
-              ))}
-            </nav>
-          </details>
+          <PeriodMenu period={period} range={range} now={now} weekStartsOn={weekStartsOn} />
         </div>
       </header>
 
@@ -333,27 +307,34 @@ async function OwnerHome({ user, can, period }: { user: User; can: Can; period: 
 
       <div className={`grid gap-4 ${tabs ? "lg:grid-cols-[2fr_1fr]" : ""}`}>
         <Card className="min-w-0">
-          <CardHeader>
-            <div className="flex flex-wrap items-start justify-between gap-3">
-              <div className="flex flex-col gap-1">
-                <CardTitle>المبيعات · {period === "today" ? "آخر 7 أيام" : PERIOD_LABELS[period]}</CardTitle>
-                <CardDescription>
-                  {range.bucket === "day" ? "كل عمود يوم" : "كل عمود شهر"} — المحل والمتجر معاً
-                  {range.complete ? "" : period === "today" ? "، واليوم بلون أغمق" : "، والجاري بلون أغمق"}. مرّر على
-                  العمود للتفاصيل.
-                </CardDescription>
-              </div>
-              <div className="flex flex-col text-sm">
-                <span className="text-xs text-muted-foreground">المجموع</span>
-                <span className="text-lg font-bold tabular-nums">{sdg(chartTotal.toFixed(0))}</span>
-              </div>
-            </div>
-          </CardHeader>
+          {/* بطاقة صافي المبيعات (D-134، على نمط Zoho): الفترة، الرقم الكبير ونموه، ثم الأعمدة حتى اليوم */}
+          <div className="flex items-center justify-between gap-3 border-b border-line pb-3">
+            <CardTitle>صافي المبيعات</CardTitle>
+            <PeriodMenu period={period} range={range} now={now} weekStartsOn={weekStartsOn} compact />
+          </div>
+          <div className="flex flex-col gap-2">
+            <span className="text-3xl font-bold tabular-nums">{sdg(kpis.netSdg)}</span>
+            <span className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+              {kpis.change !== null ? (
+                <span
+                  className={`rounded-full border px-2.5 py-0.5 font-semibold ${
+                    kpis.change.startsWith("-")
+                      ? "border-danger/30 bg-danger/10 text-danger"
+                      : "border-forest/20 bg-sage/15 text-forest"
+                  }`}
+                >
+                  {kpis.change.startsWith("-") ? "↓" : "↑"} <bdi dir="ltr">{formatPercent(kpis.change)}</bdi>
+                </span>
+              ) : null}
+              {kpis.change !== null ? COMPARED_TO[period] : "لا مقارنة بعد"}
+              {period === "today" ? " · الرسم: آخر 7 أيام" : null}
+            </span>
+          </div>
           {hasSales ? (
             <SalesChart
               points={points}
               gridlines={axis.map((v) => ({ ratio: axisTop > 0 ? v / axisTop : 0, label: compactSdg(v) }))}
-              ariaLabel={`المبيعات ${period === "today" ? "آخر 7 أيام" : PERIOD_LABELS[period]}`}
+              ariaLabel={`صافي المبيعات ${period === "today" ? "آخر 7 أيام" : PERIOD_LABELS[period]}`}
             />
           ) : (
             <p className="text-muted-foreground">لا مبيعات في هذه الفترة بعد.</p>
@@ -671,5 +652,67 @@ function RateCard({ rate }: { rate: NonNullable<Awaited<ReturnType<typeof rateTi
         </span>
       </span>
     </Link>
+  );
+}
+
+/** قائمة الفترة (D-133): زر داكن في رأس الصفحة، ومختصر في رأس بطاقة المبيعات — كلاهما يغيّر ?p= نفسه. */
+function PeriodMenu({
+  period,
+  range,
+  now,
+  weekStartsOn,
+  compact = false,
+}: {
+  period: DashboardPeriod;
+  range: DashboardRange;
+  now: Date;
+  weekStartsOn: WeekStart;
+  compact?: boolean;
+}) {
+  return (
+    <details key={period} className="group relative">
+      <summary
+        className={`flex cursor-pointer list-none items-center gap-2 [&::-webkit-details-marker]:hidden ${
+          compact
+            ? "min-h-10 rounded-lg px-2 text-sm font-semibold text-muted-foreground hover:bg-muted"
+            : "min-h-12 rounded-xl bg-forest px-4 text-sm font-bold text-ivory"
+        }`}
+      >
+        {compact ? (
+          PERIOD_LABELS[period]
+        ) : (
+          <span className="flex flex-col leading-tight">
+            {PERIOD_LABELS[period]}
+            <span className="text-xs font-normal opacity-80">{periodHint(range, period)}</span>
+          </span>
+        )}
+        <ChevronDown aria-hidden className="size-4 transition-transform group-open:rotate-180" />
+      </summary>
+      <nav
+        aria-label="فترة الأرقام"
+        className="absolute end-0 top-full z-20 mt-2 flex w-64 flex-col rounded-xl border border-line bg-card p-1.5 text-sm shadow-lg"
+      >
+        {MENU.map((g) => (
+          <div key={g.group} className="flex flex-col">
+            <span className="px-3 pt-2 pb-1 text-xs font-semibold text-muted-foreground">{g.group}</span>
+            {g.periods.map((k) => (
+              <Link
+                key={k}
+                href={k === "today" ? "/admin" : `/admin?p=${k}`}
+                aria-current={k === period ? "page" : undefined}
+                className={`flex min-h-10 items-center justify-between gap-2 rounded-lg px-3 hover:bg-muted ${
+                  k === period ? "bg-muted font-bold" : ""
+                }`}
+              >
+                {PERIOD_LABELS[k]}
+                <span className="text-xs text-muted-foreground">
+                  {periodHint(dashboardRange(k, now, weekStartsOn), k)}
+                </span>
+              </Link>
+            ))}
+          </div>
+        ))}
+      </nav>
+    </details>
   );
 }

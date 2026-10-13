@@ -6,8 +6,9 @@ export interface ChartPoint {
   key: string;
   /** اسم العمود كاملاً للتلميح والجدول (الثلاثاء 13 أكتوبر، أكتوبر 2026). */
   label: string;
-  /** اسم مختصر تحت المحور، أو "" لإخفائه (لا يتسع لكل الأعمدة). */
+  /** اسم تحت المحور بسطرين (13 / أكتوبر)، أو "" لإخفائه (لا يتسع لكل الأعمدة). */
   tick: string;
+  tickSub: string;
   shop: string;
   store: string;
   total: string;
@@ -15,8 +16,6 @@ export interface ChartPoint {
   short: string;
   /** القيمة كنسبة من أعلى خط في المحور (0–1) — محسوبة في الخادم. */
   ratio: number;
-  /** عمود لم يأتِ بعد: يُترك فارغاً. */
-  future: boolean;
   /** اليوم/الشهر الحالي يُبرز بلون الغابة. */
   current: boolean;
 }
@@ -77,6 +76,7 @@ export function SalesChart({
                 y1={H - g.ratio * H}
                 y2={H - g.ratio * H}
                 className="stroke-line"
+                strokeDasharray={g.ratio === 0 ? undefined : "4 4"}
                 vectorEffect="non-scaling-stroke"
               />
             ))}
@@ -124,7 +124,7 @@ export function SalesChart({
                 ) : null,
               )
             : null}
-          {active && hover !== null && !active.future ? (
+          {active && hover !== null ? (
             <div
               className="pointer-events-none absolute top-2 z-10 -translate-x-1/2 rounded-lg bg-forest px-3 py-2 text-xs text-ivory shadow-md"
               style={{ left: `${Math.min(Math.max(pos(hover), 15), 85)}%` }}
@@ -144,8 +144,12 @@ export function SalesChart({
         style={{ gridTemplateColumns: `repeat(${n}, minmax(0, 1fr))` }}
       >
         {points.map((p) => (
-          <span key={p.key} className={`whitespace-nowrap ${p.current ? "font-bold text-forest" : ""}`}>
+          <span
+            key={p.key}
+            className={`flex flex-col leading-tight whitespace-nowrap ${p.current ? "font-bold text-forest" : ""}`}
+          >
             {p.tick}
+            <span className="text-[10px] opacity-75">{p.tickSub}</span>
           </span>
         ))}
       </div>
@@ -161,16 +165,14 @@ export function SalesChart({
             </tr>
           </thead>
           <tbody>
-            {points
-              .filter((p) => !p.future)
-              .map((p) => (
-                <tr key={p.key} className="border-t border-line">
-                  <td className="py-1">{p.label}</td>
-                  <td className="py-1">{p.shop}</td>
-                  <td className="py-1">{p.store}</td>
-                  <td className="py-1 font-semibold">{p.total}</td>
-                </tr>
-              ))}
+            {points.map((p) => (
+              <tr key={p.key} className="border-t border-line">
+                <td className="py-1">{p.label}</td>
+                <td className="py-1">{p.shop}</td>
+                <td className="py-1">{p.store}</td>
+                <td className="py-1 font-semibold">{p.total}</td>
+              </tr>
+            ))}
           </tbody>
         </table>
       </details>
