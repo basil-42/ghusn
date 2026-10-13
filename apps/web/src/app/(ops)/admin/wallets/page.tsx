@@ -68,11 +68,12 @@ export default async function WalletsPage() {
           </CardDescription>
         </CardHeader>
         <TransferForm
-          wallets={active.map(({ id, name, currencyCode, symbol, balance }) => ({
+          wallets={active.map(({ id, name, currencyCode, symbol, decimals, balance }) => ({
             id,
             name,
             currencyCode,
             symbol,
+            decimals,
             balance,
           }))}
           rates={rates}

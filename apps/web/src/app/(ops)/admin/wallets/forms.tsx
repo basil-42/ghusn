@@ -7,6 +7,7 @@ import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input, NativeSelect } from "@/components/ui/input";
 import { formatAmount, formatPercent, formatRate } from "@/lib/format";
+import { OVER_BALANCE, exceedsAvailable } from "@/lib/wallet-hint";
 import {
   adjustmentAction,
   createWalletAction,
@@ -16,7 +17,14 @@ import {
   type FormState,
 } from "./actions";
 
-export type WalletOption = { id: string; name: string; currencyCode: string; symbol: string; balance: string };
+export type WalletOption = {
+  id: string;
+  name: string;
+  currencyCode: string;
+  symbol: string;
+  decimals: number;
+  balance: string;
+};
 type RateSides = Record<string, { currentRate: string; anchored: boolean }>;
 
 const field = "flex min-w-0 flex-col gap-1";
@@ -70,7 +78,8 @@ export function TransferForm({ wallets, rates, today }: { wallets: WalletOption[
     }
   }
   const derived = plan?.derived ?? null;
-  const overdraw = from && fromAmount && dec(fromAmount).gt(from.balance);
+  // D-132: لا يخرج من محفظة أكثر من رصيدها (الخادم يرفض أيضاً)
+  const overdraw = exceedsAvailable(v.fromAmount, from?.balance);
 
   return (
     <form action={action} className="flex flex-col gap-4">
@@ -84,7 +93,7 @@ export function TransferForm({ wallets, rates, today }: { wallets: WalletOption[
             </option>
             {wallets.map((w) => (
               <option key={w.id} value={w.id}>
-                {w.name} ({w.currencyCode})
+                {w.name} ({w.currencyCode}) — المتاح {formatAmount(w.balance, w.decimals)}
               </option>
             ))}
           </NativeSelect>
@@ -116,8 +125,7 @@ export function TransferForm({ wallets, rates, today }: { wallets: WalletOption[
           />
           {from ? (
             <span className={`text-xs ${overdraw ? "font-semibold text-destructive" : "text-muted-foreground"}`}>
-              الرصيد {formatAmount(from.balance)} {from.symbol}
-              {overdraw ? " — أقل من المبلغ، سيصبح سالباً" : ""}
+              {overdraw ? OVER_BALANCE : `المتاح ${formatAmount(from.balance, from.decimals)} ${from.symbol}`}
             </span>
           ) : null}
         </label>
@@ -193,7 +201,7 @@ export function TransferForm({ wallets, rates, today }: { wallets: WalletOption[
         </div>
       ) : null}
 
-      <Button type="submit" disabled={pending} className="self-start">
+      <Button type="submit" disabled={pending || overdraw} className="self-start">
         {pending ? "جارٍ الحفظ…" : "تسجيل التحويل"}
       </Button>
     </form>

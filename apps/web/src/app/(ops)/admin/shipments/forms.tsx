@@ -4,6 +4,8 @@ import { useActionToast } from "@/components/ui/toast";
 import { Plus, Search, Trash2 } from "lucide-react";
 import { useActionState, useEffect, useState, useTransition } from "react";
 import { Field, SelectField } from "@/components/form-field";
+import { OVER_BALANCE, exceedsAvailable } from "@/lib/wallet-hint";
+import type { WalletPick } from "@/lib/wallets";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input, NativeSelect } from "@/components/ui/input";
@@ -522,12 +524,19 @@ export function CostForm({
   today,
 }: {
   id: string;
-  wallets: Option[];
+  wallets: WalletPick[];
   kinds: Option[];
   today: string;
 }) {
-  const [state, action, pending] = useActionState<FormState, FormData>(addCostAction, {});
+  const [walletId, setWalletId] = useState(wallets[0]?.value ?? "");
+  const [amount, setAmount] = useState("");
+  const [state, action, pending] = useActionState<FormState, FormData>(async (prev, data) => {
+    const result = await addCostAction(prev, data);
+    if (result.success) setAmount("");
+    return result;
+  }, {});
   useActionToast(state);
+  const exceeds = exceedsAvailable(amount, wallets.find((w) => w.value === walletId)?.available);
   return (
     <form action={action} key={state.success} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
       <div className="flex flex-col gap-3 sm:col-span-2">
@@ -541,14 +550,30 @@ export function CostForm({
           </option>
         ))}
       </SelectField>
-      <SelectField label="دُفع من محفظة (بعملتها)" name="walletId" id="cost-wallet" defaultValue={wallets[0]?.value}>
+      <SelectField
+        label="دُفع من محفظة (بعملتها)"
+        name="walletId"
+        id="cost-wallet"
+        value={walletId}
+        onChange={(e) => setWalletId(e.target.value)}
+      >
         {wallets.map((w) => (
           <option key={w.value} value={w.value}>
             {w.label}
           </option>
         ))}
       </SelectField>
-      <Field label="المبلغ" name="amount" id="cost-amount" inputMode="decimal" dir="ltr" required />
+      <Field
+        label="المبلغ"
+        name="amount"
+        id="cost-amount"
+        inputMode="decimal"
+        dir="ltr"
+        required
+        value={amount}
+        onChange={(e) => setAmount(e.target.value)}
+        error={exceeds ? OVER_BALANCE : undefined}
+      />
       <Field
         label="تاريخ الدفع"
         name="paidAt"
@@ -563,7 +588,7 @@ export function CostForm({
         <Field label="ملاحظة (اختياري)" name="note" id="cost-note" />
       </div>
       <div className="sm:col-span-2">
-        <Button type="submit" variant="outline" disabled={pending}>
+        <Button type="submit" variant="outline" disabled={pending || exceeds}>
           <Plus aria-hidden /> إضافة التكلفة
         </Button>
       </div>
