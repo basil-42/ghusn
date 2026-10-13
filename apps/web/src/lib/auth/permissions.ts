@@ -7,7 +7,8 @@ import { defaultStatements } from "better-auth/plugins/admin/access";
  */
 export const statements = {
   ...defaultStatements,
-  exchangeRate: ["read", "update"],
+  // «dashboard»: بطاقة سعر الصرف في الرئيسية — للمالك فقط (D-133)
+  exchangeRate: ["read", "update", "dashboard"],
   margin: ["read", "update"],
   cost: ["read"],
   product: ["read", "create", "update", "delete"],
@@ -42,7 +43,7 @@ export const roles = {
   OWNER: ac.newRole({
     user: ["create", "list", "set-role", "ban", "set-password", "get", "update"],
     session: ["list", "revoke"],
-    exchangeRate: ["read", "update"],
+    exchangeRate: ["read", "update", "dashboard"],
     margin: ["read", "update"],
     cost: ["read"],
     product: ["read", "create", "update", "delete"],

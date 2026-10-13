@@ -1,5 +1,5 @@
 import {
-  dashboardRange,
+  dashboardBuckets,
   dec,
   marginOf,
   percentChange,
@@ -7,7 +7,7 @@ import {
   shopDay,
   shopDayStart,
   shopMonthRange,
-  type DashboardPeriod,
+  type DashboardRange,
 } from "@ghusn/core";
 import { Prisma, prisma } from "@ghusn/db";
 import { getStockSettings } from "./settings";
@@ -37,52 +37,142 @@ async function salesBetween(start: Date, end: Date) {
       _sum: { refundSdg: true, refundUsd: true, restockCostUsd: true },
     }),
   ]);
+  // تكلفة البضاعة بالجنيه بسعر صرف كل فاتورة/طلب يوم البيع (D-133) — فلا يتغير ربح الأيام الماضية مع سعر اليوم
+  const [cost] = await prisma.$queryRaw<{ sdg: Prisma.Decimal | null }[]>`
+    SELECT COALESCE((SELECT SUM("cogsUsd" * "sdgPerUsd") FROM "Sale" WHERE "createdAt" >= ${start} AND "createdAt" < ${end}), 0)
+         + COALESCE((SELECT SUM("cogsUsd" * COALESCE("sdgPerUsd", "totalSdg" / NULLIF("revenueUsd", 0)))
+                       FROM "Order" WHERE "status" = 'DELIVERED' AND "deliveredAt" >= ${start} AND "deliveredAt" < ${end}), 0)
+         - COALESCE((SELECT SUM(r."restockCostUsd" * s."sdgPerUsd") FROM "SaleReturn" r JOIN "Sale" s ON s."id" = r."saleId"
+                      WHERE r."createdAt" >= ${start} AND r."createdAt" < ${end}), 0) AS "sdg"`;
   // مجمل الربح بنفس تعريف التقرير الشهري: الإيراد − المرتجع − (التكلفة − تكلفة ما عاد للمخزون)
   const revenueUsd = dec(s(sales._sum.revenueUsd)).plus(s(orders._sum.revenueUsd)).minus(s(returns._sum.refundUsd));
   const cogsUsd = dec(s(sales._sum.cogsUsd)).plus(s(orders._sum.cogsUsd)).minus(s(returns._sum.restockCostUsd));
   const gross = dec(s(sales._sum.totalSdg)).plus(s(orders._sum.totalSdg));
   const count = sales._count + orders._count;
+  const netSdg = gross.minus(s(returns._sum.refundSdg));
   return {
-    netSdg: gross.minus(s(returns._sum.refundSdg)),
+    netSdg,
     shopSdg: dec(s(sales._sum.totalSdg)),
     storeSdg: dec(s(orders._sum.totalSdg)),
     count,
     avgTicketSdg: count ? gross.div(count) : null,
     revenueUsd,
     profitUsd: revenueUsd.minus(cogsUsd),
+    profitSdg: netSdg.minus(s(cost?.sdg)),
   };
 }
 
+/** من اشترى في [start, end)، ومنهم الجدد: أول شراء مكتمل لهم فيها. */
+async function buyersBetween(start: Date, end: Date) {
+  const [row] = await prisma.$queryRaw<{ buyers: bigint; fresh: bigint }[]>`
+    WITH p AS (
+      SELECT "customerId" AS id, "createdAt" AS at FROM "Sale" WHERE "customerId" IS NOT NULL
+      UNION ALL
+      SELECT "customerId", "deliveredAt" FROM "Order" WHERE "status" = 'DELIVERED' AND "deliveredAt" IS NOT NULL
+    ), f AS (SELECT id, MIN(at) AS first_at FROM p GROUP BY id)
+    SELECT COUNT(*) FILTER (WHERE EXISTS (SELECT 1 FROM p WHERE p.id = f.id AND p.at >= ${start} AND p.at < ${end})) AS "buyers",
+           COUNT(*) FILTER (WHERE f.first_at >= ${start} AND f.first_at < ${end}) AS "fresh"
+      FROM f`;
+  return { buyers: Number(row?.buyers ?? 0), fresh: Number(row?.fresh ?? 0) };
+}
+
+const change = (cur: { toString(): string } | null, prev: { toString(): string } | null) =>
+  cur === null || prev === null ? null : (percentChange(cur.toString(), prev.toString())?.toFixed(4) ?? null);
+
 /**
- * أرقام الرئيسية لفترة (D-120): المبيعات ومقارنتها، مجمل الربح والهامش، متوسط الفاتورة، والعملاء
- * (من اشترى في الفترة، ومنهم الجدد: أول شراء مكتمل لهم فيها).
+ * أرقام الرئيسية لفترة (D-120، D-133): المبيعات، مجمل الربح بالجنيه (بسعر يوم البيع) والدولار والهامش،
+ * متوسط الفاتورة، والعملاء — ولكل رقم نسبة تغيّره عن فترة المقارنة العادلة.
  */
-export async function periodKpis(period: DashboardPeriod, now = new Date()) {
-  const r = dashboardRange(period, now);
-  const [cur, prev, customers] = await Promise.all([
-    salesBetween(r.start, r.end),
-    salesBetween(r.prevStart, r.prevEnd),
-    prisma.$queryRaw<{ buyers: bigint; fresh: bigint }[]>`
-      WITH p AS (
-        SELECT "customerId" AS id, "createdAt" AS at FROM "Sale" WHERE "customerId" IS NOT NULL
-        UNION ALL
-        SELECT "customerId", "deliveredAt" FROM "Order" WHERE "status" = 'DELIVERED' AND "deliveredAt" IS NOT NULL
-      ), f AS (SELECT id, MIN(at) AS first_at, MAX(at) AS last_at FROM p GROUP BY id)
-      SELECT COUNT(*) FILTER (WHERE EXISTS (SELECT 1 FROM p WHERE p.id = f.id AND p.at >= ${r.start} AND p.at < ${r.end})) AS "buyers",
-             COUNT(*) FILTER (WHERE f.first_at >= ${r.start} AND f.first_at < ${r.end}) AS "fresh"
-        FROM f`,
+export async function periodKpis(range: DashboardRange) {
+  const [cur, prev, buyers, prevBuyers] = await Promise.all([
+    salesBetween(range.start, range.end),
+    salesBetween(range.prevStart, range.prevEnd),
+    buyersBetween(range.start, range.end),
+    buyersBetween(range.prevStart, range.prevEnd),
   ]);
   return {
     netSdg: cur.netSdg.toFixed(0),
+    prevNetSdg: prev.netSdg.toFixed(0),
     count: cur.count,
-    change: percentChange(cur.netSdg, prev.netSdg)?.toFixed(4) ?? null,
+    change: change(cur.netSdg, prev.netSdg),
     avgTicketSdg: cur.avgTicketSdg?.toFixed(0) ?? null,
+    avgTicketChange: change(cur.avgTicketSdg, prev.avgTicketSdg),
+    profitSdg: cur.profitSdg.toFixed(0),
     profitUsd: cur.profitUsd.toFixed(2),
+    // الربح قد يكون سالباً في الفترة السابقة: لا نسبة حينها
+    profitChange: change(cur.profitSdg, prev.profitSdg),
     margin: marginOf(cur.revenueUsd, cur.profitUsd)?.toFixed(4) ?? null,
-    customers: Number(customers[0]?.buyers ?? 0),
-    newCustomers: Number(customers[0]?.fresh ?? 0),
+    customers: buyers.buyers,
+    customersChange: change(buyers.buyers, prevBuyers.buyers),
+    newCustomers: buyers.fresh,
   };
 }
+
+export interface SeriesPoint {
+  key: string;
+  /** صافي المحل (بعد المرتجعات) والمتجر — بالجنيه. */
+  shopSdg: string;
+  storeSdg: string;
+  totalSdg: string;
+  /** نفس العمود من الفترة السابقة (اليوم 1 باليوم 1…)، أو null إن لم يوجد مقابل. */
+  prevKey: string | null;
+  prevSdg: string | null;
+  /** عمود لم يأتِ بعد (باقي الشهر/الأسبوع/السنة). */
+  future: boolean;
+}
+
+/**
+ * أعمدة رسم المبيعات للفترة (D-133): ساعة/يوم/شهر حسب الفترة، وصافي المبيعات بنفس تعريف الأرقام
+ * (المحل − المرتجعات + المتجر المسلَّم)، مع نفس العمود من الفترة السابقة لخط المقارنة.
+ */
+export async function salesSeries(range: DashboardRange, now = new Date()): Promise<SeriesPoint[]> {
+  const pattern = range.bucket === "hour" ? `YYYY-MM-DD"T"HH24` : range.bucket === "day" ? "YYYY-MM-DD" : "YYYY-MM";
+  // مفتاح العمود بتوقيت المحل — نفس صيغة مفاتيح dashboardBuckets
+  const bucket = (col: string) =>
+    Prisma.raw(`to_char(("${col}" AT TIME ZONE 'UTC') AT TIME ZONE '${SHOP_TIME_ZONE}', '${pattern}')`);
+  const from = range.prevStart;
+  const to = range.periodEnd;
+  const rows = await prisma.$queryRaw<{ k: string; shop: Prisma.Decimal; store: Prisma.Decimal }[]>`
+    SELECT k, SUM(shop) AS "shop", SUM(store) AS "store" FROM (
+      SELECT ${bucket("createdAt")} AS k, "totalSdg" AS shop, 0 AS store
+        FROM "Sale" WHERE "createdAt" >= ${from} AND "createdAt" < ${to}
+      UNION ALL
+      SELECT ${bucket("createdAt")}, -"refundSdg", 0
+        FROM "SaleReturn" WHERE "createdAt" >= ${from} AND "createdAt" < ${to}
+      UNION ALL
+      SELECT ${bucket("deliveredAt")}, 0, "totalSdg"
+        FROM "Order" WHERE "status" = 'DELIVERED' AND "deliveredAt" >= ${from} AND "deliveredAt" < ${to}
+    ) x GROUP BY k`;
+  const by = new Map(rows.map((r) => [r.k, { shop: dec(r.shop.toString()), store: dec(r.store.toString()) }]));
+  const { current, previous } = dashboardBuckets(range);
+  const nowKey =
+    range.bucket === "hour"
+      ? `${shopDay(now)}T${hourOf(now)}`
+      : range.bucket === "day"
+        ? shopDay(now)
+        : shopDay(now).slice(0, 7);
+  return current.map((key, i) => {
+    const v = by.get(key);
+    const prevKey = previous[i] ?? null;
+    const p = prevKey ? by.get(prevKey) : undefined;
+    return {
+      key,
+      shopSdg: (v?.shop ?? dec(0)).toFixed(0),
+      storeSdg: (v?.store ?? dec(0)).toFixed(0),
+      totalSdg: (v ? v.shop.plus(v.store) : dec(0)).toFixed(0),
+      prevKey,
+      prevSdg: prevKey ? (p ? p.shop.plus(p.store) : dec(0)).toFixed(0) : null,
+      future: !range.complete && key > nowKey,
+    };
+  });
+}
+
+const hourFormat = new Intl.DateTimeFormat("en-u-nu-latn", {
+  hour: "2-digit",
+  hourCycle: "h23",
+  timeZone: SHOP_TIME_ZONE,
+});
+const hourOf = (at: Date) => hourFormat.format(at).padStart(2, "0");
 
 /** مبيعات اليوم والشهر حتى الآن، ومقارنة بنفس المدة من الشهر الماضي. */
 export async function salesKpis(now = new Date()) {
@@ -108,38 +198,6 @@ export async function salesKpis(now = new Date()) {
       change: percentChange(mtd.netSdg, prevMtd.netSdg)?.toFixed(4) ?? null,
     },
   };
-}
-
-export interface DayPoint {
-  day: string;
-  shopSdg: string;
-  storeSdg: string;
-  totalSdg: string;
-}
-
-/** المبيعات اليومية لآخر 30 يوماً (المحل والمتجر)، كل الأيام حتى الفارغة. */
-export async function dailySales(days = 30, now = new Date()): Promise<DayPoint[]> {
-  const today = shopDay(now);
-  const keys: string[] = [];
-  for (let i = days - 1; i >= 0; i--)
-    keys.push(shopDay(new Date(shopDayStart(today).getTime() - i * 86_400_000 + 43_200_000)));
-  const start = shopDayStart(keys[0] ?? today);
-  const tz = Prisma.raw(`'${SHOP_TIME_ZONE}'`);
-  const [shop, store] = await Promise.all([
-    prisma.$queryRaw<{ day: string; sdg: Prisma.Decimal }[]>`
-      SELECT to_char(("createdAt" AT TIME ZONE 'UTC') AT TIME ZONE ${tz}, 'YYYY-MM-DD') AS "day", SUM("totalSdg") AS "sdg"
-        FROM "Sale" WHERE "createdAt" >= ${start} GROUP BY 1`,
-    prisma.$queryRaw<{ day: string; sdg: Prisma.Decimal }[]>`
-      SELECT to_char(("deliveredAt" AT TIME ZONE 'UTC') AT TIME ZONE ${tz}, 'YYYY-MM-DD') AS "day", SUM("totalSdg") AS "sdg"
-        FROM "Order" WHERE "status" = 'DELIVERED' AND "deliveredAt" >= ${start} GROUP BY 1`,
-  ]);
-  const shopBy = new Map(shop.map((r) => [r.day, dec(r.sdg.toString())]));
-  const storeBy = new Map(store.map((r) => [r.day, dec(r.sdg.toString())]));
-  return keys.map((day) => {
-    const a = shopBy.get(day) ?? dec(0);
-    const b = storeBy.get(day) ?? dec(0);
-    return { day, shopSdg: a.toFixed(0), storeSdg: b.toFixed(0), totalSdg: a.plus(b).toFixed(0) };
-  });
 }
 
 /** الأكثر مبيعاً هذا الشهر (المحل + طلبات المتجر المسلّمة) بالكمية. */

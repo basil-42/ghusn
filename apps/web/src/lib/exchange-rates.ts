@@ -1,4 +1,4 @@
-import { effectiveRate, rateChange, rateChangeExceeds, shopDay, type Decimal } from "@ghusn/core";
+import { dec, effectiveRate, rateChange, rateChangeExceeds, shopDay, type Decimal } from "@ghusn/core";
 import { prisma, type RateSource } from "@ghusn/db";
 
 /** مصادر السعر التي تُدخل يدوياً؛ ACTUAL_TRANSFER يُنشأ من التحويلات، وFIXED_PEG للعملات المربوطة. */
@@ -127,4 +127,35 @@ export async function getRateInfoAt(
 /** سعر الصرف الساري لعملة في لحظة ما (للعمليات المالية). null إن لم يوجد سعر قبلها. */
 export async function getRateAt(currencyCode: string, at: Date): Promise<string | null> {
   return (await getRateInfoAt(currencyCode, at))?.unitsPerUsd ?? null;
+}
+
+/** عملة شراء باسل (قطر) — تُعرض بجانب سعر الدولار في الرئيسية (D-133). */
+const OWNER_CURRENCY = "QAR";
+
+/**
+ * بطاقة سعر الصرف في الرئيسية (D-133، للمالك): الجنيه لكل دولار الآن ووقت إدخاله، والجنيه لكل ريال
+ * (الجنيه ÷ ربط الريال)، وتغيّر الجنيه عن قبل 7 أيام (موجب = الجنيه ضعف).
+ */
+export async function rateTicker(now = new Date()) {
+  const [sdg, qar, weekAgo] = await Promise.all([
+    prisma.exchangeRate.findMany({
+      where: { currencyCode: SELLING_CURRENCY, effectiveAt: { lte: now } },
+      orderBy: { effectiveAt: "desc" },
+      take: 20,
+    }),
+    getRateAt(OWNER_CURRENCY, now),
+    getRateAt(SELLING_CURRENCY, new Date(now.getTime() - 7 * 86_400_000)),
+  ]);
+  const current = effectiveRate(
+    sdg.map((r) => ({ ...r, unitsPerUsd: r.unitsPerUsd.toString() })),
+    SELLING_CURRENCY,
+    now,
+  );
+  if (!current) return null;
+  return {
+    sdgPerUsd: current.unitsPerUsd,
+    effectiveAt: current.effectiveAt,
+    sdgPerQar: qar ? dec(current.unitsPerUsd).div(qar).toFixed(2) : null,
+    weekChange: weekAgo ? rateChange(weekAgo, current.unitsPerUsd).toFixed(4) : null,
+  };
 }

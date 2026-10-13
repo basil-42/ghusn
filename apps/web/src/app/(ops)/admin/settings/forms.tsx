@@ -5,7 +5,9 @@ import { useActionState } from "react";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input, NativeSelect } from "@/components/ui/input";
+import { WEEK_DAYS } from "@ghusn/core";
 import type {
+  GeneralSettings,
   InsightsSettings,
   MessageSettings,
   PosSettings,
@@ -15,6 +17,7 @@ import type {
 } from "@/lib/settings";
 import {
   saveExpenseCategoryAction,
+  saveGeneralSettingsAction,
   savePosSettingsAction,
   saveReceiptSettingsAction,
   saveMessageSettingsAction,
@@ -29,6 +32,33 @@ function Messages({ state }: { state: FormState }) {
 }
 
 const field = "flex min-w-0 flex-col gap-1";
+
+/** عام (D-133): يوم بداية الأسبوع لفترتي «هذا الأسبوع» و«الأسبوع السابق» في الرئيسية. */
+export function GeneralSettingsForm({ initial }: { initial: GeneralSettings }) {
+  const [state, action, pending] = useActionState<FormState, FormData>(saveGeneralSettingsAction, {});
+  useActionToast(state);
+  // السبت أولاً: ترتيب أيام الأسبوع المعتاد في السودان
+  const order = [6, 0, 1, 2, 3, 4, 5] as const;
+  return (
+    <form action={action} className="flex flex-col gap-3">
+      <Messages state={state} />
+      <label className={`${field} sm:max-w-xs`}>
+        <span className="font-semibold">بداية الأسبوع</span>
+        <NativeSelect name="weekStartsOn" defaultValue={String(initial.weekStartsOn)}>
+          {order.map((d) => (
+            <option key={d} value={d}>
+              {WEEK_DAYS[d]}
+            </option>
+          ))}
+        </NativeSelect>
+        <span className="text-xs text-muted-foreground">يحدد «هذا الأسبوع» و«الأسبوع السابق» في الرئيسية.</span>
+      </label>
+      <Button type="submit" disabled={pending} className="self-start">
+        حفظ
+      </Button>
+    </form>
+  );
+}
 
 export function PosSettingsForm({
   initial,

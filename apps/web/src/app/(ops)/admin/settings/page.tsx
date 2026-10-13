@@ -9,6 +9,7 @@ import {
   getPosSettings,
   getReceiptSettings,
   getInsightsSettings,
+  getGeneralSettings,
   getStockSettings,
   getStoreSettings,
 } from "@/lib/settings";
@@ -19,6 +20,7 @@ import {
   ReceiptSettingsForm,
   MessageSettingsForm,
   InsightsSettingsForm,
+  GeneralSettingsForm,
   StockSettingsForm,
   StoreSettingsForm,
 } from "./forms";
@@ -48,7 +50,7 @@ const SAMPLE = {
 
 export default async function SettingsPage() {
   await requirePermission({ settings: ["update"] });
-  const [pos, receipt, store, stock, messages, wallets, categories, insights] = await Promise.all([
+  const [pos, receipt, store, stock, messages, wallets, categories, insights, general] = await Promise.all([
     getPosSettings(),
     getReceiptSettings(),
     getStoreSettings(),
@@ -57,6 +59,7 @@ export default async function SettingsPage() {
     prisma.wallet.findMany({ where: { isActive: true, currencyCode: "SDG" }, orderBy: { name: "asc" } }),
     listExpenseCategories({ includeInactive: true }),
     getInsightsSettings(),
+    getGeneralSettings(),
   ]);
   return (
     <div className="flex flex-col gap-6">
@@ -64,6 +67,13 @@ export default async function SettingsPage() {
         title="الضبط"
         description="إعدادات نقطة البيع والمتجر والرسائل والمخزون والتحليلات — تُطبَّق فور الحفظ."
       />
+      <Card>
+        <CardHeader>
+          <CardTitle>عام</CardTitle>
+          <CardDescription>بداية الأسبوع لفترات الأرقام في الرئيسية (D-133).</CardDescription>
+        </CardHeader>
+        <GeneralSettingsForm initial={general} />
+      </Card>
       <Card>
         <CardHeader>
           <CardTitle>نقطة البيع</CardTitle>

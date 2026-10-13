@@ -1,12 +1,21 @@
-import { DASHBOARD_PERIODS, type DashboardPeriod, SHOP_TIME_ZONE, dec, shopDay } from "@ghusn/core";
-import { ArrowLeft } from "lucide-react";
+import {
+  DASHBOARD_PERIODS,
+  type DashboardPeriod,
+  type DashboardRange,
+  SHOP_TIME_ZONE,
+  addDays,
+  dashboardRange,
+  dec,
+  shopDay,
+} from "@ghusn/core";
+import { ArrowLeft, ChevronDown } from "lucide-react";
 import Link from "next/link";
-import { SalesChart } from "@/components/admin/sales-chart";
+import { type ChartPoint, SalesChart } from "@/components/admin/sales-chart";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { roleCan } from "@/lib/auth/permissions";
 import { requireSession } from "@/lib/auth/session";
-import { dailySales, expiringBatches, lowStock, openShifts, periodKpis, topProducts } from "@/lib/dashboard";
-import { SELLING_CURRENCY, getRateBoard } from "@/lib/exchange-rates";
+import { expiringBatches, lowStock, openShifts, periodKpis, salesSeries, topProducts } from "@/lib/dashboard";
+import { rateTicker } from "@/lib/exchange-rates";
 import { formatAmount, formatDateTime, formatDay, formatPercent, formatRate, formatTime } from "@/lib/format";
 import { countNewOrders, orderTabCounts } from "@/lib/orders";
 import { countPriceReview } from "@/lib/pricing";
@@ -15,6 +24,7 @@ import { getOpenShift, listLargeShortages, shiftSummary } from "@/lib/shifts";
 import { listDueSoon } from "@/lib/shipments";
 import { countPendingFor } from "@/lib/stock-adjustments";
 import { activeCount } from "@/lib/stock-counts";
+import { getGeneralSettings } from "@/lib/settings";
 import { listWallets } from "@/lib/wallets";
 
 const sdg = (v: string) => `${formatAmount(v, 0)} ج.س`;
@@ -25,12 +35,67 @@ const hourFormat = new Intl.DateTimeFormat("en-u-nu-latn", {
   timeZone: SHOP_TIME_ZONE,
 });
 
-const PERIOD_LABELS: Record<DashboardPeriod, string> = { today: "اليوم", week: "7 أيام", month: "هذا الشهر" };
+const PERIOD_LABELS: Record<DashboardPeriod, string> = {
+  today: "اليوم",
+  "this-week": "هذا الأسبوع",
+  "last-week": "الأسبوع السابق",
+  "this-month": "هذا الشهر",
+  "last-month": "الشهر السابق",
+  "this-year": "هذه السنة",
+  "last-year": "السنة السابقة",
+};
 const COMPARED_TO: Record<DashboardPeriod, string> = {
   today: "عن نفس الوقت أمس",
-  week: "عن الأيام السبعة السابقة",
-  month: "عن نفس الفترة من الشهر الماضي",
+  "this-week": "عن نفس الأيام من الأسبوع السابق",
+  "last-week": "عن الأسبوع الذي قبله",
+  "this-month": "عن نفس الأيام من الشهر السابق",
+  "last-month": "عن الشهر الذي قبله",
+  "this-year": "عن نفس المدة من السنة السابقة",
+  "last-year": "عن السنة التي قبلها",
 };
+/** اسم الفترة المقابلة في مفتاح الرسم وتلميحه. */
+const PREV_NAME: Record<DashboardPeriod, string> = {
+  today: "أمس",
+  "this-week": "الأسبوع السابق",
+  "last-week": "الأسبوع الذي قبله",
+  "this-month": "الشهر السابق",
+  "last-month": "الشهر الذي قبله",
+  "this-year": "السنة السابقة",
+  "last-year": "السنة التي قبلها",
+};
+const MENU: { group: string; periods: DashboardPeriod[] }[] = [
+  { group: "يوم", periods: ["today"] },
+  { group: "أسبوع", periods: ["this-week", "last-week"] },
+  { group: "شهر", periods: ["this-month", "last-month"] },
+  { group: "سنة", periods: ["this-year", "last-year"] },
+];
+// روابط قديمة (قبل D-133) تبقى تعمل
+const LEGACY: Record<string, DashboardPeriod> = { week: "this-week", month: "this-month" };
+const monthLabel = new Intl.DateTimeFormat("ar-u-nu-latn", { month: "long", year: "numeric", timeZone: "UTC" });
+const monthShort = new Intl.DateTimeFormat("ar-u-nu-latn", { month: "short", timeZone: "UTC" });
+
+/** أسماء أعمدة الرسم: الكامل للتلميح، والمختصر تحت المحور لبعضها فقط. */
+function bucketLabel(key: string, bucket: DashboardRange["bucket"]) {
+  if (bucket === "hour") return `${key.slice(11)}:00`;
+  if (bucket === "day") return dayLabel.format(new Date(`${key}T00:00:00Z`));
+  return monthLabel.format(new Date(`${key}-01T00:00:00Z`));
+}
+function bucketTick(key: string, i: number, n: number, bucket: DashboardRange["bucket"]) {
+  if (bucket === "hour") return i % 3 === 0 ? String(Number(key.slice(11))) : "";
+  if (bucket === "month") return monthShort.format(new Date(`${key}-01T00:00:00Z`));
+  // الأسبوع: كل الأيام؛ الشهر: كل ثالث يوم
+  return n <= 7 ? dayLabel.format(new Date(`${key}T00:00:00Z`)) : i % 3 === 0 ? String(Number(key.slice(8))) : "";
+}
+
+/** وصف الفترة في القائمة: تواريخها أو مقابلها. */
+function periodHint(r: DashboardRange, period: DashboardPeriod) {
+  if (period === "today") return "مقابل أمس";
+  const first = shopDay(r.start);
+  const last = addDays(shopDay(r.periodEnd), -1);
+  if (r.bucket === "month") return first.slice(0, 4);
+  if (period.endsWith("month")) return monthLabel.format(new Date(`${first}T00:00:00Z`));
+  return `${dayLabel.format(new Date(`${first}T00:00:00Z`))} – ${dayLabel.format(new Date(`${last}T00:00:00Z`))}`;
+}
 
 type Can = (p: Parameters<typeof roleCan>[1]) => boolean;
 type User = { id: string; name: string; role?: string | null };
@@ -48,15 +113,19 @@ export default async function AdminHome({ searchParams }: { searchParams: Promis
   const can: Can = (p) => roleCan(user.role, p);
   if (!can({ sale: ["read"] })) return <StaffHome user={user} can={can} />;
   const { p } = await searchParams;
-  const period = (DASHBOARD_PERIODS as readonly string[]).includes(p ?? "") ? (p as DashboardPeriod) : "today";
+  const period = (DASHBOARD_PERIODS as readonly string[]).includes(p ?? "")
+    ? (p as DashboardPeriod)
+    : (LEGACY[p ?? ""] ?? "today");
   return <OwnerHome user={user} can={can} period={period} />;
 }
 
 async function OwnerHome({ user, can, period }: { user: User; can: Can; period: DashboardPeriod }) {
   const now = new Date();
-  const [kpis, series, top, shifts, orders, tabs, stock, expiring, wallets, rates] = await Promise.all([
-    periodKpis(period, now),
-    dailySales(30, now),
+  const { weekStartsOn } = await getGeneralSettings();
+  const range = dashboardRange(period, now, weekStartsOn);
+  const [kpis, series, top, shifts, orders, tabs, stock, expiring, wallets, rate] = await Promise.all([
+    periodKpis(range),
+    salesSeries(range, now),
     topProducts(3, now),
     openShifts(),
     can({ order: ["read"] }) ? countNewOrders() : null,
@@ -64,7 +133,8 @@ async function OwnerHome({ user, can, period }: { user: User; can: Can; period: 
     can({ stock: ["read"] }) ? lowStock(4) : null,
     can({ stock: ["read"] }) ? expiringBatches(3, now) : null,
     can({ wallet: ["update"] }) ? listWallets() : null,
-    can({ exchangeRate: ["read"] }) ? getRateBoard() : null,
+    // سعر الصرف في الرئيسية للمالك فقط (D-133)
+    can({ exchangeRate: ["dashboard"] }) ? rateTicker(now) : null,
   ]);
   const [due, priceReview, salesReview, shortages, adjustments] = await Promise.all([
     can({ supplier: ["read"] }) ? listDueSoon(7) : [],
@@ -73,7 +143,6 @@ async function OwnerHome({ user, can, period }: { user: User; can: Can; period: 
     can({ report: ["read"] }) ? listLargeShortages() : [],
     can({ stock: ["approve"] }) ? countPendingFor({ id: user.id, role: user.role }) : 0,
   ]);
-  const sdgRate = rates?.find((c) => c.currency.code === SELLING_CURRENCY)?.current;
   const paymentReview = can({ order: ["payment"] }) ? (orders?.paymentReview ?? 0) : 0;
   const seeProfit = can({ report: ["read"] });
 
@@ -92,20 +161,43 @@ async function OwnerHome({ user, can, period }: { user: User; can: Can; period: 
     },
   ].filter(Boolean) as { href: string; text: string; urgent: boolean }[];
 
-  const max = series.reduce((a, pt) => (dec(pt.totalSdg).gt(a) ? dec(pt.totalSdg) : a), dec(0));
-  const points = series.map((pt) => ({
-    day: pt.day,
-    label: dayLabel.format(new Date(`${pt.day}T00:00:00Z`)),
-    shop: formatAmount(pt.shopSdg, 0),
-    store: formatAmount(pt.storeSdg, 0),
-    total: formatAmount(pt.totalSdg, 0),
-    ratio: max.gt(0) ? dec(pt.totalSdg).div(max).toNumber() : 0,
-  }));
-  // خط صغير لآخر 7 أيام تحت رقم المبيعات
-  const week = series.slice(-7);
-  const weekMax = week.reduce((a, pt) => (dec(pt.totalSdg).gt(a) ? dec(pt.totalSdg) : a), dec(0));
-  const spark = week.map((pt) => (weekMax.gt(0) ? dec(pt.totalSdg).div(weekMax).toNumber() : 0));
-  const today = shopDay(now);
+  // أعلى عمود في الفترتين معاً، فيُقرأ الخط المنقّط على نفس المقياس
+  const max = series.reduce(
+    (a, pt) => [pt.totalSdg, pt.prevSdg ?? "0"].reduce((m, v) => (dec(v).gt(m) ? dec(v) : m), a),
+    dec(0),
+  );
+  const ratio = (v: string) => (max.gt(0) ? Math.max(dec(v).div(max).toNumber(), 0) : 0);
+  const nowKey =
+    range.bucket === "hour"
+      ? `${shopDay(now)}T${String(Number(hourFormat.format(now))).padStart(2, "0")}`
+      : range.bucket === "day"
+        ? shopDay(now)
+        : shopDay(now).slice(0, 7);
+  const points: ChartPoint[] = series.map((pt, i) => {
+    const prevChange =
+      pt.prevSdg !== null && dec(pt.prevSdg).gt(0) ? dec(pt.totalSdg).minus(pt.prevSdg).div(pt.prevSdg) : null;
+    return {
+      key: pt.key,
+      label: bucketLabel(pt.key, range.bucket),
+      tick: bucketTick(pt.key, i, series.length, range.bucket),
+      shop: formatAmount(pt.shopSdg, 0),
+      store: formatAmount(pt.storeSdg, 0),
+      total: formatAmount(pt.totalSdg, 0),
+      ratio: ratio(pt.totalSdg),
+      prev:
+        pt.prevKey && pt.prevSdg !== null
+          ? {
+              label: bucketLabel(pt.prevKey, range.bucket),
+              total: formatAmount(pt.prevSdg, 0),
+              ratio: ratio(pt.prevSdg),
+              change: prevChange ? prevChange.toFixed(4) : null,
+            }
+          : null,
+      future: pt.future,
+      current: !range.complete && pt.key === nowKey,
+    };
+  });
+  const hasSales = series.some((pt) => dec(pt.totalSdg).gt(0) || dec(pt.prevSdg ?? "0").gt(0));
 
   const pipeline = tabs
     ? [
@@ -116,7 +208,6 @@ async function OwnerHome({ user, can, period }: { user: User; can: Can; period: 
         { key: "delivery", label: "مع التوصيل", count: tabs.delivery },
       ]
     : [];
-  const change = kpis.change;
 
   return (
     <div className="flex flex-col gap-5">
@@ -131,20 +222,44 @@ async function OwnerHome({ user, can, period }: { user: User; can: Can; period: 
           </p>
           <h1 className="font-display text-3xl font-bold">{greeting(user.name, now)}</h1>
         </div>
-        <nav aria-label="فترة الأرقام" className="flex gap-1 rounded-xl bg-muted p-1 text-sm">
-          {DASHBOARD_PERIODS.map((k) => (
-            <Link
-              key={k}
-              href={k === "today" ? "/admin" : `/admin?p=${k}`}
-              aria-current={k === period ? "page" : undefined}
-              className={`flex min-h-10 items-center rounded-lg px-4 ${
-                k === period ? "bg-card font-bold shadow-sm" : "text-muted-foreground hover:text-foreground"
-              }`}
+        <div className="flex flex-wrap items-stretch gap-2">
+          {rate ? <RateCard rate={rate} /> : null}
+          {/* قائمة الفترة (D-133): تتحكم في الأرقام والرسم معاً، وتُحفظ في الرابط */}
+          <details key={period} className="group relative">
+            <summary className="flex min-h-12 cursor-pointer list-none items-center gap-2 rounded-xl bg-forest px-4 text-sm font-bold text-ivory [&::-webkit-details-marker]:hidden">
+              <span className="flex flex-col leading-tight">
+                {PERIOD_LABELS[period]}
+                <span className="text-xs font-normal opacity-80">{periodHint(range, period)}</span>
+              </span>
+              <ChevronDown aria-hidden className="size-4 transition-transform group-open:rotate-180" />
+            </summary>
+            <nav
+              aria-label="فترة الأرقام"
+              className="absolute end-0 top-full z-20 mt-2 flex w-64 flex-col rounded-xl border border-line bg-card p-1.5 text-sm shadow-lg"
             >
-              {PERIOD_LABELS[k]}
-            </Link>
-          ))}
-        </nav>
+              {MENU.map((g) => (
+                <div key={g.group} className="flex flex-col">
+                  <span className="px-3 pt-2 pb-1 text-xs font-semibold text-muted-foreground">{g.group}</span>
+                  {g.periods.map((k) => (
+                    <Link
+                      key={k}
+                      href={k === "today" ? "/admin" : `/admin?p=${k}`}
+                      aria-current={k === period ? "page" : undefined}
+                      className={`flex min-h-10 items-center justify-between gap-2 rounded-lg px-3 hover:bg-muted ${
+                        k === period ? "bg-muted font-bold" : ""
+                      }`}
+                    >
+                      {PERIOD_LABELS[k]}
+                      <span className="text-xs text-muted-foreground">
+                        {periodHint(dashboardRange(k, now, weekStartsOn), k)}
+                      </span>
+                    </Link>
+                  ))}
+                </div>
+              ))}
+            </nav>
+          </details>
+        </div>
       </header>
 
       {attention.length ? (
@@ -174,37 +289,22 @@ async function OwnerHome({ user, can, period }: { user: User; can: Can; period: 
           value={sdg(kpis.netSdg)}
           sub={
             <>
-              {change !== null ? (
-                <span className={change.startsWith("-") ? "text-danger" : "text-forest"}>
-                  {change.startsWith("-") ? "▼" : "▲"} {formatPercent(change)} {COMPARED_TO[period]}
-                </span>
-              ) : (
-                "لا مقارنة بعد"
-              )}
+              <Growth value={kpis.change} label={COMPARED_TO[period]} />
               {` · ${kpis.count} فاتورة وطلب`}
             </>
           }
-        >
-          <span aria-hidden className="mt-1 flex h-7 items-end gap-1">
-            {spark.map((r, i) => (
-              <span
-                key={week[i]?.day ?? i}
-                className={`flex-1 rounded-t-sm ${week[i]?.day === today ? "bg-sage" : "bg-sage/35"}`}
-                style={{ height: `${Math.max(r * 100, 6)}%` }}
-              />
-            ))}
-          </span>
-        </Stat>
+        />
         {seeProfit ? (
           <Stat
             title="مجمل الربح"
-            value={<bdi dir="ltr">${formatAmount(kpis.profitUsd)}</bdi>}
+            value={sdg(kpis.profitSdg)}
             sub={
               <>
-                {kpis.margin !== null ? `هامش ${formatPercent(kpis.margin)} · ` : null}
-                <Link href="/admin/reports" className="hover:underline">
-                  الصافي في التقرير الشهري ←
-                </Link>
+                <span className="block font-semibold tabular-nums">
+                  ≈ <bdi dir="ltr">${formatAmount(kpis.profitUsd)}</bdi>
+                  {kpis.margin !== null ? ` · هامش ${formatPercent(kpis.margin)}` : null}
+                </span>
+                <Growth value={kpis.profitChange} label={COMPARED_TO[period]} />
               </>
             }
           />
@@ -212,19 +312,23 @@ async function OwnerHome({ user, can, period }: { user: User; can: Can; period: 
         <Stat
           title="متوسط الفاتورة"
           value={kpis.avgTicketSdg ? sdg(kpis.avgTicketSdg) : "—"}
-          sub={PERIOD_LABELS[period]}
+          sub={<Growth value={kpis.avgTicketChange} label={COMPARED_TO[period]} />}
         />
         <Stat
           title="العملاء"
           value={<span className="tabular-nums">{kpis.customers}</span>}
           sub={
-            can({ customer: ["read"] }) ? (
-              <Link href="/admin/customers" className="hover:underline">
-                منهم {kpis.newCustomers} جديد ←
-              </Link>
-            ) : (
-              `منهم ${kpis.newCustomers} جديد`
-            )
+            <>
+              <Growth value={kpis.customersChange} label="" />
+              {" · "}
+              {can({ customer: ["read"] }) ? (
+                <Link href="/admin/customers" className="hover:underline">
+                  منهم {kpis.newCustomers} جديد ←
+                </Link>
+              ) : (
+                `منهم ${kpis.newCustomers} جديد`
+              )}
+            </>
           }
         />
       </section>
@@ -232,13 +336,43 @@ async function OwnerHome({ user, can, period }: { user: User; can: Can; period: 
       <div className={`grid gap-4 ${tabs ? "lg:grid-cols-[2fr_1fr]" : ""}`}>
         <Card className="min-w-0">
           <CardHeader>
-            <CardTitle>المبيعات اليومية</CardTitle>
-            <CardDescription>آخر 30 يوماً — المحل والمتجر معاً (مرّر على العمود للتفاصيل).</CardDescription>
+            <div className="flex flex-wrap items-start justify-between gap-3">
+              <div className="flex flex-col gap-1">
+                <CardTitle>المبيعات · {PERIOD_LABELS[period]}</CardTitle>
+                <CardDescription>
+                  {range.bucket === "hour" ? "كل عمود ساعة" : range.bucket === "day" ? "كل عمود يوم" : "كل عمود شهر"} —
+                  المحل والمتجر معاً، والخط المنقّط {PREV_NAME[period]} (مرّر على العمود للتفاصيل).
+                </CardDescription>
+              </div>
+              <dl className="flex gap-5 text-sm">
+                <div className="flex flex-col">
+                  <dt className="text-xs text-muted-foreground">{PERIOD_LABELS[period]}</dt>
+                  <dd className="font-bold tabular-nums">{sdg(kpis.netSdg)}</dd>
+                </div>
+                <div className="flex flex-col">
+                  <dt className="text-xs text-muted-foreground">
+                    {range.complete ? PREV_NAME[period] : `${PREV_NAME[period]} (نفس المدة)`}
+                  </dt>
+                  <dd className="font-semibold text-muted-foreground tabular-nums">{sdg(kpis.prevNetSdg)}</dd>
+                </div>
+                <div className="flex flex-col">
+                  <dt className="text-xs text-muted-foreground">النمو</dt>
+                  <dd className="font-bold">
+                    <Growth value={kpis.change} label="" />
+                  </dd>
+                </div>
+              </dl>
+            </div>
           </CardHeader>
-          {max.gt(0) ? (
-            <SalesChart points={points} maxLabel={formatAmount(max.toFixed(0), 0)} />
+          {hasSales ? (
+            <SalesChart
+              points={points}
+              maxLabel={formatAmount(max.toFixed(0), 0)}
+              prevName={PREV_NAME[period]}
+              ariaLabel={`المبيعات ${PERIOD_LABELS[period]} مقابل ${PREV_NAME[period]}`}
+            />
           ) : (
-            <p className="text-muted-foreground">لا مبيعات في آخر 30 يوماً بعد.</p>
+            <p className="text-muted-foreground">لا مبيعات في هذه الفترة ولا في {PREV_NAME[period]}.</p>
           )}
         </Card>
         {tabs ? (
@@ -271,11 +405,6 @@ async function OwnerHome({ user, can, period }: { user: User; can: Can; period: 
             <CardHeader>
               <div className="flex items-baseline justify-between gap-2">
                 <CardTitle>المال</CardTitle>
-                {sdgRate ? (
-                  <Link href="/admin/exchange-rates" className="text-xs text-muted-foreground hover:underline">
-                    الجنيه <bdi dir="ltr">{formatRate(sdgRate.unitsPerUsd)}</bdi> لكل $
-                  </Link>
-                ) : null}
               </div>
             </CardHeader>
             <ul className="flex flex-col divide-y divide-line text-sm">
@@ -505,9 +634,58 @@ function Stat({
   return (
     <div className="flex min-w-0 flex-col gap-1 rounded-2xl border border-line bg-card p-4">
       <span className="text-sm text-muted-foreground">{title}</span>
-      <span className="truncate text-2xl font-bold tabular-nums">{value}</span>
+      <span className="text-lg font-bold break-words tabular-nums sm:text-2xl">{value}</span>
       {sub ? <span className="text-xs text-muted-foreground">{sub}</span> : null}
       {children}
     </div>
+  );
+}
+
+/** نسبة النمو عن فترة المقارنة: ▲ أخضر / ▼ أحمر، أو «لا مقارنة بعد». */
+function Growth({ value, label }: { value: string | null; label: string }) {
+  if (value === null) return <span>لا مقارنة بعد</span>;
+  const down = value.startsWith("-");
+  return (
+    <span className={`font-semibold ${down ? "text-danger" : "text-forest"}`}>
+      {down ? "▼" : "▲"} <bdi dir="ltr">{formatPercent(value)}</bdi>
+      {label ? <span className="font-normal text-muted-foreground"> {label}</span> : null}
+    </span>
+  );
+}
+
+/**
+ * سعر الصرف الآن (D-133، للمالك): الجنيه لكل دولار، والجنيه لكل ريال قطري، ووقت الإدخال، وتغيّر
+ * الجنيه عن قبل أسبوع — ▲ أحمر يعني أن الجنيه ضعف (جنيه أكثر لكل دولار).
+ */
+function RateCard({ rate }: { rate: NonNullable<Awaited<ReturnType<typeof rateTicker>>> }) {
+  const weaker = rate.weekChange !== null && dec(rate.weekChange).gt(0);
+  return (
+    <Link
+      href="/admin/exchange-rates"
+      className="flex items-center gap-3 rounded-xl border border-line bg-card px-4 py-1.5 hover:border-sage"
+    >
+      <span className="flex flex-col">
+        <span className="text-xs text-muted-foreground">سعر الصرف الآن</span>
+        <span className="font-bold tabular-nums">
+          <bdi dir="ltr">1 $ = {formatRate(rate.sdgPerUsd)}</bdi> ج.س
+        </span>
+      </span>
+      <span aria-hidden className="self-stretch border-s border-line" />
+      <span className="flex flex-col text-xs text-muted-foreground">
+        {rate.sdgPerQar ? (
+          <span className="font-semibold text-foreground tabular-nums">
+            <bdi dir="ltr">1 ر.ق = {formatAmount(rate.sdgPerQar, 0)}</bdi> ج.س
+          </span>
+        ) : null}
+        <span>
+          {formatDateTime(rate.effectiveAt)}
+          {rate.weekChange !== null && !dec(rate.weekChange).isZero() ? (
+            <span className={`ms-1 font-semibold ${weaker ? "text-danger" : "text-forest"}`}>
+              {weaker ? "▲" : "▼"} <bdi dir="ltr">{formatPercent(rate.weekChange)}</bdi> عن الأسبوع الماضي
+            </span>
+          ) : null}
+        </span>
+      </span>
+    </Link>
   );
 }
