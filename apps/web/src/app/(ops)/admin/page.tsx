@@ -53,16 +53,6 @@ const COMPARED_TO: Record<DashboardPeriod, string> = {
   "this-year": "عن نفس المدة من السنة السابقة",
   "last-year": "عن السنة التي قبلها",
 };
-/** اسم الفترة المقابلة في مفتاح الرسم وتلميحه. */
-const PREV_NAME: Record<DashboardPeriod, string> = {
-  today: "أمس",
-  "this-week": "الأسبوع السابق",
-  "last-week": "الأسبوع الذي قبله",
-  "this-month": "الشهر السابق",
-  "last-month": "الشهر الذي قبله",
-  "this-year": "السنة السابقة",
-  "last-year": "السنة التي قبلها",
-};
 const MENU: { group: string; periods: DashboardPeriod[] }[] = [
   { group: "يوم", periods: ["today"] },
   { group: "أسبوع", periods: ["this-week", "last-week"] },
@@ -74,17 +64,43 @@ const LEGACY: Record<string, DashboardPeriod> = { week: "this-week", month: "thi
 const monthLabel = new Intl.DateTimeFormat("ar-u-nu-latn", { month: "long", year: "numeric", timeZone: "UTC" });
 const monthShort = new Intl.DateTimeFormat("ar-u-nu-latn", { month: "short", timeZone: "UTC" });
 
-/** أسماء أعمدة الرسم: الكامل للتلميح، والمختصر تحت المحور لبعضها فقط. */
+const weekdayDay = new Intl.DateTimeFormat("ar-u-nu-latn", {
+  weekday: "long",
+  day: "numeric",
+  month: "long",
+  timeZone: "UTC",
+});
+const weekdayShort = new Intl.DateTimeFormat("ar-u-nu-latn", { weekday: "long", day: "numeric", timeZone: "UTC" });
+
+/** أسماء أعمدة الرسم: الكامل للتلميح والجدول، والمختصر تحت المحور (لبعضها في الشهر). */
 function bucketLabel(key: string, bucket: DashboardRange["bucket"]) {
-  if (bucket === "hour") return `${key.slice(11)}:00`;
-  if (bucket === "day") return dayLabel.format(new Date(`${key}T00:00:00Z`));
-  return monthLabel.format(new Date(`${key}-01T00:00:00Z`));
+  return bucket === "day"
+    ? weekdayDay.format(new Date(`${key}T00:00:00Z`))
+    : monthLabel.format(new Date(`${key}-01T00:00:00Z`));
 }
 function bucketTick(key: string, i: number, n: number, bucket: DashboardRange["bucket"]) {
-  if (bucket === "hour") return i % 3 === 0 ? String(Number(key.slice(11))) : "";
   if (bucket === "month") return monthShort.format(new Date(`${key}-01T00:00:00Z`));
-  // الأسبوع: كل الأيام؛ الشهر: كل ثالث يوم
-  return n <= 7 ? dayLabel.format(new Date(`${key}T00:00:00Z`)) : i % 3 === 0 ? String(Number(key.slice(8))) : "";
+  // أسبوع أو آخر 7 أيام: اسم اليوم ورقمه؛ الشهر: رقم كل ثالث يوم
+  return n <= 7 ? weekdayShort.format(new Date(`${key}T00:00:00Z`)) : i % 3 === 0 ? String(Number(key.slice(8))) : "";
+}
+
+/** مبلغ مختصر للمحور وفوق الأعمدة: 1.5م، 750 ألف (عرض فقط — الحساب بالـ Decimal في الخادم). */
+function compactSdg(v: number): string {
+  const one = (x: number) => String(Number(x.toFixed(1)));
+  if (v >= 1_000_000) return `${one(v / 1_000_000)}م`;
+  if (v >= 1_000) return `${one(v / 1_000)} ألف`;
+  return String(Math.round(v));
+}
+
+/** أعلى خط في المحور برقم مستدير (1، 2، 2.5، 5 × 10^ن) ونحو 4 خطوط تحته. */
+function niceAxis(max: number): number[] {
+  if (max <= 0) return [0];
+  const raw = max / 4;
+  const pow = 10 ** Math.floor(Math.log10(raw));
+  const step = ([1, 2, 2.5, 5, 10].find((m) => m * pow >= raw) ?? 10) * pow;
+  const lines: number[] = [];
+  for (let v = 0; v < max + step; v += step) lines.push(v);
+  return lines;
 }
 
 /** وصف الفترة في القائمة: تواريخها أو مقابلها. */
@@ -161,43 +177,25 @@ async function OwnerHome({ user, can, period }: { user: User; can: Can; period: 
     },
   ].filter(Boolean) as { href: string; text: string; urgent: boolean }[];
 
-  // أعلى عمود في الفترتين معاً، فيُقرأ الخط المنقّط على نفس المقياس
-  const max = series.reduce(
-    (a, pt) => [pt.totalSdg, pt.prevSdg ?? "0"].reduce((m, v) => (dec(v).gt(m) ? dec(v) : m), a),
-    dec(0),
-  );
-  const ratio = (v: string) => (max.gt(0) ? Math.max(dec(v).div(max).toNumber(), 0) : 0);
-  const nowKey =
-    range.bucket === "hour"
-      ? `${shopDay(now)}T${String(Number(hourFormat.format(now))).padStart(2, "0")}`
-      : range.bucket === "day"
-        ? shopDay(now)
-        : shopDay(now).slice(0, 7);
-  const points: ChartPoint[] = series.map((pt, i) => {
-    const prevChange =
-      pt.prevSdg !== null && dec(pt.prevSdg).gt(0) ? dec(pt.totalSdg).minus(pt.prevSdg).div(pt.prevSdg) : null;
-    return {
-      key: pt.key,
-      label: bucketLabel(pt.key, range.bucket),
-      tick: bucketTick(pt.key, i, series.length, range.bucket),
-      shop: formatAmount(pt.shopSdg, 0),
-      store: formatAmount(pt.storeSdg, 0),
-      total: formatAmount(pt.totalSdg, 0),
-      ratio: ratio(pt.totalSdg),
-      prev:
-        pt.prevKey && pt.prevSdg !== null
-          ? {
-              label: bucketLabel(pt.prevKey, range.bucket),
-              total: formatAmount(pt.prevSdg, 0),
-              ratio: ratio(pt.prevSdg),
-              change: prevChange ? prevChange.toFixed(4) : null,
-            }
-          : null,
-      future: pt.future,
-      current: !range.complete && pt.key === nowKey,
-    };
-  });
-  const hasSales = series.some((pt) => dec(pt.totalSdg).gt(0) || dec(pt.prevSdg ?? "0").gt(0));
+  // المحور: خطوط بأرقام مستديرة، والأعمدة نسبة من أعلاها
+  const axis = niceAxis(series.reduce((m, pt) => Math.max(m, dec(pt.totalSdg).toNumber()), 0));
+  const axisTop = axis[axis.length - 1] ?? 0;
+  const ratio = (v: string) => (axisTop > 0 ? Math.max(dec(v).toNumber() / axisTop, 0) : 0);
+  const nowKey = range.bucket === "day" ? shopDay(now) : shopDay(now).slice(0, 7);
+  const points: ChartPoint[] = series.map((pt, i) => ({
+    key: pt.key,
+    label: bucketLabel(pt.key, range.bucket),
+    tick: period === "today" && pt.key === nowKey ? "اليوم" : bucketTick(pt.key, i, series.length, range.bucket),
+    shop: formatAmount(pt.shopSdg, 0),
+    store: formatAmount(pt.storeSdg, 0),
+    total: formatAmount(pt.totalSdg, 0),
+    short: compactSdg(dec(pt.totalSdg).toNumber()),
+    ratio: ratio(pt.totalSdg),
+    future: pt.future,
+    current: !range.complete && pt.key === nowKey,
+  }));
+  const chartTotal = series.reduce((a, pt) => a.plus(pt.totalSdg), dec(0));
+  const hasSales = chartTotal.gt(0) || series.some((pt) => dec(pt.totalSdg).gt(0));
 
   const pipeline = tabs
     ? [
@@ -338,41 +336,27 @@ async function OwnerHome({ user, can, period }: { user: User; can: Can; period: 
           <CardHeader>
             <div className="flex flex-wrap items-start justify-between gap-3">
               <div className="flex flex-col gap-1">
-                <CardTitle>المبيعات · {PERIOD_LABELS[period]}</CardTitle>
+                <CardTitle>المبيعات · {period === "today" ? "آخر 7 أيام" : PERIOD_LABELS[period]}</CardTitle>
                 <CardDescription>
-                  {range.bucket === "hour" ? "كل عمود ساعة" : range.bucket === "day" ? "كل عمود يوم" : "كل عمود شهر"} —
-                  المحل والمتجر معاً، والخط المنقّط {PREV_NAME[period]} (مرّر على العمود للتفاصيل).
+                  {range.bucket === "day" ? "كل عمود يوم" : "كل عمود شهر"} — المحل والمتجر معاً
+                  {range.complete ? "" : period === "today" ? "، واليوم بلون أغمق" : "، والجاري بلون أغمق"}. مرّر على
+                  العمود للتفاصيل.
                 </CardDescription>
               </div>
-              <dl className="flex gap-5 text-sm">
-                <div className="flex flex-col">
-                  <dt className="text-xs text-muted-foreground">{PERIOD_LABELS[period]}</dt>
-                  <dd className="font-bold tabular-nums">{sdg(kpis.netSdg)}</dd>
-                </div>
-                <div className="flex flex-col">
-                  <dt className="text-xs text-muted-foreground">
-                    {range.complete ? PREV_NAME[period] : `${PREV_NAME[period]} (نفس المدة)`}
-                  </dt>
-                  <dd className="font-semibold text-muted-foreground tabular-nums">{sdg(kpis.prevNetSdg)}</dd>
-                </div>
-                <div className="flex flex-col">
-                  <dt className="text-xs text-muted-foreground">النمو</dt>
-                  <dd className="font-bold">
-                    <Growth value={kpis.change} label="" />
-                  </dd>
-                </div>
-              </dl>
+              <div className="flex flex-col text-sm">
+                <span className="text-xs text-muted-foreground">المجموع</span>
+                <span className="text-lg font-bold tabular-nums">{sdg(chartTotal.toFixed(0))}</span>
+              </div>
             </div>
           </CardHeader>
           {hasSales ? (
             <SalesChart
               points={points}
-              maxLabel={formatAmount(max.toFixed(0), 0)}
-              prevName={PREV_NAME[period]}
-              ariaLabel={`المبيعات ${PERIOD_LABELS[period]} مقابل ${PREV_NAME[period]}`}
+              gridlines={axis.map((v) => ({ ratio: axisTop > 0 ? v / axisTop : 0, label: compactSdg(v) }))}
+              ariaLabel={`المبيعات ${period === "today" ? "آخر 7 أيام" : PERIOD_LABELS[period]}`}
             />
           ) : (
-            <p className="text-muted-foreground">لا مبيعات في هذه الفترة ولا في {PREV_NAME[period]}.</p>
+            <p className="text-muted-foreground">لا مبيعات في هذه الفترة بعد.</p>
           )}
         </Card>
         {tabs ? (

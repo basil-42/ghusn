@@ -37,7 +37,8 @@ describe("dashboardRange (D-133)", () => {
     expect(iso(r.start)).toBe("2026-10-12T22:00:00.000Z");
     expect(iso(r.prevStart)).toBe("2026-10-11T22:00:00.000Z");
     expect(iso(r.prevEnd)).toBe("2026-10-12T12:00:00.000Z");
-    expect(r.bucket).toBe("hour");
+    expect(r.bucket).toBe("day");
+    expect(r.chartStart.toISOString()).toBe("2026-10-06T22:00:00.000Z");
     expect(r.complete).toBe(false);
   });
 
@@ -108,41 +109,41 @@ describe("dashboardRange (D-133)", () => {
   });
 });
 
-describe("dashboardBuckets (D-133)", () => {
+describe("dashboardBuckets (D-134)", () => {
   const now = new Date("2026-10-13T12:00:00Z");
 
-  it("today: 24 hours against yesterday's", () => {
+  it("today: the last 7 days, ending today", () => {
     const b = dashboardBuckets(dashboardRange("today", now));
-    expect(b.current).toHaveLength(24);
-    expect(b.current[0]).toBe("2026-10-13T00");
-    expect(b.previous[23]).toBe("2026-10-12T23");
-  });
-
-  it("this week: 7 days from the start day", () => {
-    const b = dashboardBuckets(dashboardRange("this-week", now, 6));
-    expect(b.current).toEqual([
+    expect(b).toEqual([
+      "2026-10-07",
+      "2026-10-08",
+      "2026-10-09",
       "2026-10-10",
       "2026-10-11",
       "2026-10-12",
       "2026-10-13",
-      "2026-10-14",
-      "2026-10-15",
-      "2026-10-16",
     ]);
-    expect(b.previous[0]).toBe("2026-10-03");
   });
 
-  it("this month: every day of October against every day of September", () => {
+  it("this week: 7 days from the start day, the rest still empty", () => {
+    const b = dashboardBuckets(dashboardRange("this-week", now, 6));
+    expect(b[0]).toBe("2026-10-10");
+    expect(b).toHaveLength(7);
+  });
+
+  it("this month: every day of October", () => {
     const b = dashboardBuckets(dashboardRange("this-month", now));
-    expect(b.current).toHaveLength(31);
-    expect(b.previous).toHaveLength(30);
-    expect(b.previous[0]).toBe("2026-09-01");
+    expect(b).toHaveLength(31);
+    expect(b[0]).toBe("2026-10-01");
   });
 
-  it("this year: 12 months against last year's", () => {
+  it("last month: every day of September", () => {
+    expect(dashboardBuckets(dashboardRange("last-month", now))).toHaveLength(30);
+  });
+
+  it("this year: 12 months", () => {
     const b = dashboardBuckets(dashboardRange("this-year", now));
-    expect(b.current).toHaveLength(12);
-    expect(b.current[11]).toBe("2026-12");
-    expect(b.previous[0]).toBe("2025-01");
+    expect(b).toHaveLength(12);
+    expect(b[11]).toBe("2026-12");
   });
 });

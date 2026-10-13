@@ -114,23 +114,20 @@ export interface SeriesPoint {
   shopSdg: string;
   storeSdg: string;
   totalSdg: string;
-  /** نفس العمود من الفترة السابقة (اليوم 1 باليوم 1…)، أو null إن لم يوجد مقابل. */
-  prevKey: string | null;
-  prevSdg: string | null;
-  /** عمود لم يأتِ بعد (باقي الشهر/الأسبوع/السنة). */
+  /** عمود لم يأتِ بعد (باقي الأسبوع/الشهر/السنة). */
   future: boolean;
 }
 
 /**
- * أعمدة رسم المبيعات للفترة (D-133): ساعة/يوم/شهر حسب الفترة، وصافي المبيعات بنفس تعريف الأرقام
- * (المحل − المرتجعات + المتجر المسلَّم)، مع نفس العمود من الفترة السابقة لخط المقارنة.
+ * أعمدة رسم المبيعات (D-134): يوم لكل عمود (و«اليوم» آخر 7 أيام)، وشهر للسنة — صافي المبيعات بنفس
+ * تعريف الأرقام (المحل − المرتجعات + المتجر المسلَّم)، بلا مقارنة (النمو في البطاقات فوقه).
  */
 export async function salesSeries(range: DashboardRange, now = new Date()): Promise<SeriesPoint[]> {
-  const pattern = range.bucket === "hour" ? `YYYY-MM-DD"T"HH24` : range.bucket === "day" ? "YYYY-MM-DD" : "YYYY-MM";
+  const pattern = range.bucket === "day" ? "YYYY-MM-DD" : "YYYY-MM";
   // مفتاح العمود بتوقيت المحل — نفس صيغة مفاتيح dashboardBuckets
   const bucket = (col: string) =>
     Prisma.raw(`to_char(("${col}" AT TIME ZONE 'UTC') AT TIME ZONE '${SHOP_TIME_ZONE}', '${pattern}')`);
-  const from = range.prevStart;
+  const from = range.chartStart;
   const to = range.periodEnd;
   const rows = await prisma.$queryRaw<{ k: string; shop: Prisma.Decimal; store: Prisma.Decimal }[]>`
     SELECT k, SUM(shop) AS "shop", SUM(store) AS "store" FROM (
@@ -144,35 +141,18 @@ export async function salesSeries(range: DashboardRange, now = new Date()): Prom
         FROM "Order" WHERE "status" = 'DELIVERED' AND "deliveredAt" >= ${from} AND "deliveredAt" < ${to}
     ) x GROUP BY k`;
   const by = new Map(rows.map((r) => [r.k, { shop: dec(r.shop.toString()), store: dec(r.store.toString()) }]));
-  const { current, previous } = dashboardBuckets(range);
-  const nowKey =
-    range.bucket === "hour"
-      ? `${shopDay(now)}T${hourOf(now)}`
-      : range.bucket === "day"
-        ? shopDay(now)
-        : shopDay(now).slice(0, 7);
-  return current.map((key, i) => {
+  const nowKey = range.bucket === "day" ? shopDay(now) : shopDay(now).slice(0, 7);
+  return dashboardBuckets(range).map((key) => {
     const v = by.get(key);
-    const prevKey = previous[i] ?? null;
-    const p = prevKey ? by.get(prevKey) : undefined;
     return {
       key,
       shopSdg: (v?.shop ?? dec(0)).toFixed(0),
       storeSdg: (v?.store ?? dec(0)).toFixed(0),
       totalSdg: (v ? v.shop.plus(v.store) : dec(0)).toFixed(0),
-      prevKey,
-      prevSdg: prevKey ? (p ? p.shop.plus(p.store) : dec(0)).toFixed(0) : null,
       future: !range.complete && key > nowKey,
     };
   });
 }
-
-const hourFormat = new Intl.DateTimeFormat("en-u-nu-latn", {
-  hour: "2-digit",
-  hourCycle: "h23",
-  timeZone: SHOP_TIME_ZONE,
-});
-const hourOf = (at: Date) => hourFormat.format(at).padStart(2, "0");
 
 /** مبيعات اليوم والشهر حتى الآن، ومقارنة بنفس المدة من الشهر الماضي. */
 export async function salesKpis(now = new Date()) {
