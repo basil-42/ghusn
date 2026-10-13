@@ -1,11 +1,14 @@
 "use server";
 
-import { toLatinDigits } from "@ghusn/core";
+import { WEEK_DAYS, toLatinDigits } from "@ghusn/core";
 import { revalidatePath } from "next/cache";
 import { changesLine, diffFields, recordAudit } from "@/lib/audit";
 import { requirePermission } from "@/lib/auth/session";
 import { ExpenseError, saveExpenseCategory } from "@/lib/expenses";
 import {
+  generalSettingsSchema,
+  getGeneralSettings,
+  saveGeneralSettings,
   insightsSettingsSchema,
   messageSettingsSchema,
   posSettingsSchema,
@@ -33,6 +36,7 @@ const numberOf = (f: FormData, k: string) => Number(toLatinDigits(text(f, k)).re
 
 /** أسماء الحقول كما تظهر في سجل التدقيق (D-114). */
 const FIELD_LABELS: Record<string, string> = {
+  weekStartsOn: "بداية الأسبوع",
   maxDiscountPercent: "حد خصم الموظفة %",
   returnDays: "مدة المرتجع (يوم)",
   cashWalletId: "محفظة النقد",
@@ -81,6 +85,24 @@ async function auditSettings(group: string, actorId: string, before: object, aft
     href: "/admin/settings",
     changes,
   });
+}
+
+export async function saveGeneralSettingsAction(_prev: FormState, formData: FormData): Promise<FormState> {
+  const session = await requirePermission({ settings: ["update"] });
+  const parsed = generalSettingsSchema.safeParse({ weekStartsOn: numberOf(formData, "weekStartsOn") });
+  if (!parsed.success) return { error: "اختاري يوم بداية الأسبوع." };
+  const before = await getGeneralSettings();
+  await saveGeneralSettings(parsed.data);
+  // في سجل التدقيق باسم اليوم لا برقمه
+  await auditSettings(
+    "عام",
+    session.user.id,
+    { weekStartsOn: WEEK_DAYS[before.weekStartsOn] },
+    { weekStartsOn: WEEK_DAYS[parsed.data.weekStartsOn] },
+  );
+  revalidatePath("/admin/settings");
+  revalidatePath("/admin");
+  return { success: "تم حفظ الإعدادات العامة." };
 }
 
 export async function savePosSettingsAction(_prev: FormState, formData: FormData): Promise<FormState> {

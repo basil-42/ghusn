@@ -1,3 +1,4 @@
+import { DEFAULT_WEEK_START } from "@ghusn/core";
 import { prisma } from "@ghusn/db";
 import { z } from "zod";
 
@@ -109,6 +110,31 @@ export async function courierWallet(): Promise<string | null> {
     wallets.find((w) => w.id === courierWalletId)?.id ?? wallets.find((w) => w.name === "شركة التوصيل")?.id ?? null
   );
 }
+/** إعدادات عامة (D-133): يوم بداية الأسبوع لفترات الرئيسية (0 = الأحد … 6 = السبت). */
+export const generalSettingsSchema = z.object({
+  weekStartsOn: z.union([
+    z.literal(0),
+    z.literal(1),
+    z.literal(2),
+    z.literal(3),
+    z.literal(4),
+    z.literal(5),
+    z.literal(6),
+  ]),
+});
+export type GeneralSettings = z.infer<typeof generalSettingsSchema>;
+const GENERAL_DEFAULTS: GeneralSettings = { weekStartsOn: DEFAULT_WEEK_START };
+export const getGeneralSettings = () => read("general", generalSettingsSchema, GENERAL_DEFAULTS);
+
+export async function saveGeneralSettings(value: GeneralSettings): Promise<void> {
+  const data = generalSettingsSchema.parse(value);
+  await prisma.setting.upsert({
+    where: { key: "general" },
+    create: { key: "general", value: data },
+    update: { value: data },
+  });
+}
+
 /** تنبيهات المخزون في اللوحة (D-94): حد «قارب على النفاد» العام، ومهلة تنبيه الصلاحية بالأيام. */
 export const stockSettingsSchema = z.object({
   lowStockQty: z.number().min(0).max(100_000),
