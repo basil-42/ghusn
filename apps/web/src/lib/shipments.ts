@@ -15,6 +15,7 @@ import {
   type ShipmentStatus,
 } from "@ghusn/core";
 import { Prisma, prisma, type ShipmentCostKind } from "@ghusn/db";
+import { coverageError } from "./wallets";
 import { nextDocumentNumber } from "./documents";
 import { getRateAt } from "./exchange-rates";
 import { ShipmentError } from "./shipment-error";
@@ -414,12 +415,17 @@ export async function addShipmentCost(
   id: string,
   input: { kind: ShipmentCostKind; amount: string; walletId: string; paidAt: Date; note: string | null },
   userId: string,
+  /** يرى أرصدة المحافظ (المالك): رسالة الرفض تذكر الرصيد (D-132) */
+  showBalance = false,
 ): Promise<void> {
   const wallet = await prisma.wallet.findFirst({ where: { id: input.walletId, isActive: true } });
   if (!wallet) throw new ShipmentError("اختاري المحفظة.");
   const rate = await rateOrThrow(wallet.currencyCode, input.paidAt);
   await prisma.$transaction(async (tx) => {
     const s = await loadForCosts(tx, id);
+    // D-132: التكلفة تُدفع من رصيد موجود
+    const short = await coverageError(tx, wallet.id, input.amount, showBalance);
+    if (short) throw new ShipmentError(short);
     const cost = await tx.shipmentCost.create({
       data: {
         shipmentId: id,

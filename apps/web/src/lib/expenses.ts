@@ -1,5 +1,6 @@
 import { dec, roundMoney, shopDay, toUsdExact } from "@ghusn/core";
 import { prisma } from "@ghusn/db";
+import { coverageError } from "./wallets";
 import { roleCan } from "./auth/permissions";
 import { nextDocumentNumber } from "./documents";
 import { getRateAt } from "./exchange-rates";
@@ -72,8 +73,11 @@ export async function createExpense(input: ExpenseInput, user: { id: string; rol
   if (!full && !shift) throw new ExpenseError("افتحي الوردية أولاً — المصروف يخرج من درجها.");
 
   const key = input.attachment && input.attachment.size > 0 ? await saveAttachment(input.attachment) : null;
-  const expense = await prisma.$transaction(async (tx) =>
-    tx.expense.create({
+  const expense = await prisma.$transaction(async (tx) => {
+    // D-132: المصروف يخرج من رصيد موجود (الأرصدة تظهر للمالك فقط)
+    const short = await coverageError(tx, wallet.id, input.amount, roleCan(user.role, { wallet: ["update"] }));
+    if (short) throw new ExpenseError(short);
+    return tx.expense.create({
       data: {
         number: await nextDocumentNumber(tx, "EXP", input.spentAt, 4),
         categoryId: category.id,
@@ -88,8 +92,8 @@ export async function createExpense(input: ExpenseInput, user: { id: string; rol
         shiftId: shift?.id ?? null,
         createdById: user.id,
       },
-    }),
-  );
+    });
+  });
   return expense.id;
 }
 
