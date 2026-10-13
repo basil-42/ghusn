@@ -92,7 +92,9 @@ export async function periodKpis(range: DashboardRange) {
   ]);
   return {
     netSdg: cur.netSdg.toFixed(0),
-    prevNetSdg: prev.netSdg.toFixed(0),
+    // تقسيم الصافي: المتجر المسلَّم، والمحل بعد المرتجعات
+    storeSdg: cur.storeSdg.toFixed(0),
+    shopNetSdg: cur.netSdg.minus(cur.storeSdg).toFixed(0),
     count: cur.count,
     change: change(cur.netSdg, prev.netSdg),
     avgTicketSdg: cur.avgTicketSdg?.toFixed(0) ?? null,

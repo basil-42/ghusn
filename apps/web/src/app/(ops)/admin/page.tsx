@@ -54,12 +54,6 @@ const COMPARED_TO: Record<DashboardPeriod, string> = {
   "this-year": "عن نفس المدة من السنة السابقة",
   "last-year": "عن السنة التي قبلها",
 };
-const MENU: { group: string; periods: DashboardPeriod[] }[] = [
-  { group: "يوم", periods: ["today"] },
-  { group: "أسبوع", periods: ["this-week", "last-week"] },
-  { group: "شهر", periods: ["this-month", "last-month"] },
-  { group: "سنة", periods: ["this-year", "last-year"] },
-];
 // روابط قديمة (قبل D-133) تبقى تعمل
 const LEGACY: Record<string, DashboardPeriod> = { week: "this-week", month: "this-month" };
 const monthLabel = new Intl.DateTimeFormat("ar-u-nu-latn", { month: "long", year: "numeric", timeZone: "UTC" });
@@ -206,13 +200,18 @@ async function OwnerHome({ user, can, period }: { user: User; can: Can; period: 
 
   const pipeline = tabs
     ? [
-        { key: "new", label: "جديدة وبانتظار الدفع", count: tabs.new },
+        { key: "new", label: "جديدة", count: tabs.new },
         { key: "confirmed", label: "مؤكدة", count: tabs.confirmed },
-        { key: "preparing", label: "قيد التجهيز", count: tabs.preparing },
+        { key: "preparing", label: "تجهيز", count: tabs.preparing },
         { key: "ready", label: "جاهزة", count: tabs.ready },
-        { key: "delivery", label: "مع التوصيل", count: tabs.delivery },
+        { key: "delivery", label: "توصيل", count: tabs.delivery },
       ]
     : [];
+  // الورديات المفتوحة ونقد الدرج المتوقع — يتابعها المالك من قطر (D-135)
+  const shiftCash = await Promise.all(shifts.map((sh) => shiftSummary(sh.id)));
+  const topMax = top.reduce((m, t) => (dec(t.qty).gt(m) ? dec(t.qty) : m), dec(0));
+  const today = shopDay(now);
+  const seeInsights = can({ report: ["read"], cost: ["read"] });
 
   return (
     <div className="flex flex-col gap-5">
@@ -227,11 +226,8 @@ async function OwnerHome({ user, can, period }: { user: User; can: Can; period: 
           </p>
           <h1 className="font-display text-3xl font-bold">{greeting(user.name, now)}</h1>
         </div>
-        <div className="flex flex-wrap items-stretch gap-2">
-          {rate ? <RateCard rate={rate} /> : null}
-          {/* قائمة الفترة (D-133): تتحكم في الأرقام والرسم معاً، وتُحفظ في الرابط */}
-          <PeriodMenu period={period} range={range} now={now} weekStartsOn={weekStartsOn} />
-        </div>
+        {/* الفترة (D-133، D-135): أزرار للجارية، و«أخرى» للسابقة — تتحكم في كل الأرقام والرسم */}
+        <PeriodTabs period={period} now={now} weekStartsOn={weekStartsOn} />
       </header>
 
       {attention.length ? (
@@ -255,79 +251,29 @@ async function OwnerHome({ user, can, period }: { user: User; can: Can; period: 
         </section>
       ) : null}
 
-      <section aria-label={`أرقام ${PERIOD_LABELS[period]}`} className="grid grid-cols-2 gap-3 lg:grid-cols-4">
-        <Stat
-          title="المبيعات"
-          value={sdg(kpis.netSdg)}
-          sub={
-            <>
-              <Growth value={kpis.change} label={COMPARED_TO[period]} />
-              {` · ${kpis.count} فاتورة وطلب`}
-            </>
-          }
-        />
-        {seeProfit ? (
-          <Stat
-            title="مجمل الربح"
-            value={sdg(kpis.profitSdg)}
-            sub={
-              <>
-                <span className="block font-semibold tabular-nums">
-                  ≈ <bdi dir="ltr">${formatAmount(kpis.profitUsd)}</bdi>
-                  {kpis.margin !== null ? ` · هامش ${formatPercent(kpis.margin)}` : null}
-                </span>
-                <Growth value={kpis.profitChange} label={COMPARED_TO[period]} />
-              </>
-            }
-          />
-        ) : null}
-        <Stat
-          title="متوسط الفاتورة"
-          value={kpis.avgTicketSdg ? sdg(kpis.avgTicketSdg) : "—"}
-          sub={<Growth value={kpis.avgTicketChange} label={COMPARED_TO[period]} />}
-        />
-        <Stat
-          title="العملاء"
-          value={<span className="tabular-nums">{kpis.customers}</span>}
-          sub={
-            <>
-              <Growth value={kpis.customersChange} label="" />
-              {" · "}
-              {can({ customer: ["read"] }) ? (
-                <Link href="/admin/customers" className="hover:underline">
-                  منهم {kpis.newCustomers} جديد ←
-                </Link>
-              ) : (
-                `منهم ${kpis.newCustomers} جديد`
-              )}
-            </>
-          }
-        />
-      </section>
-
-      <div className={`grid gap-4 ${tabs ? "lg:grid-cols-[2fr_1fr]" : ""}`}>
+      {/* الصف الأول: بطاقة المبيعات الرئيسية، وبجانبها بقية الأرقام */}
+      <section aria-label={`أرقام ${PERIOD_LABELS[period]}`} className="grid gap-4 lg:grid-cols-[2.2fr_1fr]">
         <Card className="min-w-0">
-          {/* بطاقة صافي المبيعات (D-134، على نمط Zoho): الفترة، الرقم الكبير ونموه، ثم الأعمدة حتى اليوم */}
-          <div className="flex items-center justify-between gap-3 border-b border-line pb-3">
-            <CardTitle>صافي المبيعات</CardTitle>
-            <PeriodMenu period={period} range={range} now={now} weekStartsOn={weekStartsOn} compact />
+          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line pb-3">
+            <CardTitle>صافي المبيعات · {PERIOD_LABELS[period]}</CardTitle>
+            <span className="text-xs text-muted-foreground">
+              {period === "today" ? "الرسم: آخر 7 أيام" : periodHint(range, period)}
+            </span>
           </div>
           <div className="flex flex-col gap-2">
-            <span className="text-3xl font-bold tabular-nums">{sdg(kpis.netSdg)}</span>
+            <span className="text-4xl font-bold tabular-nums">{sdg(kpis.netSdg)}</span>
             <span className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-              {kpis.change !== null ? (
-                <span
-                  className={`rounded-full border px-2.5 py-0.5 font-semibold ${
-                    kpis.change.startsWith("-")
-                      ? "border-danger/30 bg-danger/10 text-danger"
-                      : "border-forest/20 bg-sage/15 text-forest"
-                  }`}
-                >
-                  {kpis.change.startsWith("-") ? "↓" : "↑"} <bdi dir="ltr">{formatPercent(kpis.change)}</bdi>
-                </span>
-              ) : null}
+              <GrowthPill value={kpis.change} />
               {kpis.change !== null ? COMPARED_TO[period] : "لا مقارنة بعد"}
-              {period === "today" ? " · الرسم: آخر 7 أيام" : null}
+              {` · ${kpis.count} فاتورة وطلب`}
+            </span>
+            <span className="flex gap-5 text-sm text-muted-foreground">
+              <span>
+                المحل <b className="text-foreground tabular-nums">{formatAmount(kpis.shopNetSdg, 0)}</b>
+              </span>
+              <span>
+                المتجر <b className="text-foreground tabular-nums">{formatAmount(kpis.storeSdg, 0)}</b>
+              </span>
             </span>
           </div>
           {hasSales ? (
@@ -340,38 +286,52 @@ async function OwnerHome({ user, can, period }: { user: User; can: Can; period: 
             <p className="text-muted-foreground">لا مبيعات في هذه الفترة بعد.</p>
           )}
         </Card>
-        {tabs ? (
-          <Card className="min-w-0">
-            <CardHeader>
-              <CardTitle>طلبات المتجر الآن</CardTitle>
-            </CardHeader>
-            <ul className="flex flex-col gap-2">
-              {pipeline.map((s) => (
-                <li key={s.key}>
-                  <Link
-                    href={s.key === "new" ? "/admin/orders" : `/admin/orders?tab=${s.key}`}
-                    className={`flex min-h-11 items-center justify-between gap-2 rounded-xl px-3 text-sm hover:bg-muted ${
-                      s.key === "new" && s.count ? "bg-gold/15" : "border border-line"
-                    }`}
-                  >
-                    <span>{s.label}</span>
-                    <b className="tabular-nums">{s.count}</b>
+        <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
+          {seeProfit ? (
+            <Stat
+              title="مجمل الربح"
+              value={sdg(kpis.profitSdg)}
+              sub={
+                <>
+                  <span className="block tabular-nums">
+                    ≈ <bdi dir="ltr">${formatAmount(kpis.profitUsd)}</bdi>
+                    {kpis.margin !== null ? ` · هامش ${formatPercent(kpis.margin)}` : null}
+                  </span>
+                  <GrowthPill value={kpis.profitChange} small />
+                </>
+              }
+            />
+          ) : null}
+          <Stat
+            title="متوسط الفاتورة"
+            value={kpis.avgTicketSdg ? sdg(kpis.avgTicketSdg) : "—"}
+            sub={<GrowthPill value={kpis.avgTicketChange} small />}
+          />
+          <Stat
+            title="العملاء"
+            value={<span className="tabular-nums">{kpis.customers}</span>}
+            sub={
+              <span className="flex flex-wrap items-center gap-2">
+                <GrowthPill value={kpis.customersChange} small />
+                {can({ customer: ["read"] }) ? (
+                  <Link href="/admin/customers" className="hover:underline">
+                    منهم {kpis.newCustomers} جديد ←
                   </Link>
-                </li>
-              ))}
-            </ul>
-          </Card>
-        ) : null}
-      </div>
+                ) : (
+                  `منهم ${kpis.newCustomers} جديد`
+                )}
+              </span>
+            }
+          />
+        </div>
+      </section>
 
+      {/* الصف الثاني: المال (وسعر الصرف في رأسه) · طلبات المتجر والورديات · الأكثر مبيعاً */}
       <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
         {wallets ? (
           <Card className="min-w-0">
-            <CardHeader>
-              <div className="flex items-baseline justify-between gap-2">
-                <CardTitle>المال</CardTitle>
-              </div>
-            </CardHeader>
+            <CardHead title="المال" href="/admin/wallets" link="المحافظ" />
+            {rate ? <RateBand rate={rate} /> : null}
             <ul className="flex flex-col divide-y divide-line text-sm">
               {wallets
                 .filter((w) => w.isActive)
@@ -381,7 +341,7 @@ async function OwnerHome({ user, can, period }: { user: User; can: Can; period: 
                       {w.name}
                     </Link>
                     <bdi dir="ltr" className="shrink-0 font-semibold tabular-nums">
-                      {formatAmount(w.balance, w.currencyCode === "SDG" ? 0 : 2)} {w.symbol}
+                      {formatAmount(w.balance, w.decimals)} {w.symbol}
                     </bdi>
                   </li>
                 ))}
@@ -389,65 +349,132 @@ async function OwnerHome({ user, can, period }: { user: User; can: Can; period: 
           </Card>
         ) : null}
 
+        {tabs ? (
+          <Card className="min-w-0">
+            <CardHead title="طلبات المتجر الآن" href="/admin/orders" link="كل الطلبات" />
+            <ul className="grid grid-cols-5 gap-1.5">
+              {pipeline.map((st) => (
+                <li key={st.key}>
+                  <Link
+                    href={st.key === "new" ? "/admin/orders" : `/admin/orders?tab=${st.key}`}
+                    className={`flex min-h-16 flex-col items-center justify-center rounded-xl border text-xs ${
+                      st.count ? "border-sand bg-gold/15 text-foreground" : "border-line text-muted-foreground"
+                    }`}
+                  >
+                    <b className="text-xl tabular-nums">{st.count}</b>
+                    {st.label}
+                  </Link>
+                </li>
+              ))}
+            </ul>
+            <div className="flex flex-col gap-1.5">
+              <span className="text-xs font-semibold text-muted-foreground">الورديات المفتوحة</span>
+              {shifts.length ? (
+                shifts.map((sh, i) => (
+                  <Link
+                    key={sh.id}
+                    href="/admin/sales"
+                    className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-xl bg-muted px-3 py-2 text-sm hover:bg-muted/70"
+                  >
+                    <span>
+                      <b>{sh.userName}</b> · منذ{" "}
+                      {shopDay(sh.openedAt) === today ? formatTime(sh.openedAt) : formatDateTime(sh.openedAt)} ·{" "}
+                      {sh.sales} فاتورة
+                    </span>
+                    {shiftCash[i] ? (
+                      <span className="text-muted-foreground">
+                        الدرج المتوقع{" "}
+                        <b className="text-foreground tabular-nums">{formatAmount(shiftCash[i].expectedCashSdg, 0)}</b>
+                      </span>
+                    ) : null}
+                  </Link>
+                ))
+              ) : (
+                <p className="text-sm text-muted-foreground">لا ورديات مفتوحة الآن.</p>
+              )}
+            </div>
+          </Card>
+        ) : null}
+
         <Card className="min-w-0">
-          <CardHeader>
-            <CardTitle>الأكثر مبيعاً هذا الشهر</CardTitle>
-          </CardHeader>
+          <CardHead
+            title="الأكثر مبيعاً · هذا الشهر"
+            href={seeInsights ? "/admin/insights" : undefined}
+            link="التحليلات"
+          />
           {top.length ? (
             <ol className="flex flex-col divide-y divide-line text-sm">
               {top.map((t, i) => (
-                <li key={t.productId} className="flex items-center justify-between gap-3 py-2">
-                  <Link href={`/admin/products/${t.productId}`} className="min-w-0 font-semibold hover:underline">
-                    <span className="text-muted-foreground tabular-nums">{i + 1}. </span>
-                    {t.name}
-                  </Link>
-                  <span className="shrink-0 text-muted-foreground tabular-nums">{formatAmount(t.qty, 0)} قطعة</span>
+                <li key={t.productId} className="flex items-center gap-3 py-2.5">
+                  <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-muted text-xs font-bold tabular-nums">
+                    {i + 1}
+                  </span>
+                  <span className="flex min-w-0 flex-1 flex-col gap-1">
+                    <Link href={`/admin/products/${t.productId}`} className="truncate font-semibold hover:underline">
+                      {t.name}
+                    </Link>
+                    <span aria-hidden className="h-1.5 overflow-hidden rounded-full bg-muted">
+                      <span
+                        className="block h-full rounded-full bg-sage"
+                        style={{ width: `${topMax.gt(0) ? dec(t.qty).div(topMax).times(100).toNumber() : 0}%` }}
+                      />
+                    </span>
+                  </span>
+                  <span className="shrink-0 font-semibold tabular-nums">{formatAmount(t.qty, 0)} قطعة</span>
                 </li>
               ))}
             </ol>
           ) : (
             <p className="text-sm text-muted-foreground">لا مبيعات هذا الشهر بعد.</p>
           )}
-          {can({ report: ["read"], cost: ["read"] }) ? (
-            <Link href="/admin/insights" className="text-sm font-semibold hover:underline">
-              كل التحليلات ←
-            </Link>
-          ) : null}
         </Card>
-
-        {stock ? (
-          <Card className="min-w-0">
-            <CardHeader>
-              <CardTitle>تنبيهات المخزون</CardTitle>
-              <CardDescription>
-                {stock.total ? `${stock.total} صنف قارب على النفاد` : "المخزون فوق الحد."}
-                {expiring?.total ? ` · ${expiring.total} دفعة صلاحيتها قريبة` : ""}
-              </CardDescription>
-            </CardHeader>
-            <LowStockList items={stock.items} />
-            {expiring?.items.length ? (
-              <ul className="flex flex-col gap-1.5 border-t border-line pt-2 text-sm">
-                {expiring.items.map((b) => (
-                  <li key={b.id} className="flex justify-between gap-2">
-                    <Link href={`/admin/products/${b.productId}`} className="min-w-0 hover:underline">
-                      {b.label}
-                    </Link>
-                    <span className={`shrink-0 tabular-nums ${b.expired ? "font-semibold text-danger" : ""}`}>
-                      {b.expired ? "منتهية" : b.expiresOn}
-                    </span>
-                  </li>
-                ))}
-              </ul>
-            ) : null}
-            <Link
-              href={can({ report: ["read"], cost: ["read"] }) ? "/admin/insights?tab=reorder" : "/admin/stock"}
-              className="text-sm font-semibold hover:underline"
-            >
-              {can({ report: ["read"], cost: ["read"] }) ? "اقتراحات إعادة الطلب ←" : "كل المخزون ←"}
-            </Link>
-          </Card>
-        ) : null}
       </div>
+
+      {/* الصف الثالث: المخزون — النفاد والصلاحية */}
+      {stock ? (
+        <div className="grid gap-4 md:grid-cols-2">
+          <Card className="min-w-0">
+            <CardHead
+              title="تنبيهات المخزون"
+              href={seeInsights ? "/admin/insights?tab=reorder" : "/admin/stock"}
+              link={seeInsights ? "اقتراحات إعادة الطلب" : "كل المخزون"}
+            />
+            {stock.items.length ? (
+              <LowStockList items={stock.items} />
+            ) : (
+              <p className="text-sm text-muted-foreground">المخزون فوق الحد ✓</p>
+            )}
+            {stock.total > stock.items.length ? (
+              <span className="text-xs text-muted-foreground">
+                {stock.total - stock.items.length} صنف آخر قارب على النفاد
+              </span>
+            ) : null}
+          </Card>
+          <Card className="min-w-0">
+            <CardHead title="صلاحية قريبة" note={expiring ? `خلال ${expiring.days} يوماً` : undefined} />
+            {expiring?.items.length ? (
+              <ul className="flex flex-col divide-y divide-line text-sm">
+                {expiring.items.map((b) => {
+                  const days = Math.round(
+                    (new Date(`${b.expiresOn}T00:00:00Z`).getTime() - new Date(`${today}T00:00:00Z`).getTime()) /
+                      86_400_000,
+                  );
+                  return (
+                    <li key={b.id} className="flex items-center justify-between gap-2 py-2">
+                      <Link href={`/admin/products/${b.productId}`} className="min-w-0 hover:underline">
+                        {b.label}
+                      </Link>
+                      <Tag tone={b.expired ? "danger" : "warn"}>{b.expired ? "منتهية" : `${days} يوماً`}</Tag>
+                    </li>
+                  );
+                })}
+              </ul>
+            ) : (
+              <p className="text-sm text-muted-foreground">لا شيء قريب الانتهاء ✓</p>
+            )}
+          </Card>
+        </div>
+      ) : null}
     </div>
   );
 }
@@ -570,18 +597,47 @@ async function StaffHome({ user, can }: { user: User; can: Can }) {
 function LowStockList({ items }: { items: { variantId: string; productId: string; label: string; qty: string }[] }) {
   if (!items.length) return null;
   return (
-    <ul className="flex flex-col gap-1.5 text-sm">
+    <ul className="flex flex-col divide-y divide-line text-sm">
       {items.map((s) => (
-        <li key={s.variantId} className="flex justify-between gap-2">
+        <li key={s.variantId} className="flex items-center justify-between gap-2 py-2">
           <Link href={`/admin/products/${s.productId}`} className="min-w-0 hover:underline">
             {s.label}
           </Link>
-          <span className={`shrink-0 font-semibold tabular-nums ${dec(s.qty).lte(0) ? "text-danger" : "text-warning"}`}>
+          <Tag tone={dec(s.qty).lte(0) ? "danger" : "warn"}>
             {dec(s.qty).lte(0) ? "نفد" : `${formatAmount(s.qty, 0)} متبقٍ`}
-          </span>
+          </Tag>
         </li>
       ))}
     </ul>
+  );
+}
+
+/** شارة صغيرة: أحمر للنفاد/الانتهاء، ذهبي للتنبيه. */
+function Tag({ tone, children }: { tone: "danger" | "warn"; children: React.ReactNode }) {
+  return (
+    <span
+      className={`shrink-0 rounded-md px-2 py-0.5 text-xs font-bold tabular-nums ${
+        tone === "danger" ? "bg-danger/10 text-danger" : "bg-gold/20 text-warning"
+      }`}
+    >
+      {children}
+    </span>
+  );
+}
+
+/** رأس بطاقة: العنوان، ورابط «←» لصفحتها أو ملاحظة صغيرة. */
+function CardHead({ title, href, link, note }: { title: string; href?: string; link?: string; note?: string }) {
+  return (
+    <div className="flex items-baseline justify-between gap-2">
+      <CardTitle>{title}</CardTitle>
+      {href && link ? (
+        <Link href={href} className="text-xs font-semibold text-muted-foreground hover:text-foreground hover:underline">
+          {link} ←
+        </Link>
+      ) : note ? (
+        <span className="text-xs text-muted-foreground">{note}</span>
+      ) : null}
+    </div>
   );
 }
 
@@ -606,113 +662,113 @@ function Stat({
   );
 }
 
-/** نسبة النمو عن فترة المقارنة: ▲ أخضر / ▼ أحمر، أو «لا مقارنة بعد». */
-function Growth({ value, label }: { value: string | null; label: string }) {
-  if (value === null) return <span>لا مقارنة بعد</span>;
+/** شارة النمو عن فترة المقارنة (على نمط Zoho): ↑ أخضر / ↓ أحمر، ولا شيء إن لم توجد مقارنة. */
+function GrowthPill({ value, small = false }: { value: string | null; small?: boolean }) {
+  if (value === null) return small ? <span>لا مقارنة بعد</span> : null;
   const down = value.startsWith("-");
   return (
-    <span className={`font-semibold ${down ? "text-danger" : "text-forest"}`}>
-      {down ? "▼" : "▲"} <bdi dir="ltr">{formatPercent(value)}</bdi>
-      {label ? <span className="font-normal text-muted-foreground"> {label}</span> : null}
+    <span
+      className={`inline-flex w-fit items-center gap-1 rounded-full border font-semibold ${
+        small ? "px-2 py-px text-xs" : "px-2.5 py-0.5 text-sm"
+      } ${down ? "border-danger/30 bg-danger/10 text-danger" : "border-forest/20 bg-sage/15 text-forest"}`}
+    >
+      {down ? "↓" : "↑"} <bdi dir="ltr">{formatPercent(value)}</bdi>
     </span>
   );
 }
 
 /**
- * سعر الصرف الآن (D-133، للمالك): الجنيه لكل دولار، والجنيه لكل ريال قطري، ووقت الإدخال، وتغيّر
- * الجنيه عن قبل أسبوع — ▲ أحمر يعني أن الجنيه ضعف (جنيه أكثر لكل دولار).
+ * سعر الصرف الآن في رأس بطاقة «المال» (D-133، D-135، للمالك): الجنيه لكل دولار ولكل ريال قطري، ووقت
+ * الإدخال، وتغيّر الجنيه عن قبل أسبوع — ▲ يعني أن الجنيه ضعف (جنيه أكثر لكل دولار).
  */
-function RateCard({ rate }: { rate: NonNullable<Awaited<ReturnType<typeof rateTicker>>> }) {
+function RateBand({ rate }: { rate: NonNullable<Awaited<ReturnType<typeof rateTicker>>> }) {
   const weaker = rate.weekChange !== null && dec(rate.weekChange).gt(0);
   return (
     <Link
       href="/admin/exchange-rates"
-      className="flex items-center gap-3 rounded-xl border border-line bg-card px-4 py-1.5 hover:border-sage"
+      className="grid grid-cols-2 gap-x-3 gap-y-2 rounded-xl bg-forest p-4 text-ivory hover:bg-forest/95"
     >
       <span className="flex flex-col">
-        <span className="text-xs text-muted-foreground">سعر الصرف الآن</span>
-        <span className="font-bold tabular-nums">
-          <bdi dir="ltr">1 $ = {formatRate(rate.sdgPerUsd)}</bdi> ج.س
+        <span className="text-xs opacity-75">الدولار</span>
+        <span className="text-xl font-bold tabular-nums">
+          {formatRate(rate.sdgPerUsd)} <small className="text-xs font-normal">ج.س</small>
         </span>
       </span>
-      <span aria-hidden className="self-stretch border-s border-line" />
-      <span className="flex flex-col text-xs text-muted-foreground">
-        {rate.sdgPerQar ? (
-          <span className="font-semibold text-foreground tabular-nums">
-            <bdi dir="ltr">1 ر.ق = {formatAmount(rate.sdgPerQar, 0)}</bdi> ج.س
+      {rate.sdgPerQar ? (
+        <span className="flex flex-col">
+          <span className="text-xs opacity-75">الريال القطري</span>
+          <span className="text-xl font-bold tabular-nums">
+            {formatAmount(rate.sdgPerQar, 0)} <small className="text-xs font-normal">ج.س</small>
+          </span>
+        </span>
+      ) : null}
+      <span className="col-span-2 flex flex-wrap justify-between gap-2 border-t border-ivory/20 pt-2 text-xs opacity-90">
+        <span>حُدِّث {formatDateTime(rate.effectiveAt)}</span>
+        {rate.weekChange !== null && !dec(rate.weekChange).isZero() ? (
+          <span className="font-semibold">
+            {weaker ? "▲" : "▼"} <bdi dir="ltr">{formatPercent(rate.weekChange)}</bdi> عن الأسبوع الماضي
           </span>
         ) : null}
-        <span>
-          {formatDateTime(rate.effectiveAt)}
-          {rate.weekChange !== null && !dec(rate.weekChange).isZero() ? (
-            <span className={`ms-1 font-semibold ${weaker ? "text-danger" : "text-forest"}`}>
-              {weaker ? "▲" : "▼"} <bdi dir="ltr">{formatPercent(rate.weekChange)}</bdi> عن الأسبوع الماضي
-            </span>
-          ) : null}
-        </span>
       </span>
     </Link>
   );
 }
 
-/** قائمة الفترة (D-133): زر داكن في رأس الصفحة، ومختصر في رأس بطاقة المبيعات — كلاهما يغيّر ?p= نفسه. */
-function PeriodMenu({
-  period,
-  range,
-  now,
-  weekStartsOn,
-  compact = false,
-}: {
-  period: DashboardPeriod;
-  range: DashboardRange;
-  now: Date;
-  weekStartsOn: WeekStart;
-  compact?: boolean;
-}) {
+const TABS: { period: DashboardPeriod; label: string }[] = [
+  { period: "today", label: "اليوم" },
+  { period: "this-week", label: "الأسبوع" },
+  { period: "this-month", label: "الشهر" },
+  { period: "this-year", label: "السنة" },
+];
+const PAST: DashboardPeriod[] = ["last-week", "last-month", "last-year"];
+const hrefOf = (k: DashboardPeriod) => (k === "today" ? "/admin" : `/admin?p=${k}`);
+
+/**
+ * الفترة (D-135، يحدّث D-133): أزرار للفترات الجارية، و«أخرى» تفتح السابقة؛ الفترة السابقة المختارة
+ * تظهر اسماً على زر «أخرى». كلها تغيّر ?p= نفسه.
+ */
+function PeriodTabs({ period, now, weekStartsOn }: { period: DashboardPeriod; now: Date; weekStartsOn: WeekStart }) {
+  const past = PAST.includes(period);
+  const tab = (active: boolean) =>
+    `flex min-h-10 items-center gap-1.5 rounded-lg px-3.5 ${
+      active ? "bg-card font-bold shadow-sm" : "text-muted-foreground hover:text-foreground"
+    }`;
   return (
-    <details key={period} className="group relative">
-      <summary
-        className={`flex cursor-pointer list-none items-center gap-2 [&::-webkit-details-marker]:hidden ${
-          compact
-            ? "min-h-10 rounded-lg px-2 text-sm font-semibold text-muted-foreground hover:bg-muted"
-            : "min-h-12 rounded-xl bg-forest px-4 text-sm font-bold text-ivory"
-        }`}
-      >
-        {compact ? (
-          PERIOD_LABELS[period]
-        ) : (
-          <span className="flex flex-col leading-tight">
-            {PERIOD_LABELS[period]}
-            <span className="text-xs font-normal opacity-80">{periodHint(range, period)}</span>
-          </span>
-        )}
-        <ChevronDown aria-hidden className="size-4 transition-transform group-open:rotate-180" />
-      </summary>
-      <nav
-        aria-label="فترة الأرقام"
-        className="absolute end-0 top-full z-20 mt-2 flex w-64 flex-col rounded-xl border border-line bg-card p-1.5 text-sm shadow-lg"
-      >
-        {MENU.map((g) => (
-          <div key={g.group} className="flex flex-col">
-            <span className="px-3 pt-2 pb-1 text-xs font-semibold text-muted-foreground">{g.group}</span>
-            {g.periods.map((k) => (
-              <Link
-                key={k}
-                href={k === "today" ? "/admin" : `/admin?p=${k}`}
-                aria-current={k === period ? "page" : undefined}
-                className={`flex min-h-10 items-center justify-between gap-2 rounded-lg px-3 hover:bg-muted ${
-                  k === period ? "bg-muted font-bold" : ""
-                }`}
-              >
-                {PERIOD_LABELS[k]}
-                <span className="text-xs text-muted-foreground">
-                  {periodHint(dashboardRange(k, now, weekStartsOn), k)}
-                </span>
-              </Link>
-            ))}
-          </div>
-        ))}
-      </nav>
-    </details>
+    <nav aria-label="فترة الأرقام" className="flex gap-1 rounded-xl bg-muted p-1 text-sm">
+      {TABS.map((t) => (
+        <Link
+          key={t.period}
+          href={hrefOf(t.period)}
+          aria-current={t.period === period ? "page" : undefined}
+          className={tab(t.period === period)}
+          title={periodHint(dashboardRange(t.period, now, weekStartsOn), t.period)}
+        >
+          {t.label}
+        </Link>
+      ))}
+      <details key={period} className="group relative">
+        <summary className={`${tab(past)} cursor-pointer list-none [&::-webkit-details-marker]:hidden`}>
+          {past ? PERIOD_LABELS[period] : "أخرى"}
+          <ChevronDown aria-hidden className="size-4 transition-transform group-open:rotate-180" />
+        </summary>
+        <div className="absolute end-0 top-full z-20 mt-2 flex w-60 flex-col rounded-xl border border-line bg-card p-1.5 shadow-lg">
+          {PAST.map((k) => (
+            <Link
+              key={k}
+              href={hrefOf(k)}
+              aria-current={k === period ? "page" : undefined}
+              className={`flex min-h-10 items-center justify-between gap-2 rounded-lg px-3 hover:bg-muted ${
+                k === period ? "bg-muted font-bold" : ""
+              }`}
+            >
+              {PERIOD_LABELS[k]}
+              <span className="text-xs text-muted-foreground">
+                {periodHint(dashboardRange(k, now, weekStartsOn), k)}
+              </span>
+            </Link>
+          ))}
+        </div>
+      </details>
+    </nav>
   );
 }
