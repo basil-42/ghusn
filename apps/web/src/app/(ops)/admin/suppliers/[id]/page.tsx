@@ -1,4 +1,5 @@
 import { dec, shopDay } from "@ghusn/core";
+import { listWallets } from "@/lib/wallets";
 import { prisma } from "@ghusn/db";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
@@ -23,13 +24,28 @@ export default async function SupplierPage({ params }: { params: Promise<{ id: s
   const role = session.user.role;
   const canPay = roleCan(role, { supplierPayment: ["create"] });
   const canVoid = roleCan(role, { supplierPayment: ["void"] });
-  const wallets = canPay
-    ? await prisma.wallet.findMany({
-        where: { isActive: true },
-        orderBy: { name: "asc" },
-        select: { id: true, name: true, currencyCode: true },
-      })
-    : [];
+  // أرصدة المحافظ للمالك فقط (D-86): تظهر في النموذج ويُمنع الدفع فوقها (D-132)
+  const seesBalances = roleCan(role, { wallet: ["update"] });
+  const wallets: { id: string; name: string; currencyCode: string; available: string | null; decimals: number }[] =
+    canPay
+      ? seesBalances
+        ? (await listWallets())
+            .filter((w) => w.isActive)
+            .map((w) => ({
+              id: w.id,
+              name: w.name,
+              currencyCode: w.currencyCode,
+              available: w.balance,
+              decimals: w.currencyCode === "SDG" ? 0 : 2,
+            }))
+        : (
+            await prisma.wallet.findMany({
+              where: { isActive: true },
+              orderBy: { name: "asc" },
+              select: { id: true, name: true, currencyCode: true },
+            })
+          ).map((w) => ({ ...w, available: null, decimals: 2 }))
+      : [];
   const money = (v: string) => `${formatAmount(v, cur.decimals)} ${cur.symbol}`;
 
   return (
@@ -89,8 +105,9 @@ export default async function SupplierPage({ params }: { params: Promise<{ id: s
             today={shopDay(new Date())}
             wallets={wallets.map((w) => ({
               value: w.id,
-              label: `${w.name} (${w.currencyCode})`,
+              label: `${w.name} (${w.currencyCode})${w.available === null ? "" : ` — المتاح ${formatAmount(w.available, w.decimals)}`}`,
               currency: w.currencyCode,
+              available: w.available,
             }))}
           />
         </Card>

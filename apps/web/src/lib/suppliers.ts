@@ -2,6 +2,8 @@ import { dec, replaySupplierLedger, roundMoney, toLatinDigits, toUsdExact, type 
 import { prisma, type SupplierEntryKind } from "@ghusn/db";
 import { z } from "zod";
 import { getRateAt } from "./exchange-rates";
+import { formatAmount } from "./format";
+import { walletBalance } from "./wallets";
 
 export const COUNTRIES: Record<string, string> = {
   SD: "السودان",
@@ -212,10 +214,12 @@ export async function recordPayment(
     note: string | null;
   },
   userId: string,
+  /** يرى أرصدة المحافظ (المالك، D-86): رسالة الرفض تذكر الرصيد المتاح */
+  showBalance = false,
 ): Promise<void> {
   const [supplier, wallet] = await Promise.all([
     prisma.supplier.findFirst({ where: { id: input.supplierId, deletedAt: null } }),
-    prisma.wallet.findFirst({ where: { id: input.walletId, isActive: true } }),
+    prisma.wallet.findFirst({ where: { id: input.walletId, isActive: true }, include: { currency: true } }),
   ]);
   if (!supplier) throw new SupplierError("المورد غير موجود.");
   if (!wallet) throw new SupplierError("اختاري المحفظة.");
@@ -230,23 +234,36 @@ export async function recordPayment(
   // سعر عملة المورد الضمني لهذه الدفعة = ما خُصم ÷ ما دُفع بالدولار
   const rateUsed = sameCurrency ? dec(paidRate) : supplierAmount.div(paidUsd);
 
-  await prisma.supplierLedgerEntry.create({
-    data: {
-      supplierId: supplier.id,
-      kind: "PAYMENT",
-      occurredAt: input.at,
-      amount: supplierAmount.neg().toFixed(2),
-      currencyCode: supplier.currencyCode,
-      rateUsed: rateUsed.toDecimalPlaces(6).toString(),
-      amountUsd: roundMoney(paidUsd).neg().toFixed(2),
-      walletId: wallet.id,
-      paidAmount: dec(input.paidAmount).toFixed(2),
-      paidCurrencyCode: wallet.currencyCode,
-      paidRate,
-      reference: input.reference,
-      note: input.note,
-      createdById: userId,
-    },
+  const paid = dec(input.paidAmount);
+  await prisma.$transaction(async (tx) => {
+    // D-132: لا تُسجَّل دفعة أكبر من رصيد المحفظة — الرصيد السالب يعني تمويلاً أو تحويلاً لم يُسجَّل
+    const balance = await walletBalance(tx, wallet.id, true);
+    if (paid.gt(balance)) {
+      const d = wallet.currency.decimals;
+      throw new SupplierError(
+        showBalance
+          ? `رصيد «${wallet.name}» ${formatAmount(balance, d)} ${wallet.currency.symbol} لا يغطي الدفعة (${formatAmount(paid, d)} ${wallet.currency.symbol}) — سجّلي تمويلاً أو تحويلاً للمحفظة أولاً.`
+          : `رصيد «${wallet.name}» لا يغطي الدفعة — اطلبي من المالك تسجيل تمويل أو تحويل للمحفظة أولاً.`,
+      );
+    }
+    await tx.supplierLedgerEntry.create({
+      data: {
+        supplierId: supplier.id,
+        kind: "PAYMENT",
+        occurredAt: input.at,
+        amount: supplierAmount.neg().toFixed(2),
+        currencyCode: supplier.currencyCode,
+        rateUsed: rateUsed.toDecimalPlaces(6).toString(),
+        amountUsd: roundMoney(paidUsd).neg().toFixed(2),
+        walletId: wallet.id,
+        paidAmount: paid.toFixed(2),
+        paidCurrencyCode: wallet.currencyCode,
+        paidRate,
+        reference: input.reference,
+        note: input.note,
+        createdById: userId,
+      },
+    });
   });
 }
 
