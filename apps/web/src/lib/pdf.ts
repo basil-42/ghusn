@@ -37,17 +37,36 @@ function parseCookies(header: string, url: string) {
     .filter((c) => c.name);
 }
 
-export async function renderPdf(url: string, options: RenderOptions = {}): Promise<Buffer> {
-  let browser;
-  try {
-    browser = await chromium.launch({
-      executablePath: process.env.CHROMIUM_PATH || undefined,
-      args: ["--no-sandbox", "--disable-dev-shm-usage"],
-    });
-  } catch (e) {
-    console.error("[pdf] chromium unavailable", e);
-    throw new PdfUnavailable("تعذّر تشغيل مولّد PDF على الخادم.");
+type Browser = Awaited<ReturnType<typeof chromium.launch>>;
+
+/**
+ * أول متصفح متاح: CHROMIUM_PATH (الإنتاج) ← Chromium المثبت عبر Playwright ← Google Chrome أو Edge
+ * المثبتان على الجهاز (للتطوير على الماك بلا خطوة تثبيت).
+ */
+async function launch(): Promise<Browser> {
+  const args = ["--no-sandbox", "--disable-dev-shm-usage"];
+  const attempts: { executablePath?: string; channel?: string }[] = process.env.CHROMIUM_PATH
+    ? [{ executablePath: process.env.CHROMIUM_PATH }]
+    : [{}, { channel: "chrome" }, { channel: "msedge" }];
+  let last: unknown;
+  for (const a of attempts) {
+    try {
+      return await chromium.launch({ ...a, args });
+    } catch (e) {
+      last = e;
+    }
   }
+  console.error(
+    "[pdf] no Chromium found (set CHROMIUM_PATH or run: pnpm --filter @ghusn/web exec playwright-core install chromium)",
+    last,
+  );
+  throw new PdfUnavailable(
+    "مولّد PDF غير متاح على الخادم — ثبّت Chromium (playwright-core install chromium) أو Google Chrome.",
+  );
+}
+
+export async function renderPdf(url: string, options: RenderOptions = {}): Promise<Buffer> {
+  const browser = await launch();
   try {
     const context = await browser.newContext();
     if (options.cookieHeader) await context.addCookies(parseCookies(options.cookieHeader, url));
