@@ -100,6 +100,17 @@ const COUNTED = Prisma.sql`
   SELECT mv.* FROM mv LEFT JOIN opening o ON o."walletId" = mv."walletId"
    WHERE o."id" IS NULL OR mv."rowId" = o."id" OR mv."at" > o."occurredAt"`;
 
+/**
+ * رصيد محفظة الآن (نفس حساب الكشف: ما بعد الرصيد الافتتاحي). داخل معاملة يُقفل على المحفظة أولاً حتى لا
+ * تمر دفعتان متزامنتان على نفس الرصيد (D-132).
+ */
+export async function walletBalance(db: Prisma.TransactionClient, walletId: string, lock = false): Promise<Decimal> {
+  if (lock) await db.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${`wallet:${walletId}`}))`;
+  const [row] = await db.$queryRaw<{ balance: Prisma.Decimal | null }[]>`
+    SELECT SUM(c."amount") AS "balance" FROM (${COUNTED}) c WHERE c."walletId" = ${walletId}`;
+  return dec(row?.balance?.toString() ?? "0");
+}
+
 export interface WalletCard {
   id: string;
   name: string;

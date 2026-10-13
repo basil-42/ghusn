@@ -5,6 +5,7 @@ import { prisma } from "@ghusn/db";
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
+import { roleCan } from "@/lib/auth/permissions";
 import { requirePermission } from "@/lib/auth/session";
 import { COUNTRIES, SupplierError, amountField, createSupplier, recordPayment, voidEntry } from "@/lib/suppliers";
 
@@ -108,6 +109,7 @@ export async function recordPaymentAction(_prev: FormState, formData: FormData):
     await recordPayment(
       { supplierId, walletId, paidAmount, supplierAmount, at: date, reference, note },
       session.user.id,
+      roleCan(session.user.role, { wallet: ["update"] }),
     );
   } catch (error) {
     return { error: message(error) };
