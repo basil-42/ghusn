@@ -1,8 +1,9 @@
 "use client";
 
 import { useActionToast } from "@/components/ui/toast";
-import { toLatinDigits } from "@ghusn/core";
 import { useActionState, useState } from "react";
+import { OVER_BALANCE, exceedsAvailable } from "@/lib/wallet-hint";
+import type { WalletPick } from "@/lib/wallets";
 import { Field, SelectField } from "@/components/form-field";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -98,8 +99,7 @@ export function PaymentForm({
 }: {
   supplierId: string;
   supplierCurrency: string;
-  /** available: رصيد المحفظة (للمالك فقط) — يُمنع الإرسال فوقه، والخادم يتحقق أيضاً (D-132) */
-  wallets: (Option & { currency: string; available?: string | null })[];
+  wallets: WalletPick[];
   today: string;
 }) {
   const [state, action, pending] = useActionState<FormState, FormData>(recordPaymentAction, {});
@@ -110,8 +110,7 @@ export function PaymentForm({
   const walletCurrency = wallets.find((w) => w.value === walletId)?.currency;
   const available = wallets.find((w) => w.value === walletId)?.available ?? null;
   const [paidAmount, setPaidAmount] = useState("");
-  const paidNumber = Number(toLatinDigits(paidAmount).replace(/,/g, ""));
-  const exceeds = available !== null && paidAmount !== "" && paidNumber > Number(available);
+  const exceeds = exceedsAvailable(paidAmount, available);
   const crossCurrency = walletCurrency && walletCurrency !== supplierCurrency;
 
   return (
@@ -145,7 +144,7 @@ export function PaymentForm({
         required
         value={paidAmount}
         onChange={(e) => setPaidAmount(e.target.value)}
-        error={exceeds ? "أكبر من رصيد المحفظة — سجّلي تمويلاً أو تحويلاً للمحفظة أولاً." : undefined}
+        error={exceeds ? OVER_BALANCE : undefined}
       />
       {crossCurrency ? (
         <Field

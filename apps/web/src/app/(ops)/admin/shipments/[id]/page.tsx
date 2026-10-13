@@ -6,7 +6,6 @@ import {
   plainNumber,
   shopDay,
 } from "@ghusn/core";
-import { prisma } from "@ghusn/db";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
@@ -15,6 +14,7 @@ import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/ca
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table";
 import { roleCan } from "@/lib/auth/permissions";
 import { requirePermission } from "@/lib/auth/session";
+import { walletPicks } from "@/lib/wallets";
 import { formatAmount, formatDateTime } from "@/lib/format";
 import { COST_LABELS, STATUS_LABELS, getShipment } from "@/lib/shipments";
 import { COUNTRIES } from "@/lib/suppliers";
@@ -51,13 +51,8 @@ export default async function ShipmentPage({ params }: { params: Promise<{ id: s
       ? (await listCategoryOptions()).map((c) => ({ value: c.id, label: c.nameAr }))
       : undefined;
   const received = s.status === "RECEIVED";
-  const wallets = canCost
-    ? await prisma.wallet.findMany({
-        where: { isActive: true },
-        orderBy: { name: "asc" },
-        select: { id: true, name: true, currencyCode: true },
-      })
-    : [];
+  // «المتاح» بجانب كل محفظة للمالك فقط (D-86)، ويُمنع مبلغ فوقه (D-132)
+  const wallets = canCost ? await walletPicks(roleCan(role, { wallet: ["update"] })) : [];
   const today = shopDay(new Date());
   const cur = s.currency;
   const landedByLine = new Map(s.landed?.lines.map((l) => [l.lineId, l]) ?? []);
@@ -200,7 +195,7 @@ export default async function ShipmentPage({ params }: { params: Promise<{ id: s
           <CostForm
             id={s.id}
             today={today}
-            wallets={wallets.map((w) => ({ value: w.id, label: `${w.name} (${w.currencyCode})` }))}
+            wallets={wallets}
             kinds={Object.entries(COST_LABELS).map(([value, label]) => ({ value, label }))}
           />
         ) : null}

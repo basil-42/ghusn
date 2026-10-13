@@ -138,6 +138,7 @@ export interface WalletCard {
   name: string;
   currencyCode: string;
   symbol: string;
+  decimals: number;
   isActive: boolean;
   balance: string;
   /** القيمة التقريبية بالدولار بسعر اليوم — للمعلومة فقط. */
@@ -149,7 +150,7 @@ export async function listWallets(now = new Date()): Promise<WalletCard[]> {
   const [wallets, balances, openings] = await Promise.all([
     prisma.wallet.findMany({
       orderBy: [{ isActive: "desc" }, { createdAt: "asc" }],
-      include: { currency: { select: { symbol: true } } },
+      include: { currency: { select: { symbol: true, decimals: true } } },
     }),
     prisma.$queryRaw<{ walletId: string; balance: Prisma.Decimal }[]>`
       SELECT c."walletId", SUM(c."amount") AS "balance" FROM (${COUNTED}) c GROUP BY c."walletId"`,
@@ -168,12 +169,50 @@ export async function listWallets(now = new Date()): Promise<WalletCard[]> {
       name: w.name,
       currencyCode: w.currencyCode,
       symbol: w.currency.symbol,
+      decimals: w.currency.decimals,
       isActive: w.isActive,
       balance: balance.toFixed(2),
       balanceUsd: rate ? roundMoney(toUsdExact(balance, rate)).toFixed(2) : null,
       opening: opening ? { amount: opening.amount.toString(), at: opening.occurredAt } : null,
     };
   });
+}
+
+/** محفظة في قائمة اختيار نموذج صرف. available: رصيدها لمن يرى الأرصدة (المالك، D-86)، وإلا null. */
+export interface WalletPick {
+  value: string;
+  label: string;
+  currency: string;
+  available: string | null;
+}
+
+/**
+ * المحافظ النشطة لنماذج الصرف (دفعة مورد، تكلفة شحنة، مصروف). للمالك يُكتب «المتاح» بجانب كل محفظة
+ * ويمنع النموذج مبلغاً فوقه؛ الخادم يتحقق في كل الأحوال (D-132).
+ */
+export async function walletPicks(showBalance: boolean): Promise<WalletPick[]> {
+  if (!showBalance) {
+    const wallets = await prisma.wallet.findMany({
+      where: { isActive: true },
+      orderBy: { name: "asc" },
+      select: { id: true, name: true, currencyCode: true },
+    });
+    return wallets.map((w) => ({
+      value: w.id,
+      label: `${w.name} (${w.currencyCode})`,
+      currency: w.currencyCode,
+      available: null,
+    }));
+  }
+  return (await listWallets())
+    .filter((w) => w.isActive)
+    .sort((a, b) => a.name.localeCompare(b.name, "ar"))
+    .map((w) => ({
+      value: w.id,
+      label: `${w.name} (${w.currencyCode}) — المتاح ${formatAmount(w.balance, w.decimals)}`,
+      currency: w.currencyCode,
+      available: w.balance,
+    }));
 }
 
 export interface StatementRow {

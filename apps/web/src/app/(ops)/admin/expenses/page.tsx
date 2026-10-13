@@ -1,9 +1,9 @@
 import { shopDay, shopMonthRange, sumUsd } from "@ghusn/core";
-import { prisma } from "@ghusn/db";
 import type { Metadata } from "next";
 import { ExportLink } from "@/components/admin/export-button";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { roleCan } from "@/lib/auth/permissions";
+import { walletPicks } from "@/lib/wallets";
 import { requirePermission } from "@/lib/auth/session";
 import { listExpenseCategories, listExpenses } from "@/lib/expenses";
 import { formatAmount, formatDateTime } from "@/lib/format";
@@ -21,7 +21,8 @@ export default async function ExpensesPage({ searchParams }: { searchParams: Pro
   const month = m && /^\d{4}-\d{2}$/.test(m) ? m : currentShopMonth();
   const [categories, wallets, settings, expenses] = await Promise.all([
     listExpenseCategories({ staffOnly: !full }),
-    full ? prisma.wallet.findMany({ where: { isActive: true }, orderBy: { name: "asc" } }) : [],
+    // «المتاح» للمالك فقط (D-86)، ويُمنع مبلغ فوقه (D-132)
+    full ? walletPicks(roleCan(session.user.role, { wallet: ["update"] })) : [],
     getPosSettings(),
     // الموظفة ترى ما سجّلته فقط
     listExpenses(shopMonthRange(month), full ? undefined : session.user.id),
@@ -57,7 +58,7 @@ export default async function ExpensesPage({ searchParams }: { searchParams: Pro
             today={shopDay(new Date())}
             limitSdg={settings.staffExpenseLimitSdg}
             categories={categories.map((c) => ({ value: c.id, label: c.name }))}
-            wallets={wallets.map((w) => ({ value: w.id, label: `${w.name} (${w.currencyCode})` }))}
+            wallets={wallets}
           />
         ) : (
           <p className="text-muted-foreground">لا توجد أقسام مصاريف مسموحة.</p>

@@ -1,7 +1,9 @@
 "use client";
 
 import { useActionToast } from "@/components/ui/toast";
-import { useActionState, useRef } from "react";
+import { useActionState, useRef, useState } from "react";
+import { OVER_BALANCE, exceedsAvailable } from "@/lib/wallet-hint";
+import type { WalletPick } from "@/lib/wallets";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input, NativeSelect } from "@/components/ui/input";
@@ -23,18 +25,25 @@ export function ExpenseForm({
   limitSdg,
 }: {
   categories: Option[];
-  wallets: Option[];
+  wallets: WalletPick[];
   full: boolean;
   today: string;
   limitSdg: number;
 }) {
   const formRef = useRef<HTMLFormElement>(null);
+  const [walletId, setWalletId] = useState("");
+  const [amount, setAmount] = useState("");
   const [state, action, pending] = useActionState<FormState, FormData>(async (prev, data) => {
     const result = await createExpenseAction(prev, data);
-    if (result.success) formRef.current?.reset();
+    if (result.success) {
+      formRef.current?.reset();
+      setWalletId("");
+      setAmount("");
+    }
     return result;
   }, {});
   useActionToast(state);
+  const exceeds = full && exceedsAvailable(amount, wallets.find((w) => w.value === walletId)?.available);
   return (
     <form ref={formRef} action={action} className="flex flex-col gap-4">
       {state.error ? <Alert variant="destructive">{state.error}</Alert> : null}
@@ -55,7 +64,16 @@ export function ExpenseForm({
         </label>
         <label className={field}>
           <span className="font-semibold">المبلغ{full ? " (بعملة المحفظة)" : " (ج.س)"}</span>
-          <Input name="amount" inputMode="decimal" dir="ltr" required />
+          <Input
+            name="amount"
+            inputMode="decimal"
+            dir="ltr"
+            required
+            value={amount}
+            onChange={(e) => setAmount(e.target.value)}
+            aria-invalid={exceeds || undefined}
+          />
+          {exceeds ? <span className="text-xs font-semibold text-destructive">{OVER_BALANCE}</span> : null}
           {!full ? (
             <span className="text-xs text-muted-foreground">
               من درج الوردية، حتى {limitSdg.toLocaleString("en-US")} ج.س للمصروف.
@@ -66,7 +84,7 @@ export function ExpenseForm({
           <>
             <label className={field}>
               <span className="font-semibold">دُفع من</span>
-              <NativeSelect name="walletId" defaultValue="" required>
+              <NativeSelect name="walletId" value={walletId} onChange={(e) => setWalletId(e.target.value)} required>
                 <option value="" disabled>
                   اختاري المحفظة
                 </option>
@@ -97,7 +115,7 @@ export function ExpenseForm({
           className="min-h-11 rounded-xl border border-input bg-card p-2 text-sm"
         />
       </label>
-      <Button type="submit" disabled={pending} className="self-start">
+      <Button type="submit" disabled={pending || exceeds} className="self-start">
         {pending ? "جارٍ الحفظ…" : "تسجيل المصروف"}
       </Button>
     </form>
