@@ -16,7 +16,7 @@ import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/ca
 import { roleCan } from "@/lib/auth/permissions";
 import { requireSession } from "@/lib/auth/session";
 import { expiringBatches, lowStock, openShifts, periodKpis, salesSeries, topProducts } from "@/lib/dashboard";
-import { rateTicker } from "@/lib/exchange-rates";
+import { isSellingRateStale, rateTicker } from "@/lib/exchange-rates";
 import { formatAmount, formatDateTime, formatDay, formatPercent, formatRate, formatTime } from "@/lib/format";
 import { countNewOrders, orderTabCounts } from "@/lib/orders";
 import { countPriceReview } from "@/lib/pricing";
@@ -138,7 +138,7 @@ async function OwnerHome({ user, can, period }: { user: User; can: Can; period: 
   const [kpis, series, top, shifts, orders, tabs, stock, expiring, wallets, rate] = await Promise.all([
     periodKpis(range),
     salesSeries(range, now),
-    topProducts(3, now),
+    topProducts(5, now),
     openShifts(),
     can({ order: ["read"] }) ? countNewOrders() : null,
     can({ order: ["read"] }) ? orderTabCounts() : null,
@@ -148,18 +148,20 @@ async function OwnerHome({ user, can, period }: { user: User; can: Can; period: 
     // سعر الصرف في الرئيسية للمالك فقط (D-133)
     can({ exchangeRate: ["dashboard"] }) ? rateTicker(now) : null,
   ]);
-  const [due, priceReview, salesReview, shortages, adjustments] = await Promise.all([
+  const [due, priceReview, salesReview, shortages, adjustments, rateStale] = await Promise.all([
     can({ supplier: ["read"] }) ? listDueSoon(7) : [],
     can({ price: ["approve"] }) ? countPriceReview() : 0,
     countSalesToReview(),
     can({ report: ["read"] }) ? listLargeShortages() : [],
     can({ stock: ["approve"] }) ? countPendingFor({ id: user.id, role: user.role }) : 0,
+    can({ exchangeRate: ["update"] }) ? isSellingRateStale(now) : false,
   ]);
   const paymentReview = can({ order: ["payment"] }) ? (orders?.paymentReview ?? 0) : 0;
   const seeProfit = can({ report: ["read"] });
 
-  // شريط «يحتاج إجراء»: يختفي حين يخلو. سعر الجنيه القديم له شريطه الذهبي في الإطار فلا يتكرر هنا.
+  // «يحتاج إجراء» شارات تحت التحية (D-136)، ومعها سعر الجنيه القديم (شريط الإطار مخفي في الرئيسية)
   const attention = [
+    rateStale && { href: "/admin/exchange-rates", text: "سعر الجنيه لم يُدخل اليوم", urgent: false },
     paymentReview && { href: "/admin/orders", text: `${paymentReview} إشعار بنكك للمراجعة`, urgent: false },
     orders?.new && { href: "/admin/orders", text: `${orders.new} طلب جديد`, urgent: false },
     salesReview && { href: "/admin/sales", text: `${salesReview} فاتورة دون اتصال للمراجعة`, urgent: true },
@@ -213,129 +215,123 @@ async function OwnerHome({ user, can, period }: { user: User; can: Can; period: 
   const today = shopDay(now);
   const seeInsights = can({ report: ["read"], cost: ["read"] });
 
+  const activeWallets = wallets?.filter((w) => w.isActive) ?? [];
+  const shownWallets = activeWallets.filter((w) => !dec(w.balance).isZero());
+  const zeroWallets = activeWallets.length - shownWallets.length;
+
   return (
-    <div className="flex flex-col gap-5">
-      <header className="flex flex-wrap items-end justify-between gap-3">
-        <div className="flex flex-col gap-1">
-          <p className="text-sm text-muted-foreground">
-            {formatDay(now)}
-            {" · "}
-            <Link href="/admin/sales" className="hover:underline">
-              {shifts.length ? `${shifts.length} وردية مفتوحة` : "لا ورديات مفتوحة"}
-            </Link>
-          </p>
-          <h1 className="font-display text-3xl font-bold">{greeting(user.name, now)}</h1>
+    <div className="flex flex-col gap-6">
+      <header className="flex flex-col gap-3">
+        <div className="flex flex-wrap items-end justify-between gap-3">
+          <div className="flex flex-col gap-1">
+            <p className="text-sm text-muted-foreground">
+              {formatDay(now)}
+              {" · "}
+              <Link href="/admin/sales" className="hover:underline">
+                {shifts.length ? `${shifts.length} وردية مفتوحة` : "لا ورديات مفتوحة"}
+              </Link>
+            </p>
+            <h1 className="font-display text-3xl font-bold">{greeting(user.name, now)}</h1>
+          </div>
+          {/* الفترة (D-133، D-135): أزرار للجارية، و«أخرى» للسابقة — تتحكم في كل الأرقام والرسم */}
+          <PeriodTabs period={period} now={now} weekStartsOn={weekStartsOn} />
         </div>
-        {/* الفترة (D-133، D-135): أزرار للجارية، و«أخرى» للسابقة — تتحكم في كل الأرقام والرسم */}
-        <PeriodTabs period={period} now={now} weekStartsOn={weekStartsOn} />
+        {attention.length ? (
+          <nav aria-label="يحتاج إجراء" className="flex flex-wrap items-center gap-2">
+            {attention.map((a) => (
+              <Link
+                key={a.text}
+                href={a.href}
+                className={`flex min-h-9 items-center gap-2 rounded-full px-3.5 text-sm font-semibold ${
+                  a.urgent ? "bg-danger/10 text-danger hover:bg-danger/15" : "bg-gold/15 text-warning hover:bg-gold/25"
+                }`}
+              >
+                <span aria-hidden className="size-1.5 rounded-full bg-current" />
+                {a.text}
+                <ArrowLeft aria-hidden className="size-3.5" />
+              </Link>
+            ))}
+          </nav>
+        ) : null}
       </header>
 
-      {attention.length ? (
-        <section
-          aria-label="يحتاج إجراء"
-          className="flex flex-wrap items-center gap-2 rounded-2xl border border-sand bg-card px-4 py-3"
-        >
-          <b className="text-sm text-warning">يحتاج إجراء · {attention.length}</b>
-          {attention.map((a) => (
-            <Link
-              key={a.text}
-              href={a.href}
-              className={`flex min-h-10 items-center gap-1.5 rounded-xl px-3 text-sm font-semibold ${
-                a.urgent ? "bg-danger/10 text-danger hover:bg-danger/15" : "bg-gold/15 hover:bg-gold/25"
-              }`}
-            >
-              {a.text}
-              <ArrowLeft aria-hidden className="size-4" />
-            </Link>
-          ))}
-        </section>
-      ) : null}
-
-      {/* الصف الأول: بطاقة المبيعات الرئيسية، وبجانبها بقية الأرقام */}
-      <section aria-label={`أرقام ${PERIOD_LABELS[period]}`} className="grid gap-4 lg:grid-cols-[2.2fr_1fr]">
-        <Card className="min-w-0">
-          <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line pb-3">
-            <CardTitle>صافي المبيعات · {PERIOD_LABELS[period]}</CardTitle>
-            <span className="text-xs text-muted-foreground">
-              {period === "today" ? "الرسم: آخر 7 أيام" : periodHint(range, period)}
-            </span>
-          </div>
-          <div className="flex flex-col gap-2">
-            <span className="text-4xl font-bold tabular-nums">{sdg(kpis.netSdg)}</span>
-            <span className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
-              <GrowthPill value={kpis.change} />
-              {kpis.change !== null ? COMPARED_TO[period] : "لا مقارنة بعد"}
-              {` · ${kpis.count} فاتورة وطلب`}
-            </span>
-            <span className="flex gap-5 text-sm text-muted-foreground">
-              <span>
-                المحل <b className="text-foreground tabular-nums">{formatAmount(kpis.shopNetSdg, 0)}</b>
+      <Section title={`الأداء · ${PERIOD_LABELS[period]}`}>
+        <div className="grid gap-4 lg:grid-cols-[2.1fr_1fr]">
+          <Panel title="صافي المبيعات" note={period === "today" ? "الرسم: آخر 7 أيام" : periodHint(range, period)}>
+            <div className="flex flex-col gap-2">
+              <span className="text-4xl font-bold tabular-nums">{sdg(kpis.netSdg)}</span>
+              <span className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+                <GrowthPill value={kpis.change} />
+                {kpis.change !== null ? COMPARED_TO[period] : "لا مقارنة بعد"}
+                {` · ${kpis.count} فاتورة وطلب`}
               </span>
-              <span>
-                المتجر <b className="text-foreground tabular-nums">{formatAmount(kpis.storeSdg, 0)}</b>
+              <span className="flex gap-5 text-sm text-muted-foreground">
+                <span>
+                  المحل <b className="text-foreground tabular-nums">{formatAmount(kpis.shopNetSdg, 0)}</b>
+                </span>
+                <span>
+                  المتجر <b className="text-foreground tabular-nums">{formatAmount(kpis.storeSdg, 0)}</b>
+                </span>
               </span>
-            </span>
-          </div>
-          {hasSales ? (
-            <SalesChart
-              points={points}
-              gridlines={axis.map((v) => ({ ratio: axisTop > 0 ? v / axisTop : 0, label: compactSdg(v) }))}
-              ariaLabel={`صافي المبيعات ${period === "today" ? "آخر 7 أيام" : PERIOD_LABELS[period]}`}
-            />
-          ) : (
-            <p className="text-muted-foreground">لا مبيعات في هذه الفترة بعد.</p>
-          )}
-        </Card>
-        <div className="grid gap-3 sm:grid-cols-3 lg:grid-cols-1">
-          {seeProfit ? (
-            <Stat
-              title="مجمل الربح"
-              value={sdg(kpis.profitSdg)}
-              sub={
-                <>
-                  <span className="block tabular-nums">
-                    ≈ <bdi dir="ltr">${formatAmount(kpis.profitUsd)}</bdi>
-                    {kpis.margin !== null ? ` · هامش ${formatPercent(kpis.margin)}` : null}
-                  </span>
-                  <GrowthPill value={kpis.profitChange} small />
-                </>
-              }
-            />
-          ) : null}
-          <Stat
-            title="متوسط الفاتورة"
-            value={kpis.avgTicketSdg ? sdg(kpis.avgTicketSdg) : "—"}
-            sub={<GrowthPill value={kpis.avgTicketChange} small />}
-          />
-          <Stat
-            title="العملاء"
-            value={<span className="tabular-nums">{kpis.customers}</span>}
-            sub={
-              <span className="flex flex-wrap items-center gap-2">
-                <GrowthPill value={kpis.customersChange} small />
-                {can({ customer: ["read"] }) ? (
-                  <Link href="/admin/customers" className="hover:underline">
-                    منهم {kpis.newCustomers} جديد ←
-                  </Link>
-                ) : (
-                  `منهم ${kpis.newCustomers} جديد`
-                )}
-              </span>
-            }
-          />
+            </div>
+            {hasSales ? (
+              <SalesChart
+                points={points}
+                gridlines={axis.map((v) => ({ ratio: axisTop > 0 ? v / axisTop : 0, label: compactSdg(v) }))}
+                ariaLabel={`صافي المبيعات ${period === "today" ? "آخر 7 أيام" : PERIOD_LABELS[period]}`}
+              />
+            ) : (
+              <p className="text-muted-foreground">لا مبيعات في هذه الفترة بعد.</p>
+            )}
+          </Panel>
+          {/* المؤشرات الثلاثة بطاقة واحدة بأسطر بنفس ارتفاع بطاقة المبيعات (D-136) */}
+          <Panel title="مؤشرات الفترة" href={seeProfit ? "/admin/reports" : undefined} link="التقرير الشهري" flush>
+            <div className="flex flex-1 flex-col divide-y divide-line">
+              {seeProfit ? (
+                <Indicator
+                  title="مجمل الربح"
+                  value={sdg(kpis.profitSdg)}
+                  growth={kpis.profitChange}
+                  sub={
+                    <>
+                      ≈ <bdi dir="ltr">${formatAmount(kpis.profitUsd)}</bdi>
+                      {kpis.margin !== null ? ` · هامش ${formatPercent(kpis.margin)}` : null}
+                    </>
+                  }
+                />
+              ) : null}
+              <Indicator
+                title="متوسط الفاتورة"
+                value={kpis.avgTicketSdg ? sdg(kpis.avgTicketSdg) : "—"}
+                growth={kpis.avgTicketChange}
+                sub={`${kpis.count} فاتورة وطلب`}
+              />
+              <Indicator
+                title="العملاء"
+                value={String(kpis.customers)}
+                growth={kpis.customersChange}
+                sub={
+                  can({ customer: ["read"] }) ? (
+                    <Link href="/admin/customers" className="hover:underline">
+                      منهم {kpis.newCustomers} جديد ←
+                    </Link>
+                  ) : (
+                    `منهم ${kpis.newCustomers} جديد`
+                  )
+                }
+              />
+            </div>
+          </Panel>
         </div>
-      </section>
+      </Section>
 
-      {/* الصف الثاني: المال (وسعر الصرف في رأسه) · طلبات المتجر والورديات · الأكثر مبيعاً */}
-      <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
-        {wallets ? (
-          <Card className="min-w-0">
-            <CardHead title="المال" href="/admin/wallets" link="المحافظ" />
-            {rate ? <RateBand rate={rate} /> : null}
-            <ul className="flex flex-col divide-y divide-line text-sm">
-              {wallets
-                .filter((w) => w.isActive)
-                .map((w) => (
+      <Section title="المال والعمليات · الآن">
+        <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
+          {wallets ? (
+            <Panel title="المال" href="/admin/wallets" link="المحافظ">
+              {rate ? <RateBand rate={rate} /> : null}
+              <ul className="flex flex-col divide-y divide-line text-sm">
+                {shownWallets.map((w) => (
                   <li key={w.id} className="flex items-center justify-between gap-2 py-2">
                     <Link href={`/admin/wallets/${w.id}`} className="min-w-0 hover:underline">
                       {w.name}
@@ -345,135 +341,146 @@ async function OwnerHome({ user, can, period }: { user: User; can: Can; period: 
                     </bdi>
                   </li>
                 ))}
-            </ul>
-          </Card>
-        ) : null}
-
-        {tabs ? (
-          <Card className="min-w-0">
-            <CardHead title="طلبات المتجر الآن" href="/admin/orders" link="كل الطلبات" />
-            <ul className="grid grid-cols-5 gap-1.5">
-              {pipeline.map((st) => (
-                <li key={st.key}>
-                  <Link
-                    href={st.key === "new" ? "/admin/orders" : `/admin/orders?tab=${st.key}`}
-                    className={`flex min-h-16 flex-col items-center justify-center rounded-xl border text-xs ${
-                      st.count ? "border-sand bg-gold/15 text-foreground" : "border-line text-muted-foreground"
-                    }`}
-                  >
-                    <b className="text-xl tabular-nums">{st.count}</b>
-                    {st.label}
-                  </Link>
-                </li>
-              ))}
-            </ul>
-            <div className="flex flex-col gap-1.5">
-              <span className="text-xs font-semibold text-muted-foreground">الورديات المفتوحة</span>
-              {shifts.length ? (
-                shifts.map((sh, i) => (
-                  <Link
-                    key={sh.id}
-                    href="/admin/sales"
-                    className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-xl bg-muted px-3 py-2 text-sm hover:bg-muted/70"
-                  >
-                    <span>
-                      <b>{sh.userName}</b> · منذ{" "}
-                      {shopDay(sh.openedAt) === today ? formatTime(sh.openedAt) : formatDateTime(sh.openedAt)} ·{" "}
-                      {sh.sales} فاتورة
-                    </span>
-                    {shiftCash[i] ? (
-                      <span className="text-muted-foreground">
-                        الدرج المتوقع{" "}
-                        <b className="text-foreground tabular-nums">{formatAmount(shiftCash[i].expectedCashSdg, 0)}</b>
-                      </span>
-                    ) : null}
-                  </Link>
-                ))
-              ) : (
-                <p className="text-sm text-muted-foreground">لا ورديات مفتوحة الآن.</p>
-              )}
-            </div>
-          </Card>
-        ) : null}
-
-        <Card className="min-w-0">
-          <CardHead
-            title="الأكثر مبيعاً · هذا الشهر"
-            href={seeInsights ? "/admin/insights" : undefined}
-            link="التحليلات"
-          />
-          {top.length ? (
-            <ol className="flex flex-col divide-y divide-line text-sm">
-              {top.map((t, i) => (
-                <li key={t.productId} className="flex items-center gap-3 py-2.5">
-                  <span className="grid size-7 shrink-0 place-items-center rounded-lg bg-muted text-xs font-bold tabular-nums">
-                    {i + 1}
-                  </span>
-                  <span className="flex min-w-0 flex-1 flex-col gap-1">
-                    <Link href={`/admin/products/${t.productId}`} className="truncate font-semibold hover:underline">
-                      {t.name}
-                    </Link>
-                    <span aria-hidden className="h-1.5 overflow-hidden rounded-full bg-muted">
-                      <span
-                        className="block h-full rounded-full bg-sage"
-                        style={{ width: `${topMax.gt(0) ? dec(t.qty).div(topMax).times(100).toNumber() : 0}%` }}
-                      />
-                    </span>
-                  </span>
-                  <span className="shrink-0 font-semibold tabular-nums">{formatAmount(t.qty, 0)} قطعة</span>
-                </li>
-              ))}
-            </ol>
-          ) : (
-            <p className="text-sm text-muted-foreground">لا مبيعات هذا الشهر بعد.</p>
-          )}
-        </Card>
-      </div>
-
-      {/* الصف الثالث: المخزون — النفاد والصلاحية */}
-      {stock ? (
-        <div className="grid gap-4 md:grid-cols-2">
-          <Card className="min-w-0">
-            <CardHead
-              title="تنبيهات المخزون"
-              href={seeInsights ? "/admin/insights?tab=reorder" : "/admin/stock"}
-              link={seeInsights ? "اقتراحات إعادة الطلب" : "كل المخزون"}
-            />
-            {stock.items.length ? (
-              <LowStockList items={stock.items} />
-            ) : (
-              <p className="text-sm text-muted-foreground">المخزون فوق الحد ✓</p>
-            )}
-            {stock.total > stock.items.length ? (
-              <span className="text-xs text-muted-foreground">
-                {stock.total - stock.items.length} صنف آخر قارب على النفاد
-              </span>
-            ) : null}
-          </Card>
-          <Card className="min-w-0">
-            <CardHead title="صلاحية قريبة" note={expiring ? `خلال ${expiring.days} يوماً` : undefined} />
-            {expiring?.items.length ? (
-              <ul className="flex flex-col divide-y divide-line text-sm">
-                {expiring.items.map((b) => {
-                  const days = Math.round(
-                    (new Date(`${b.expiresOn}T00:00:00Z`).getTime() - new Date(`${today}T00:00:00Z`).getTime()) /
-                      86_400_000,
-                  );
-                  return (
-                    <li key={b.id} className="flex items-center justify-between gap-2 py-2">
-                      <Link href={`/admin/products/${b.productId}`} className="min-w-0 hover:underline">
-                        {b.label}
-                      </Link>
-                      <Tag tone={b.expired ? "danger" : "warn"}>{b.expired ? "منتهية" : `${days} يوماً`}</Tag>
-                    </li>
-                  );
-                })}
               </ul>
+              {zeroWallets ? (
+                <span className="text-xs text-muted-foreground">
+                  {zeroWallets === 1 ? "محفظة واحدة رصيدها صفر مخفية" : `${zeroWallets} محافظ رصيدها صفر مخفية`}
+                </span>
+              ) : null}
+            </Panel>
+          ) : null}
+
+          {tabs ? (
+            <Panel title="طلبات المتجر" href="/admin/orders" link="كل الطلبات">
+              <ul className="grid grid-cols-5 gap-1.5">
+                {pipeline.map((st) => (
+                  <li key={st.key}>
+                    <Link
+                      href={st.key === "new" ? "/admin/orders" : `/admin/orders?tab=${st.key}`}
+                      className={`flex min-h-16 flex-col items-center justify-center rounded-xl border text-xs ${
+                        st.count ? "border-sand bg-gold/15 text-foreground" : "border-line text-muted-foreground"
+                      }`}
+                    >
+                      <b className="text-xl tabular-nums">{st.count}</b>
+                      {st.label}
+                    </Link>
+                  </li>
+                ))}
+              </ul>
+              <div className="flex flex-col gap-1.5">
+                <span className="text-xs font-semibold text-muted-foreground">الورديات المفتوحة</span>
+                {shifts.length ? (
+                  shifts.map((sh, i) => (
+                    <Link
+                      key={sh.id}
+                      href="/admin/sales"
+                      className="flex flex-wrap items-center justify-between gap-x-3 gap-y-1 rounded-xl bg-muted px-3 py-2 text-sm hover:bg-muted/70"
+                    >
+                      <span>
+                        <b>{sh.userName}</b> · منذ{" "}
+                        {shopDay(sh.openedAt) === today ? formatTime(sh.openedAt) : formatDateTime(sh.openedAt)} ·{" "}
+                        {sh.sales} فاتورة
+                      </span>
+                      {shiftCash[i] ? (
+                        <span className="text-muted-foreground">
+                          الدرج{" "}
+                          <b className="text-foreground tabular-nums">
+                            {formatAmount(shiftCash[i].expectedCashSdg, 0)}
+                          </b>
+                        </span>
+                      ) : null}
+                    </Link>
+                  ))
+                ) : (
+                  <p className="text-sm text-muted-foreground">لا ورديات مفتوحة الآن.</p>
+                )}
+              </div>
+            </Panel>
+          ) : null}
+
+          <Panel title="الأكثر مبيعاً · الشهر" href={seeInsights ? "/admin/insights" : undefined} link="التحليلات">
+            {top.length ? (
+              <ol className="flex flex-col divide-y divide-line text-sm">
+                {top.map((t, i) => (
+                  <li key={t.productId} className="flex items-center gap-3 py-2">
+                    <span className="grid size-6 shrink-0 place-items-center rounded-md bg-muted text-xs font-bold tabular-nums">
+                      {i + 1}
+                    </span>
+                    <span className="flex min-w-0 flex-1 flex-col gap-1">
+                      <Link href={`/admin/products/${t.productId}`} className="truncate hover:underline">
+                        {t.name}
+                      </Link>
+                      <span aria-hidden className="h-1.5 overflow-hidden rounded-full bg-muted">
+                        <span
+                          className="block h-full rounded-full bg-sage"
+                          style={{ width: `${topMax.gt(0) ? dec(t.qty).div(topMax).times(100).toNumber() : 0}%` }}
+                        />
+                      </span>
+                    </span>
+                    <span className="shrink-0 font-semibold tabular-nums">{formatAmount(t.qty, 0)}</span>
+                  </li>
+                ))}
+              </ol>
             ) : (
-              <p className="text-sm text-muted-foreground">لا شيء قريب الانتهاء ✓</p>
+              <p className="text-sm text-muted-foreground">لا مبيعات هذا الشهر بعد.</p>
             )}
-          </Card>
+          </Panel>
         </div>
+      </Section>
+
+      {stock ? (
+        <Section title="المخزون">
+          {/* بطاقة واحدة بعمودين: النفاد | الصلاحية — الفارغ منهما سطر ✓ (D-136) */}
+          <Panel
+            title="يحتاج متابعة"
+            href={seeInsights ? "/admin/insights?tab=reorder" : "/admin/stock"}
+            link={seeInsights ? "اقتراحات إعادة الطلب" : "كل المخزون"}
+            flush
+          >
+            <div className="grid md:grid-cols-2">
+              <div className="flex flex-col gap-2 p-5">
+                <h3 className="flex justify-between text-sm font-semibold text-muted-foreground">
+                  نفد أو قارب على النفاد
+                  {stock.total ? <span className="tabular-nums">{stock.total} صنف</span> : null}
+                </h3>
+                {stock.items.length ? (
+                  <LowStockList items={stock.items} />
+                ) : (
+                  <p className="text-sm font-semibold text-forest">✓ المخزون فوق الحد</p>
+                )}
+                {stock.total > stock.items.length ? (
+                  <span className="text-xs text-muted-foreground">+{stock.total - stock.items.length} صنف آخر</span>
+                ) : null}
+              </div>
+              <div className="flex flex-col gap-2 border-t border-line p-5 md:border-s md:border-t-0">
+                <h3 className="flex justify-between text-sm font-semibold text-muted-foreground">
+                  صلاحية قريبة
+                  {expiring ? <span>خلال {expiring.days} يوماً</span> : null}
+                </h3>
+                {expiring?.items.length ? (
+                  <ul className="flex flex-col divide-y divide-line text-sm">
+                    {expiring.items.map((b) => {
+                      const days = Math.round(
+                        (new Date(`${b.expiresOn}T00:00:00Z`).getTime() - new Date(`${today}T00:00:00Z`).getTime()) /
+                          86_400_000,
+                      );
+                      return (
+                        <li key={b.id} className="flex items-center justify-between gap-2 py-2">
+                          <Link href={`/admin/products/${b.productId}`} className="min-w-0 hover:underline">
+                            {b.label}
+                          </Link>
+                          <Tag tone={b.expired ? "danger" : "warn"}>{b.expired ? "منتهية" : `${days} يوماً`}</Tag>
+                        </li>
+                      );
+                    })}
+                  </ul>
+                ) : (
+                  <p className="text-sm font-semibold text-forest">✓ لا شيء قريب الانتهاء</p>
+                )}
+              </div>
+            </div>
+          </Panel>
+        </Section>
       ) : null}
     </div>
   );
@@ -625,18 +632,77 @@ function Tag({ tone, children }: { tone: "danger" | "warn"; children: React.Reac
   );
 }
 
-/** رأس بطاقة: العنوان، ورابط «←» لصفحتها أو ملاحظة صغيرة. */
-function CardHead({ title, href, link, note }: { title: string; href?: string; link?: string; note?: string }) {
+/** قسم بعنوان خفيف وخط ممتد (D-136): الأداء · المال والعمليات · المخزون. */
+function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
-    <div className="flex items-baseline justify-between gap-2">
-      <CardTitle>{title}</CardTitle>
-      {href && link ? (
-        <Link href={href} className="text-xs font-semibold text-muted-foreground hover:text-foreground hover:underline">
-          {link} ←
-        </Link>
-      ) : note ? (
-        <span className="text-xs text-muted-foreground">{note}</span>
-      ) : null}
+    <section aria-label={title} className="flex flex-col gap-2.5">
+      <h2 className="flex items-center gap-3 text-xs font-bold text-muted-foreground after:h-px after:flex-1 after:bg-line">
+        {title}
+      </h2>
+      {children}
+    </section>
+  );
+}
+
+/**
+ * بطاقة برأس موحّد (D-136): العنوان، ورابط «←» لصفحتها أو ملاحظة، وخط فاصل. البطاقات في الصف بنفس
+ * الارتفاع. flush: المحتوى بلا حشوة (أسطر أو أعمدة تملأ البطاقة).
+ */
+function Panel({
+  title,
+  href,
+  link,
+  note,
+  flush = false,
+  children,
+}: {
+  title: string;
+  href?: string;
+  link?: string;
+  note?: string;
+  flush?: boolean;
+  children: React.ReactNode;
+}) {
+  return (
+    <div className="flex min-w-0 flex-col rounded-2xl border border-border bg-card">
+      <div className="flex flex-wrap items-center justify-between gap-2 border-b border-line px-5 py-3.5">
+        <h2 className="text-base font-bold">{title}</h2>
+        {href && link ? (
+          <Link
+            href={href}
+            className="text-xs font-semibold text-muted-foreground hover:text-foreground hover:underline"
+          >
+            {link} ←
+          </Link>
+        ) : note ? (
+          <span className="text-xs text-muted-foreground">{note}</span>
+        ) : null}
+      </div>
+      <div className={flush ? "flex flex-1 flex-col" : "flex flex-1 flex-col gap-3 p-5"}>{children}</div>
+    </div>
+  );
+}
+
+/** سطر مؤشر في «مؤشرات الفترة»: العنوان، الرقم وشارة النمو، وسطر صغير. */
+function Indicator({
+  title,
+  value,
+  growth,
+  sub,
+}: {
+  title: string;
+  value: string;
+  growth: string | null;
+  sub: React.ReactNode;
+}) {
+  return (
+    <div className="flex flex-1 flex-col justify-center gap-1 px-5 py-4">
+      <span className="text-sm text-muted-foreground">{title}</span>
+      <span className="flex flex-wrap items-baseline justify-between gap-2">
+        <span className="text-2xl font-bold tabular-nums">{value}</span>
+        <GrowthPill value={growth} small />
+      </span>
+      <span className="text-xs text-muted-foreground">{sub}</span>
     </div>
   );
 }
@@ -664,7 +730,7 @@ function Stat({
 
 /** شارة النمو عن فترة المقارنة (على نمط Zoho): ↑ أخضر / ↓ أحمر، ولا شيء إن لم توجد مقارنة. */
 function GrowthPill({ value, small = false }: { value: string | null; small?: boolean }) {
-  if (value === null) return small ? <span>لا مقارنة بعد</span> : null;
+  if (value === null) return small ? <span className="text-xs text-muted-foreground">لا مقارنة بعد</span> : null;
   const down = value.startsWith("-");
   return (
     <span
