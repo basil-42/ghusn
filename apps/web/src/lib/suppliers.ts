@@ -2,8 +2,7 @@ import { dec, replaySupplierLedger, roundMoney, toLatinDigits, toUsdExact, type 
 import { prisma, type SupplierEntryKind } from "@ghusn/db";
 import { z } from "zod";
 import { getRateAt } from "./exchange-rates";
-import { formatAmount } from "./format";
-import { walletBalance } from "./wallets";
+import { coverageError } from "./wallets";
 
 export const COUNTRIES: Record<string, string> = {
   SD: "السودان",
@@ -219,7 +218,7 @@ export async function recordPayment(
 ): Promise<void> {
   const [supplier, wallet] = await Promise.all([
     prisma.supplier.findFirst({ where: { id: input.supplierId, deletedAt: null } }),
-    prisma.wallet.findFirst({ where: { id: input.walletId, isActive: true }, include: { currency: true } }),
+    prisma.wallet.findFirst({ where: { id: input.walletId, isActive: true } }),
   ]);
   if (!supplier) throw new SupplierError("المورد غير موجود.");
   if (!wallet) throw new SupplierError("اختاري المحفظة.");
@@ -237,15 +236,8 @@ export async function recordPayment(
   const paid = dec(input.paidAmount);
   await prisma.$transaction(async (tx) => {
     // D-132: لا تُسجَّل دفعة أكبر من رصيد المحفظة — الرصيد السالب يعني تمويلاً أو تحويلاً لم يُسجَّل
-    const balance = await walletBalance(tx, wallet.id, true);
-    if (paid.gt(balance)) {
-      const d = wallet.currency.decimals;
-      throw new SupplierError(
-        showBalance
-          ? `رصيد «${wallet.name}» ${formatAmount(balance, d)} ${wallet.currency.symbol} لا يغطي الدفعة (${formatAmount(paid, d)} ${wallet.currency.symbol}) — سجّلي تمويلاً أو تحويلاً للمحفظة أولاً.`
-          : `رصيد «${wallet.name}» لا يغطي الدفعة — اطلبي من المالك تسجيل تمويل أو تحويل للمحفظة أولاً.`,
-      );
-    }
+    const short = await coverageError(tx, wallet.id, paid, showBalance);
+    if (short) throw new SupplierError(short);
     await tx.supplierLedgerEntry.create({
       data: {
         supplierId: supplier.id,

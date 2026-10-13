@@ -4,6 +4,7 @@ import { SHIPMENT_STATUSES, dec, shopMomentForDate, toLatinDigits } from "@ghusn
 import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
+import { roleCan } from "@/lib/auth/permissions";
 import { requirePermission } from "@/lib/auth/session";
 import { CatalogError, OPTION_KINDS, quickCreateProduct } from "@/lib/catalog";
 import {
@@ -205,7 +206,7 @@ export async function addCostAction(_prev: FormState, formData: FormData): Promi
   const { id, ...input } = parsed.data;
   if (dec(input.amount).lte(0)) return { error: "المبلغ يجب أن يكون أكبر من صفر." };
   try {
-    await addShipmentCost(id, input, session.user.id);
+    await addShipmentCost(id, input, session.user.id, roleCan(session.user.role, { wallet: ["update"] }));
   } catch (error) {
     return fail(error);
   }

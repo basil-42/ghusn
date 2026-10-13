@@ -1,6 +1,7 @@
 import { dec, planTransfer, roundMoney, shopDay, toUsdExact, type Decimal } from "@ghusn/core";
 import { Prisma, prisma } from "@ghusn/db";
 import { nextDocumentNumber } from "./documents";
+import { formatAmount } from "./format";
 import { getRateInfoAt } from "./exchange-rates";
 import { posWallets } from "./settings";
 
@@ -109,6 +110,27 @@ export async function walletBalance(db: Prisma.TransactionClient, walletId: stri
   const [row] = await db.$queryRaw<{ balance: Prisma.Decimal | null }[]>`
     SELECT SUM(c."amount") AS "balance" FROM (${COUNTED}) c WHERE c."walletId" = ${walletId}`;
   return dec(row?.balance?.toString() ?? "0");
+}
+
+/**
+ * D-132: هل يغطي رصيد المحفظة المبلغ؟ يُستدعى داخل معاملة الحفظ (يقفل على المحفظة) ويعيد رسالة الرفض أو null.
+ * من يرى الأرصدة (المالك، D-86) تذكر له الرسالة المتاح والمطلوب.
+ */
+export async function coverageError(
+  tx: Prisma.TransactionClient,
+  walletId: string,
+  amount: { toString(): string },
+  showBalance: boolean,
+): Promise<string | null> {
+  const balance = await walletBalance(tx, walletId, true);
+  const need = dec(amount.toString());
+  if (need.lte(balance)) return null;
+  const wallet = await tx.wallet.findUniqueOrThrow({ where: { id: walletId }, include: { currency: true } });
+  const d = wallet.currency.decimals;
+  const sym = wallet.currency.symbol;
+  return showBalance
+    ? `رصيد «${wallet.name}» ${formatAmount(balance, d)} ${sym} لا يغطي المبلغ (${formatAmount(need, d)} ${sym}) — سجّلي تمويلاً أو تحويلاً للمحفظة أولاً.`
+    : `رصيد «${wallet.name}» لا يغطي المبلغ — اطلبي من المالك تسجيل تمويل أو تحويل للمحفظة أولاً.`;
 }
 
 export interface WalletCard {
@@ -268,6 +290,9 @@ export async function createTransfer(input: TransferInput, userId: string, now =
   const isToday = shopDay(input.at) === shopDay(now);
 
   return prisma.$transaction(async (tx) => {
+    // D-132: التحويل يخرج من رصيد موجود (التحويلات للمالك فقط، فالرسالة تذكر الرصيد)
+    const short = await coverageError(tx, from.id, input.fromAmount, true);
+    if (short) throw new WalletError(short);
     const number = await nextDocumentNumber(tx, "TRF", input.at, 4);
     const rate =
       derived && isToday
