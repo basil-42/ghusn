@@ -3,6 +3,7 @@
 import { useActionState } from "react";
 import { Field } from "@/components/form-field";
 import { Alert } from "@/components/ui/alert";
+import { ImageInput } from "@/components/image-input";
 import { Button } from "@/components/ui/button";
 import { createCategory, updateCategory, type CategoryState } from "./actions";
 
@@ -14,7 +15,14 @@ export interface CategoryRow {
   targetMarginPct: string;
   minMarginPct: string;
   productCount: number;
+  /** الصورة المرفوعة، أو null (تُستخدم صورة أحدث منتج). */
+  imageUrl: string | null;
+  /** ما يظهر في المتجر الآن إن لم تُرفع صورة. */
+  fallbackUrl: string | null;
 }
+
+const fileClass =
+  "text-sm file:me-3 file:min-h-11 file:rounded-xl file:border-0 file:bg-muted file:px-4 file:font-semibold";
 
 export function CategoryForm({ category, canEditMargin }: { category: CategoryRow; canEditMargin: boolean }) {
   const [state, action, pending] = useActionState<CategoryState, FormData>(updateCategory, {});
@@ -56,6 +64,27 @@ export function CategoryForm({ category, canEditMargin }: { category: CategoryRo
           />
         </>
       ) : null}
+      <div className="flex flex-col gap-1.5 sm:col-span-2">
+        <span className="text-sm font-semibold">صورة القسم في المتجر (دائرية، اختيارية)</span>
+        <span className="flex flex-wrap items-center gap-3">
+          <ImageInput
+            name="image"
+            accept="image/jpeg,image/png,image/webp"
+            preview={{ shape: "circle", current: category.imageUrl ?? category.fallbackUrl }}
+            className={fileClass}
+          />
+          {category.imageUrl ? (
+            <label className="flex items-center gap-2 text-sm">
+              <input type="checkbox" name="removeImage" className="size-5 accent-forest" /> حذفها
+            </label>
+          ) : null}
+        </span>
+        <span className="text-xs text-muted-foreground">
+          {category.imageUrl
+            ? "صورة مرفوعة — تظهر دائماً في «تسوّق حسب القسم»."
+            : "مربعة 600×600 والمنتج في الوسط بلا كتابة. بدونها تُستخدم صورة أحدث منتج في القسم (المعروضة الآن)."}
+        </span>
+      </div>
       <label className="flex min-h-11 items-center gap-3 sm:col-span-2">
         <input type="checkbox" name="isActive" defaultChecked={category.isActive} className="size-5 accent-forest" />
         <span>نشط (يظهر عند إضافة المنتجات)</span>
