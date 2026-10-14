@@ -15,7 +15,15 @@ import { type ChartPoint, SalesChart } from "@/components/admin/sales-chart";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { roleCan } from "@/lib/auth/permissions";
 import { requireSession } from "@/lib/auth/session";
-import { expiringBatches, lowStock, openShifts, periodKpis, salesSeries, topProducts } from "@/lib/dashboard";
+import {
+  expiringBatches,
+  lowStock,
+  openShifts,
+  periodKpis,
+  periodSpending,
+  salesSeries,
+  topProducts,
+} from "@/lib/dashboard";
 import { isSellingRateStale, rateTicker } from "@/lib/exchange-rates";
 import { formatAmount, formatDateTime, formatDay, formatPercent, formatRate, formatTime } from "@/lib/format";
 import { countNewOrders, orderTabCounts } from "@/lib/orders";
@@ -135,7 +143,7 @@ async function OwnerHome({ user, can, period }: { user: User; can: Can; period: 
   const now = new Date();
   const { weekStartsOn } = await getGeneralSettings();
   const range = dashboardRange(period, now, weekStartsOn);
-  const [kpis, series, top, shifts, orders, tabs, stock, expiring, wallets, rate] = await Promise.all([
+  const [kpis, series, top, shifts, orders, tabs, stock, expiring, wallets, rate, spending] = await Promise.all([
     periodKpis(range),
     salesSeries(range, now),
     topProducts(5, now),
@@ -147,6 +155,8 @@ async function OwnerHome({ user, can, period }: { user: User; can: Can; period: 
     can({ wallet: ["update"] }) ? listWallets() : null,
     // سعر الصرف في الرئيسية للمالك فقط (D-133)
     can({ exchangeRate: ["dashboard"] }) ? rateTicker(now) : null,
+    // المنصرفات لمن يرى التقارير (D-137)
+    can({ report: ["read"] }) ? periodSpending(range, now) : null,
   ]);
   const [due, priceReview, salesReview, shortages, adjustments, rateStale] = await Promise.all([
     can({ supplier: ["read"] }) ? listDueSoon(7) : [],
@@ -324,6 +334,12 @@ async function OwnerHome({ user, can, period }: { user: User; can: Can; period: 
           </Panel>
         </div>
       </Section>
+
+      {spending ? (
+        <Section title={`المنصرفات · ${PERIOD_LABELS[period]}`}>
+          <SpendingPanel spending={spending} profitSdg={kpis.profitSdg} period={period} />
+        </Section>
+      ) : null}
 
       <Section title="المال والعمليات · الآن">
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
@@ -632,6 +648,155 @@ function Tag({ tone, children }: { tone: "danger" | "warn"; children: React.Reac
   );
 }
 
+type Spending = NonNullable<Awaited<ReturnType<typeof periodSpending>>>;
+
+/**
+ * المنصرفات (D-137): كم صُرف ومتوسط اليوم ونموه، والتقسيم: تشغيل (يُخصم من الربح) | مشتريات بضاعة
+ * (تصير مخزوناً)، ثم البنود بشرائط، والمنصرف لكل عمود، والصافي التقريبي = مجمل الربح − التشغيل.
+ */
+function SpendingPanel({
+  spending,
+  profitSdg,
+  period,
+}: {
+  spending: Spending;
+  profitSdg: string;
+  period: DashboardPeriod;
+}) {
+  const total = dec(spending.totalSdg);
+  const opShare = total.gt(0) ? dec(spending.operatingSdg).div(total).times(100).toNumber() : 0;
+  const net = dec(profitSdg).minus(spending.operatingSdg);
+  const colMax = spending.series.reduce((m, r) => {
+    const v = dec(r.operating).plus(r.purchase);
+    return v.gt(m) ? v : m;
+  }, dec(0));
+  const kinds = [
+    { kind: "OPERATING", title: "مصاريف التشغيل", note: "تُخصم من الربح" },
+    { kind: "PURCHASE", title: "مشتريات بضاعة", note: "تصير مخزوناً — ليست خسارة" },
+  ] as const;
+  return (
+    <Panel title="كم صرفنا وعلى ماذا" href="/admin/expenses" link="كل المصاريف" flush>
+      <div className="grid lg:grid-cols-[1.35fr_1fr]">
+        <div className="flex flex-col gap-3 p-5">
+          <span className="text-3xl font-bold tabular-nums">{sdg(spending.totalSdg)}</span>
+          <span className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
+            <GrowthPill value={spending.change} invert />
+            {spending.change !== null ? COMPARED_TO[period] : "لا مقارنة بعد"}
+            {" · "}
+            <b className="text-foreground">متوسط اليوم {sdg(spending.perDaySdg)}</b>
+          </span>
+          {total.gt(0) ? (
+            <>
+              <span aria-hidden className="flex h-3 overflow-hidden rounded-full bg-sand">
+                <span className="h-full bg-forest" style={{ width: `${opShare}%` }} />
+              </span>
+              <span className="flex flex-wrap justify-between gap-2 text-xs text-muted-foreground">
+                <span className="flex items-center gap-1.5">
+                  <i className="inline-block size-2.5 rounded-sm bg-forest" />
+                  مصاريف التشغيل{" "}
+                  <b className="text-foreground tabular-nums">{formatAmount(spending.operatingSdg, 0)}</b>
+                </span>
+                <span className="flex items-center gap-1.5">
+                  <i className="inline-block size-2.5 rounded-sm bg-sand" />
+                  مشتريات بضاعة <b className="text-foreground tabular-nums">{formatAmount(spending.purchaseSdg, 0)}</b>
+                </span>
+              </span>
+              {kinds.map((k) => {
+                const rows = spending.groups.filter((g) => g.kind === k.kind);
+                return rows.length ? (
+                  <div key={k.kind} className="flex flex-col gap-1">
+                    <h3 className="mt-2 flex justify-between text-sm font-semibold text-muted-foreground">
+                      {k.title}
+                      <span className="text-xs font-normal">{k.note}</span>
+                    </h3>
+                    <ul className="flex flex-col text-sm">
+                      {rows.map((g) => (
+                        <li
+                          key={g.group}
+                          className="grid grid-cols-[minmax(0,8rem)_1fr_6.5rem_3rem] items-center gap-3 py-1.5"
+                        >
+                          <span className="truncate">{g.group}</span>
+                          <span aria-hidden className="h-2 overflow-hidden rounded-full bg-muted">
+                            <span
+                              className={`block h-full rounded-full ${k.kind === "OPERATING" ? "bg-sage" : "bg-sand"}`}
+                              style={{ width: `${dec(g.share).times(100).toNumber()}%` }}
+                            />
+                          </span>
+                          <b className="text-end tabular-nums">{formatAmount(g.sdg, 0)}</b>
+                          <span className="text-end text-xs text-muted-foreground tabular-nums">
+                            {formatPercent(g.share).replace("+", "")}
+                          </span>
+                        </li>
+                      ))}
+                    </ul>
+                  </div>
+                ) : null;
+              })}
+              {spending.unpriced ? (
+                <span className="text-xs text-warning">
+                  {spending.unpriced} حركة بعملة أجنبية بلا سعر جنيه يومها — لم تُحسب.
+                </span>
+              ) : null}
+            </>
+          ) : (
+            <p className="text-sm text-muted-foreground">لا منصرفات مسجّلة في هذه الفترة.</p>
+          )}
+        </div>
+        <div className="flex flex-col gap-4 border-t border-line p-5 lg:border-s lg:border-t-0">
+          <div className="flex flex-col gap-2">
+            <h3 className="text-sm font-semibold text-muted-foreground">
+              المنصرف {period === "this-year" || period === "last-year" ? "شهرياً" : "يومياً"}
+            </h3>
+            <div aria-hidden className="flex h-36 items-end gap-1 border-b border-line">
+              {spending.series.map((r) => {
+                const op = colMax.gt(0) ? dec(r.operating).div(colMax).times(100).toNumber() : 0;
+                const pu = colMax.gt(0) ? dec(r.purchase).div(colMax).times(100).toNumber() : 0;
+                return (
+                  <span
+                    key={r.key}
+                    title={`${r.key}: تشغيل ${formatAmount(r.operating, 0)} · مشتريات ${formatAmount(r.purchase, 0)}`}
+                    className="flex h-full flex-1 flex-col justify-end"
+                  >
+                    {pu > 0 ? <span className="rounded-t-sm bg-sand" style={{ height: `${pu}%` }} /> : null}
+                    {op > 0 ? (
+                      <span className={`bg-forest ${pu > 0 ? "" : "rounded-t-sm"}`} style={{ height: `${op}%` }} />
+                    ) : null}
+                  </span>
+                );
+              })}
+            </div>
+            <span className="flex justify-between text-xs text-muted-foreground tabular-nums">
+              <span>{spending.series[0]?.key.slice(-2)}</span>
+              <span>{spending.series[spending.series.length - 1]?.key.slice(-2)}</span>
+            </span>
+          </div>
+          <div className="flex flex-col gap-2 rounded-xl bg-muted p-4 text-sm">
+            <b>النتيجة {soFar(period)}</b>
+            <span className="flex justify-between">
+              مجمل الربح <b className="tabular-nums">{formatAmount(profitSdg, 0)}</b>
+            </span>
+            <span className="flex justify-between">
+              − مصاريف التشغيل <b className="text-danger tabular-nums">{formatAmount(spending.operatingSdg, 0)}</b>
+            </span>
+            <span className="flex items-baseline justify-between border-t border-line pt-2">
+              صافي الربح التقريبي
+              <b className={`text-lg tabular-nums ${net.lt(0) ? "text-danger" : "text-forest"}`}>
+                {sdg(net.toFixed(0))}
+              </b>
+            </span>
+            <span className="text-xs text-muted-foreground">
+              المشتريات لا تدخل هنا لأنها مخزون؛ تكلفتها في مجمل الربح حين يُباع الصنف. الصافي النهائي (مع خسائر
+              المخزون) في التقرير الشهري.
+            </span>
+          </div>
+        </div>
+      </div>
+    </Panel>
+  );
+}
+
+const soFar = (period: DashboardPeriod) => (period.startsWith("last") ? "" : "حتى الآن");
+
 /** قسم بعنوان خفيف وخط ممتد (D-136): الأداء · المال والعمليات · المخزون. */
 function Section({ title, children }: { title: string; children: React.ReactNode }) {
   return (
@@ -729,14 +894,24 @@ function Stat({
 }
 
 /** شارة النمو عن فترة المقارنة (على نمط Zoho): ↑ أخضر / ↓ أحمر، ولا شيء إن لم توجد مقارنة. */
-function GrowthPill({ value, small = false }: { value: string | null; small?: boolean }) {
+function GrowthPill({
+  value,
+  small = false,
+  invert = false,
+}: {
+  value: string | null;
+  small?: boolean;
+  /** الزيادة سيئة (المنصرفات): ↑ أحمر و↓ أخضر. */
+  invert?: boolean;
+}) {
   if (value === null) return small ? <span className="text-xs text-muted-foreground">لا مقارنة بعد</span> : null;
   const down = value.startsWith("-");
+  const bad = invert ? !down : down;
   return (
     <span
       className={`inline-flex w-fit items-center gap-1 rounded-full border font-semibold ${
         small ? "px-2 py-px text-xs" : "px-2.5 py-0.5 text-sm"
-      } ${down ? "border-danger/30 bg-danger/10 text-danger" : "border-forest/20 bg-sage/15 text-forest"}`}
+      } ${bad ? "border-danger/30 bg-danger/10 text-danger" : "border-forest/20 bg-sage/15 text-forest"}`}
     >
       {down ? "↓" : "↑"} <bdi dir="ltr">{formatPercent(value)}</bdi>
     </span>

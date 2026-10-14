@@ -23,6 +23,7 @@ export * from "./order-message";
 export * from "./occasion";
 export * from "./banner";
 export * from "./dashboard";
+export * from "./spending";
 export * from "./notification";
 export * from "./audit";
 export * from "./customer";

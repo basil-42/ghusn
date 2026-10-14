@@ -1,5 +1,9 @@
 import {
   dashboardBuckets,
+  effectiveRate,
+  spendingByKey,
+  summarizeSpending,
+  type SpendItem,
   dec,
   marginOf,
   percentChange,
@@ -154,6 +158,91 @@ export async function salesSeries(range: DashboardRange, now = new Date()): Prom
       future: !range.complete && key > nowKey,
     };
   });
+}
+
+const DAY_MS = 86_400_000;
+
+/**
+ * المنصرفات للفترة (D-137): المصاريف غير الملغاة بأقسامها (تشغيل)، ودفعات الموردين وتكاليف الشحنات
+ * (مشتريات)، كلها بالجنيه بسعر يوم دفعها؛ ومجموع الفترة السابقة للمقارنة، والأعمدة للرسم.
+ */
+export async function periodSpending(range: DashboardRange, now = new Date()) {
+  const from = new Date(Math.min(range.prevStart.getTime(), range.chartStart.getTime()));
+  const to = range.end;
+  const [expenses, payments, costs, rates] = await Promise.all([
+    prisma.expense.findMany({
+      where: { voidedAt: null, spentAt: { gte: from, lt: to } },
+      select: {
+        spentAt: true,
+        amount: true,
+        currencyCode: true,
+        amountUsd: true,
+        category: { select: { name: true } },
+      },
+    }),
+    prisma.supplierLedgerEntry.findMany({
+      where: { kind: "PAYMENT", voidedAt: null, occurredAt: { gte: from, lt: to } },
+      select: { occurredAt: true, paidAmount: true, paidCurrencyCode: true, amountUsd: true },
+    }),
+    prisma.shipmentCost.findMany({
+      where: { voidedAt: null, paidAt: { gte: from, lt: to } },
+      select: { paidAt: true, amount: true, currencyCode: true, amountUsd: true },
+    }),
+    // أسعار الجنيه حتى نهاية الفترة (وآخر سعر قبل بدايتها)
+    prisma.exchangeRate.findMany({
+      where: { currencyCode: "SDG", effectiveAt: { lte: to } },
+      orderBy: { effectiveAt: "desc" },
+    }),
+  ]);
+  const entries = rates.map((r) => ({ ...r, unitsPerUsd: r.unitsPerUsd.toString() }));
+  const rateOn = (at: Date) => effectiveRate(entries, "SDG", at)?.unitsPerUsd ?? null;
+  const keyOf = (at: Date) => (range.bucket === "day" ? shopDay(at) : shopDay(at).slice(0, 7));
+  const items: (SpendItem & { at: Date })[] = [
+    ...expenses.map((e) => ({
+      kind: "OPERATING" as const,
+      group: e.category.name,
+      currencyCode: e.currencyCode,
+      amount: e.amount.toString(),
+      amountUsd: e.amountUsd.toString(),
+      at: e.spentAt,
+    })),
+    ...payments.map((p) => ({
+      kind: "PURCHASE" as const,
+      group: "دفعات الموردين",
+      currencyCode: p.paidCurrencyCode ?? "USD",
+      amount: (p.paidAmount ?? p.amountUsd).toString(),
+      amountUsd: p.amountUsd.toString(),
+      at: p.occurredAt,
+    })),
+    ...costs.map((c) => ({
+      kind: "PURCHASE" as const,
+      group: "تكاليف الشحنات",
+      currencyCode: c.currencyCode,
+      amount: c.amount.toString(),
+      amountUsd: c.amountUsd.toString(),
+      at: c.paidAt,
+    })),
+  ].map((i) => ({ ...i, sdgPerUsd: i.currencyCode === "SDG" ? null : rateOn(i.at), key: keyOf(i.at) }));
+
+  const within = (a: Date, b: Date) => items.filter((i) => i.at >= a && i.at < b);
+  const days = Math.max(Math.ceil((range.end.getTime() - range.start.getTime()) / DAY_MS), 1);
+  const cur = summarizeSpending(within(range.start, range.end), days);
+  const prev = summarizeSpending(within(range.prevStart, range.prevEnd), days);
+  const keys = dashboardBuckets(range);
+  const nowKey = keyOf(now);
+  const series = spendingByKey(within(range.chartStart, range.end), keys).filter(
+    (r) => range.complete || r.key <= nowKey,
+  );
+  return {
+    totalSdg: cur.totalSdg.toFixed(0),
+    operatingSdg: cur.operatingSdg.toFixed(0),
+    purchaseSdg: cur.purchaseSdg.toFixed(0),
+    perDaySdg: cur.perDaySdg.toFixed(0),
+    change: prev.totalSdg.gt(0) ? cur.totalSdg.minus(prev.totalSdg).div(prev.totalSdg).toFixed(4) : null,
+    unpriced: cur.unpriced,
+    groups: cur.groups.map((g) => ({ kind: g.kind, group: g.group, sdg: g.sdg.toFixed(0), share: g.share.toFixed(4) })),
+    series: series.map((r) => ({ key: r.key, operating: r.operating.toFixed(0), purchase: r.purchase.toFixed(0) })),
+  };
 }
 
 /** مبيعات اليوم والشهر حتى الآن، ومقارنة بنفس المدة من الشهر الماضي. */
