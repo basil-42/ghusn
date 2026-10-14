@@ -1,6 +1,8 @@
 "use client";
 
-import { useActionToast } from "@/components/ui/toast";
+import { useActionToast, withToast } from "@/components/ui/toast";
+import { ClipboardX } from "lucide-react";
+import { ConfirmDialog, useConfirmForm } from "@/components/ui/confirm-dialog";
 import { useActionState, useState } from "react";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -124,23 +126,33 @@ export function ApproveCountForm({
   );
 }
 
-export function CancelCountForm({ countId }: { countId: string }) {
-  const [state, action, pending] = useActionState<FormState, FormData>(cancelCountAction, {});
-  useActionToast(state);
+// النموذج يختفي بعد الإلغاء، فالرسالة تُعرض فور وصولها
+const cancelCount = withToast(cancelCountAction);
+
+export function CancelCountForm({ countId, number }: { countId: string; number: string }) {
+  const [state, action, pending] = useActionState<FormState, FormData>(cancelCount, {});
+  const confirm = useConfirmForm(action, state, pending);
   return (
-    <form
-      action={action}
-      className="flex flex-wrap items-center gap-2"
-      onSubmit={(e) => {
-        if (!window.confirm("إلغاء هذا الجرد؟ لن تتغير الأرصدة.")) e.preventDefault();
-      }}
-    >
+    <form action={action} className="flex flex-wrap items-center gap-2" onSubmit={confirm.onSubmit}>
       <input type="hidden" name="id" value={countId} />
       <Input name="reason" placeholder="سبب الإلغاء" aria-label="سبب الإلغاء" className="w-44" required minLength={3} />
       <Button type="submit" variant="outline" disabled={pending}>
         إلغاء الجرد
       </Button>
       {state.error ? <span className="text-sm text-destructive">{state.error}</span> : null}
+      <ConfirmDialog
+        {...confirm.dialog}
+        tone="danger"
+        icon={ClipboardX}
+        title={
+          <>
+            إلغاء الجرد <bdi dir="ltr">{number}</bdi>؟
+          </>
+        }
+        description="يُلغى العدّ كله ولا تتغير أرصدة المخزون."
+        confirmLabel="إلغاء الجرد"
+        pendingLabel="جارٍ الإلغاء…"
+      />
     </form>
   );
 }

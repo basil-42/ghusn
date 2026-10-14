@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
+import { Suspense } from "react";
 import { DevServiceWorkerCleanup } from "@/components/dev-sw-cleanup";
-import { Toaster } from "@/components/ui/toast";
+import { FlashToast, Toaster } from "@/components/ui/toast";
 import { fontVariables } from "@/lib/fonts";
 import "../globals.css";
 
@@ -18,6 +19,9 @@ export default function OpsLayout({ children }: { children: React.ReactNode }) {
         <DevServiceWorkerCleanup />
         {children}
         <Toaster />
+        <Suspense fallback={null}>
+          <FlashToast />
+        </Suspense>
       </body>
     </html>
   );

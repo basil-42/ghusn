@@ -42,6 +42,17 @@ const schema = z.object({
     .transform((v) => v || null),
 });
 
+/** رسالة النجاح بعد كل انتقال (D-140) — تقول ما حدث فعلاً. */
+const DONE: Partial<Record<(typeof ORDER_STATUSES)[number], string>> = {
+  CONFIRMED: "تأكّد الطلب.",
+  AWAITING_PAYMENT: "رُفض الإشعار وطُلب من العميل إشعار صحيح.",
+  PREPARING: "بدأ التجهيز وخُصمت الأصناف من المخزون.",
+  READY: "الطلب جاهز.",
+  OUT_FOR_DELIVERY: "سُلِّم الطلب لشركة التوصيل.",
+  DELIVERED: "تم تسليم الطلب.",
+  CANCELLED: "أُلغي الطلب.",
+};
+
 /**
  * كل تغيير حالة يمر من هنا إلى transitionOrder (D-60). الإلغاء للمديرة والمالك، ومراجعة إشعار
  * بنكك (قبول/رفض) لمن يملك «order:payment» (D-90).
@@ -61,7 +72,9 @@ export async function transitionAction(_prev: FormState, formData: FormData): Pr
   }
   revalidatePath("/admin/orders", "layout");
   revalidatePath("/admin");
-  return { success: "تم." };
+  return {
+    success: to === "CONFIRMED" && opts.proofId ? "اعتُمد الدفع وتأكّد الطلب." : (DONE[to] ?? "تم تحديث الطلب."),
+  };
 }
 
 /** فتح صفحة الطلب (D-109): يوقف تكرار التنبيه والتصعيد، ويجعل إشعاراته مقروءة لمن فتحته. */

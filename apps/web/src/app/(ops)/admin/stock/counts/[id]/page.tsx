@@ -250,7 +250,7 @@ export default async function CountReviewPage({
             ) : (
               <span />
             )}
-            <CancelCountForm countId={r.id} />
+            <CancelCountForm countId={r.id} number={r.number} />
           </div>
         </Card>
       ) : r.status === "APPROVED" ? (

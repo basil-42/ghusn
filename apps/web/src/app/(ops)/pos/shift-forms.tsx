@@ -1,9 +1,13 @@
 "use client";
 
+import { dec, toLatinDigits } from "@ghusn/core";
+import { Clock } from "lucide-react";
 import { useActionState, useEffect, useState } from "react";
 import { pendingCount } from "@/lib/pos-offline/db";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog, useConfirmForm } from "@/components/ui/confirm-dialog";
+import { formatAmount } from "@/lib/format";
 import { Input } from "@/components/ui/input";
 import { closeShiftAction, openShiftAction, type FormState } from "./actions";
 
@@ -23,11 +27,19 @@ export function OpenShiftForm() {
   );
 }
 
-export function CloseShiftForm({ shiftId }: { shiftId: string }) {
+const sdg = (v: string) => `${formatAmount(v, 0)} ج.س`;
+
+export function CloseShiftForm({ shiftId, expectedCash }: { shiftId: string; expectedCash: string }) {
   const [state, action, pending] = useActionState<FormState, FormData>(closeShiftAction, {});
+  const confirm = useConfirmForm(action, state, pending);
   // حقول محكومة: React يفرّغ النموذج بعد كل إرسال، ولا نريد إعادة العدّ بعد رسالة خطأ
   const [counted, setCounted] = useState("");
   const [note, setNote] = useState("");
+  // للعرض في النافذة فقط — الخادم يعيد حساب الفرق
+  const countedValue = /^\d+$/.test(toLatinDigits(counted).replace(/[,\s٬]/g, ""))
+    ? toLatinDigits(counted).replace(/[,\s٬]/g, "")
+    : "";
+  const difference = countedValue ? dec(countedValue).minus(expectedCash).toFixed(0) : "";
   // فواتير دون اتصال لم تُرسل بعد: إغلاق الوردية قبلها يُفسد مطابقة النقد (D-82)
   const [unsent, setUnsent] = useState(0);
   useEffect(() => {
@@ -36,13 +48,7 @@ export function CloseShiftForm({ shiftId }: { shiftId: string }) {
       .catch(() => setUnsent(0));
   }, []);
   return (
-    <form
-      action={action}
-      className="flex flex-col gap-4"
-      onSubmit={(e) => {
-        if (!window.confirm("إغلاق الوردية؟ لا يمكن البيع عليها بعد الإغلاق.")) e.preventDefault();
-      }}
-    >
+    <form action={action} className="flex flex-col gap-4" onSubmit={confirm.onSubmit}>
       {state.error ? <Alert variant="destructive">{state.error}</Alert> : null}
       {unsent ? (
         <Alert variant="destructive">
@@ -68,6 +74,38 @@ export function CloseShiftForm({ shiftId }: { shiftId: string }) {
       <Button type="submit" variant="outline" disabled={pending || unsent > 0}>
         {pending ? "جارٍ الإغلاق…" : "إغلاق الوردية"}
       </Button>
+      <ConfirmDialog
+        {...confirm.dialog}
+        icon={Clock}
+        title="إغلاق الوردية؟"
+        description="لا يمكن البيع عليها بعد الإغلاق."
+        summary={[
+          { label: "النقد المتوقع", value: sdg(expectedCash) },
+          { label: "المعدود", value: countedValue ? sdg(countedValue) : "—" },
+          ...(difference
+            ? [
+                {
+                  label: "الفرق",
+                  value: (
+                    <>
+                      <bdi dir="ltr">{formatAmount(difference, 0)}</bdi> ج.س
+                    </>
+                  ),
+                  total: true,
+                },
+              ]
+            : []),
+        ]}
+        warning={
+          difference && difference !== "0"
+            ? note.trim()
+              ? `يوجد فرق، وكتبتِ ملاحظة: «${note.trim()}».`
+              : "يوجد فرق — ارجعي واكتبي ملاحظة تشرح سببه."
+            : undefined
+        }
+        confirmLabel="إغلاق الوردية"
+        pendingLabel="جارٍ الإغلاق…"
+      />
     </form>
   );
 }

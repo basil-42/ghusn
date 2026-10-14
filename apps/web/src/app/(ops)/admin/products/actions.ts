@@ -13,6 +13,7 @@ import {
   updateProduct,
 } from "@/lib/catalog";
 import { requirePermission } from "@/lib/auth/session";
+import { flash } from "@/lib/flash";
 
 export type ProductFormState = { error?: string; success?: string };
 
@@ -77,5 +78,6 @@ export async function archiveProductAction(formData: FormData): Promise<void> {
     }
   }
   revalidatePath("/admin/products");
-  redirect("/admin/products?archived=1");
+  await flash("أُرشف المنتج — يبقى في السجلات والتقارير.");
+  redirect("/admin/products");
 }

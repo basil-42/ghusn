@@ -88,6 +88,10 @@ export default async function ShipmentPage({ params }: { params: Promise<{ id: s
       {canEdit ? (
         <StatusActions
           id={s.id}
+          number={s.number}
+          supplier={s.supplier.name}
+          purchased={s.status !== "DRAFT"}
+          goodsTotal={`${formatAmount(s.goodsTotal, cur.decimals)} ${cur.symbol}`}
           next={allowedShipmentTransitions(s.status).map((to) => ({
             value: to,
             label: TRANSITION_LABELS[to] ?? STATUS_LABELS[to],

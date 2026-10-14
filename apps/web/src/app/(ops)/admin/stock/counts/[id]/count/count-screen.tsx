@@ -1,13 +1,15 @@
 "use client";
 
 import { dec } from "@ghusn/core";
-import { Minus, Plus, Search } from "lucide-react";
+import { Minus, PackageX, Plus, Search } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useActionState, useState, useTransition } from "react";
 import { BarcodeScanner } from "@/components/admin/barcode-scanner";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
+import { toast } from "@/components/ui/toast";
 import { Input } from "@/components/ui/input";
 import type { CounterLine } from "@/lib/stock-counts";
 import { lookupLineAction, markMissingAction, saveLineAction, submitCountAction, type FormState } from "../../actions";
@@ -251,11 +253,17 @@ export function FinishCount({
   const router = useRouter();
   const [busy, start] = useTransition();
   const [msg, setMsg] = useState<FormState>({});
+  const [askAll, setAskAll] = useState(false);
   const [state, action, submitting] = useActionState<FormState, FormData>(submitCountAction, {});
 
   const missing = (ids: string[] | "all") =>
     start(async () => {
-      setMsg(await markMissingAction(countId, ids));
+      const result = await markMissingAction(countId, ids);
+      setMsg({ error: result.error });
+      if (result.success) {
+        toast(result.success);
+        setAskAll(false);
+      }
       router.refresh();
     });
 
@@ -283,7 +291,6 @@ export function FinishCount({
         </div>
       </div>
       {msg.error ? <Alert variant="destructive">{msg.error}</Alert> : null}
-      {msg.success ? <Alert variant="success">{msg.success}</Alert> : null}
       {state.error ? <Alert variant="destructive">{state.error}</Alert> : null}
 
       {pendingCount ? (
@@ -308,16 +315,24 @@ export function FinishCount({
           {pendingCount > pending.length ? (
             <p className="text-sm text-muted-foreground">و{pendingCount - pending.length} أخرى…</p>
           ) : null}
-          <Button
-            type="button"
-            variant="outline"
-            disabled={busy}
-            onClick={() => {
-              if (window.confirm(`اعتبار ${pendingCount} صنف «غير موجود» (العدد صفر)؟`)) missing("all");
-            }}
-          >
+          <Button type="button" variant="outline" disabled={busy} onClick={() => setAskAll(true)}>
             اعتبار كل الباقي «غير موجود» ({pendingCount})
           </Button>
+          <ConfirmDialog
+            open={askAll}
+            onCancel={() => setAskAll(false)}
+            onConfirm={() => missing("all")}
+            pending={busy}
+            error={askAll ? msg.error : null}
+            tone="danger"
+            icon={PackageX}
+            title={`اعتبار ${pendingCount} صنف «غير موجود»؟`}
+            description="يُسجَّل عددها صفراً، وتظهر فروقاتها للمديرة في المراجعة. تأكدي أنها ليست على الرف."
+            summary={pending.slice(0, 5).map((l) => ({ label: l.label, value: "0" }))}
+            warning={pendingCount > 5 ? `و${pendingCount - 5} أصناف أخرى.` : undefined}
+            confirmLabel={`اعتبارها صفراً (${pendingCount})`}
+            pendingLabel="جارٍ التسجيل…"
+          />
         </section>
       ) : null}
 

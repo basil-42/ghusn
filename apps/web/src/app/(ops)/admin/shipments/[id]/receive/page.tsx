@@ -53,6 +53,7 @@ export default async function ReceivePage({ params }: { params: Promise<{ id: st
         </CardHeader>
         <ReceiveForm
           id={s.id}
+          number={s.number}
           purchaseRate={s.purchaseRate}
           costs={costs.map((c) => ({ amount: c.amount, rateUsed: c.rateUsed }))}
           lines={s.lines.map(({ id, label, sku, unit, trackExpiry, qty, unitPrice }) => ({

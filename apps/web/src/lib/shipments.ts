@@ -284,12 +284,13 @@ async function loadEditable(tx: Tx, id: string) {
  */
 async function postPurchase(tx: Tx, shipmentId: string, userId: string, reason: string) {
   const s = await tx.shipment.findUniqueOrThrow({ where: { id: shipmentId }, include: { lines: true } });
-  if (!s.rateUsed) throw new Error("purchase rate missing");
   await tx.supplierLedgerEntry.updateMany({
     where: { shipmentId, kind: "PURCHASE", voidedAt: null },
     data: { voidedAt: new Date(), voidedById: userId, voidReason: reason },
   });
+  // إلغاء مسودة لم يُؤكَّد شراؤها: لا سعر ولا حركة سابقة، فلا شيء يُسجَّل
   if (s.status === "CANCELLED") return;
+  if (!s.rateUsed) throw new Error("purchase rate missing");
   const total = shipmentGoodsTotal(s.lines.map((l) => ({ qty: l.qty.toString(), unitPrice: l.unitPrice.toString() })));
   await tx.supplierLedgerEntry.create({
     data: {

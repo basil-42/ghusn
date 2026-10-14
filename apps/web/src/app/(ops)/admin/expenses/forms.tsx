@@ -1,6 +1,6 @@
 "use client";
 
-import { useActionToast } from "@/components/ui/toast";
+import { useActionToast, withToast } from "@/components/ui/toast";
 import { useActionState, useRef, useState } from "react";
 import { OVER_BALANCE, exceedsAvailable } from "@/lib/wallet-hint";
 import type { WalletPick } from "@/lib/wallets";
@@ -9,6 +9,8 @@ import { Button } from "@/components/ui/button";
 import { Input, NativeSelect } from "@/components/ui/input";
 import { createExpenseAction, voidExpenseAction, type FormState } from "./actions";
 import { ImageInput } from "@/components/image-input";
+import { ConfirmDialog, useConfirmForm } from "@/components/ui/confirm-dialog";
+import { ReceiptText } from "lucide-react";
 
 type Option = { value: string; label: string };
 const field = "flex min-w-0 flex-col gap-1";
@@ -122,23 +124,50 @@ export function ExpenseForm({
   );
 }
 
-export function VoidExpenseForm({ id }: { id: string }) {
-  const [state, action, pending] = useActionState<FormState, FormData>(voidExpenseAction, {});
-  useActionToast(state);
+// النموذج يختفي بعد الإلغاء، فالرسالة تُعرض فور وصولها
+const voidExpense = withToast(voidExpenseAction);
+
+export function VoidExpenseForm({
+  id,
+  number,
+  category,
+  amount,
+  wallet,
+}: {
+  id: string;
+  number: string;
+  category: string;
+  /** المبلغ منسّقاً بعملته. */
+  amount: string;
+  wallet: string;
+}) {
+  const [state, action, pending] = useActionState<FormState, FormData>(voidExpense, {});
+  const confirm = useConfirmForm(action, state, pending);
   return (
-    <form
-      action={action}
-      className="flex items-center gap-2"
-      onSubmit={(e) => {
-        if (!window.confirm("إلغاء هذا المصروف؟")) e.preventDefault();
-      }}
-    >
+    <form action={action} className="flex items-center gap-2" onSubmit={confirm.onSubmit}>
       <input type="hidden" name="id" value={id} />
       <Input name="reason" placeholder="سبب الإلغاء" aria-label="سبب الإلغاء" className="w-40" required minLength={3} />
       <Button type="submit" size="sm" variant="ghost" className="text-destructive" disabled={pending}>
         إلغاء
       </Button>
       {state.error ? <span className="text-sm text-destructive">{state.error}</span> : null}
+      <ConfirmDialog
+        {...confirm.dialog}
+        tone="danger"
+        icon={ReceiptText}
+        title={
+          <>
+            إلغاء المصروف <bdi dir="ltr">{number}</bdi>؟
+          </>
+        }
+        description="يعود المبلغ إلى المحفظة، ويبقى المصروف في السجل ملغى بسببه."
+        summary={[
+          { label: category, value: <bdi dir="ltr">{amount}</bdi> },
+          { label: "يعود إلى", value: wallet },
+        ]}
+        confirmLabel="إلغاء المصروف"
+        pendingLabel="جارٍ الإلغاء…"
+      />
     </form>
   );
 }

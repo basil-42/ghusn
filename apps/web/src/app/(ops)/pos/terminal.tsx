@@ -11,11 +11,12 @@ import {
   type SaleTotals,
 } from "@ghusn/core";
 import { createId } from "@paralleldrive/cuid2";
-import { Minus, Plus, ScanBarcode, Trash2 } from "lucide-react";
+import { Minus, Plus, ScanBarcode, Trash2, XCircle } from "lucide-react";
 import { useRouter } from "next/navigation";
 import { useRef, useState, useTransition } from "react";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
 import { formatAmount } from "@/lib/format";
 import type { PosItem } from "@/lib/sales";
@@ -167,6 +168,8 @@ export function PosTerminal({
       if (card?.name) setCustomerName((current) => (current.trim() ? current : (card.name ?? "")));
     }, 400);
   }
+
+  const [askCancel, setAskCancel] = useState(false);
 
   function reset() {
     setCart([]);
@@ -597,15 +600,23 @@ export function PosTerminal({
           {pending ? "جارٍ الحفظ…" : `إتمام البيع ${cart.length ? sdg(total) : ""}`}
         </Button>
         {cart.length ? (
-          <Button
-            type="button"
-            variant="ghost"
-            className="text-destructive"
-            onClick={() => window.confirm("إلغاء الفاتورة الحالية؟") && reset()}
-          >
+          <Button type="button" variant="ghost" className="text-destructive" onClick={() => setAskCancel(true)}>
             إلغاء الفاتورة
           </Button>
         ) : null}
+        <ConfirmDialog
+          open={askCancel}
+          onCancel={() => setAskCancel(false)}
+          onConfirm={() => {
+            reset();
+            setAskCancel(false);
+          }}
+          tone="danger"
+          icon={XCircle}
+          title="إلغاء الفاتورة الحالية؟"
+          description={`تُفرَّغ السلة (${cart.length} ${cart.length === 1 ? "صنف" : "أصناف"} · ${sdg(total)}). لا شيء يُسجَّل.`}
+          confirmLabel="إلغاء الفاتورة"
+        />
       </aside>
 
       {approval ? (

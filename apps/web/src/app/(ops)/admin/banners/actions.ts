@@ -4,6 +4,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { requirePermission } from "@/lib/auth/session";
+import { flash } from "@/lib/flash";
 import { BannerError, deleteBanner, reorderBanners, saveBanner } from "@/lib/banners";
 
 export type FormState = { error?: string; success?: string };
@@ -104,5 +105,6 @@ export async function deleteBannerAction(formData: FormData): Promise<void> {
   if (!id.success) return;
   await deleteBanner(id.data);
   refresh();
+  await flash("حُذف البانر.");
   redirect("/admin/banners");
 }

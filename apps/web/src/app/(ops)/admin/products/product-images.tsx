@@ -2,10 +2,12 @@
 
 import { ImagePlus, Star, Trash2 } from "lucide-react";
 import Image from "next/image";
-import { useRef, useState, useTransition } from "react";
+import { useActionState, useRef, useState, useTransition } from "react";
 import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog, useConfirmForm } from "@/components/ui/confirm-dialog";
+import { toast } from "@/components/ui/toast";
 import { MAX_UPLOAD_BYTES, shrinkImage } from "@/lib/client-image";
 import { deleteProductImageAction, makeMainImageAction, uploadProductImage } from "./image-actions";
 
@@ -130,26 +132,14 @@ export function ProductImages({
                       </Button>
                     </form>
                   ) : null}
-                  <form
-                    action={deleteProductImageAction}
-                    className={i > 0 ? "" : "flex-1"}
-                    onSubmit={(e) => {
-                      if (!window.confirm("حذف هذه الصورة؟")) e.preventDefault();
-                    }}
-                  >
-                    <input type="hidden" name="productId" value={productId} />
-                    <input type="hidden" name="imageId" value={img.id} />
-                    <Button
-                      type="submit"
-                      variant="ghost"
-                      size="sm"
-                      className="w-full text-destructive"
-                      aria-label="حذف الصورة"
-                    >
-                      <Trash2 aria-hidden />
-                      {i > 0 ? null : "حذف"}
-                    </Button>
-                  </form>
+                  <DeleteImageButton
+                    productId={productId}
+                    imageId={img.id}
+                    thumbUrl={img.thumbUrl}
+                    position={`الصورة ${i + 1} من ${images.length}`}
+                    main={i === 0}
+                    last={images.length === 1}
+                  />
                 </div>
               ) : null}
             </li>
@@ -157,5 +147,62 @@ export function ProductImages({
         </ul>
       )}
     </section>
+  );
+}
+
+// الإجراء لا يرجع حالة؛ الرسالة تظهر بعد الحذف (والزر نفسه يختفي مع الصورة)
+const deleteImage = async (_prev: object, data: FormData) => {
+  await deleteProductImageAction(data);
+  toast("حُذفت الصورة.");
+  return {};
+};
+
+function DeleteImageButton({
+  productId,
+  imageId,
+  thumbUrl,
+  position,
+  main,
+  last,
+}: {
+  productId: string;
+  imageId: string;
+  thumbUrl: string;
+  position: string;
+  main: boolean;
+  /** الصورة الوحيدة — يبقى المنتج بلا صورة. */
+  last: boolean;
+}) {
+  const [state, action, pending] = useActionState<{ error?: string }, FormData>(deleteImage, {});
+  const confirm = useConfirmForm(action, state, pending);
+  return (
+    <form action={action} onSubmit={confirm.onSubmit} className={main ? "flex-1" : ""}>
+      <input type="hidden" name="productId" value={productId} />
+      <input type="hidden" name="imageId" value={imageId} />
+      <Button type="submit" variant="ghost" size="sm" className="w-full text-destructive" aria-label="حذف الصورة">
+        <Trash2 aria-hidden />
+        {main ? "حذف" : null}
+      </Button>
+      <ConfirmDialog
+        {...confirm.dialog}
+        tone="danger"
+        icon={Trash2}
+        title="حذف هذه الصورة؟"
+        description={
+          last
+            ? "هي الصورة الوحيدة — يبقى المنتج بلا صورة في المتجر حتى ترفعي غيرها."
+            : main
+              ? "تختفي من صفحة المنتج في المتجر، وتصير الصورة التالية هي الرئيسية."
+              : "تختفي من صفحة المنتج في المتجر. باقي الصور تبقى."
+        }
+        confirmLabel="حذف الصورة"
+        pendingLabel="جارٍ الحذف…"
+      >
+        <div className="flex items-center gap-3">
+          <Image src={thumbUrl} alt="" width={56} height={56} unoptimized className="size-14 rounded-lg object-cover" />
+          <span className="text-sm text-muted-foreground">{position}</span>
+        </div>
+      </ConfirmDialog>
+    </form>
   );
 }

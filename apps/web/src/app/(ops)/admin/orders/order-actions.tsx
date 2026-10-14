@@ -1,8 +1,11 @@
 "use client";
 
+import { Ban, Landmark, PackageOpen } from "lucide-react";
 import { useActionState } from "react";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog, useConfirmForm, type ConfirmContent } from "@/components/ui/confirm-dialog";
+import { withToast } from "@/components/ui/toast";
 import { Input, NativeSelect } from "@/components/ui/input";
 import { transitionAction, type FormState } from "./actions";
 
@@ -19,6 +22,8 @@ type Status =
   | "CANCELLED";
 
 const field = "flex min-w-0 flex-col gap-1";
+// الرسالة تظهر حتى لو اختفى النموذج (تغيّرت الحالة فلم يعد هذا الإجراء متاحاً)
+const transition = withToast(transitionAction);
 
 /** نموذج انتقال واحد: زر وحقول اختيارية؛ الخادم يتحقق من كل شيء (transitionOrder). */
 function Step({
@@ -33,16 +38,15 @@ function Step({
   to: Status;
   label: string;
   variant?: "default" | "outline" | "destructive";
-  confirm?: string;
+  confirm?: ConfirmContent;
   children?: React.ReactNode;
 }) {
-  const [state, action, pending] = useActionState<FormState, FormData>(transitionAction, {});
+  const [state, action, pending] = useActionState<FormState, FormData>(transition, {});
+  const ask = useConfirmForm(action, state, pending);
   return (
     <form
       action={action}
-      onSubmit={(e) => {
-        if (confirm && !window.confirm(confirm)) e.preventDefault();
-      }}
+      onSubmit={confirm ? ask.onSubmit : undefined}
       className="flex flex-col gap-2 rounded-xl border border-border p-3"
     >
       {state.error ? <Alert variant="destructive">{state.error}</Alert> : null}
@@ -52,6 +56,7 @@ function Step({
       <Button type="submit" variant={variant} disabled={pending} className="self-start">
         {pending ? "جارٍ الحفظ…" : label}
       </Button>
+      {confirm ? <ConfirmDialog {...ask.dialog} {...confirm} /> : null}
     </form>
   );
 }
@@ -70,7 +75,11 @@ export function OrderActions({
   canCancel,
   canReviewPayment,
   pendingProofId,
+  proofReference,
   paid,
+  number,
+  total,
+  lines,
 }: {
   id: string;
   status: Status;
@@ -79,9 +88,18 @@ export function OrderActions({
   canReviewPayment: boolean;
   /** آخر إشعار بنكك لم يُراجع (عند «إشعار قيد المراجعة»). */
   pendingProofId: string | null;
+  /** رقم العملية في ذلك الإشعار — يُطابَق مع كشف بنكك. */
+  proofReference: string | null;
   /** مدفوع مسبقاً (بنكك) — الإلغاء يسجّل رد المبلغ. */
   paid: boolean;
+  number: string;
+  /** الإجمالي منسّقاً («185,000 ج.س»). */
+  total: string;
+  /** الأصناف للملخص («عطر ليالي 50مل» × 1). */
+  lines: { label: string; qty: string }[];
 }) {
+  const num = <bdi dir="ltr">{number}</bdi>;
+  const items = lines.map((l) => ({ label: l.label, value: `× ${l.qty}` }));
   const stockOut = ["PREPARING", "AWAITING_PHOTO_APPROVAL", "READY", "OUT_FOR_DELIVERY"].includes(status);
   const cancel = canCancel ? (
     <Step
@@ -89,13 +107,26 @@ export function OrderActions({
       to="CANCELLED"
       label={status === "OUT_FOR_DELIVERY" ? "رُفض الاستلام — إلغاء" : "إلغاء الطلب"}
       variant="destructive"
-      confirm={
-        paid
-          ? "إلغاء الطلب؟ يُسجَّل رد المبلغ للعميل من محفظة بنكك."
+      confirm={{
+        tone: "danger",
+        icon: Ban,
+        title: <>إلغاء الطلب {num}؟</>,
+        description: paid
+          ? "يُسجَّل رد المبلغ كاملاً للعميل من محفظة بنكك."
           : stockOut
-            ? "إلغاء الطلب؟ الأصناف تعود للمخزون."
-            : "إلغاء الطلب؟ يُحرَّر الحجز."
-      }
+            ? "الأصناف تعود للمخزون بتكلفتها."
+            : "يُحرَّر حجز الأصناف.",
+        summary: paid
+          ? [
+              { label: "يُرد للعميل", value: total },
+              { label: "من محفظة", value: "بنكك" },
+            ]
+          : [{ label: "قيمة الطلب", value: total }],
+        warning: paid ? "ردّي المبلغ للعميل ببنكك قبل الإلغاء." : undefined,
+        irreversible: "الطلب الملغى لا يُعاد فتحه.",
+        confirmLabel: paid ? "إلغاء الطلب وتسجيل الرد" : "إلغاء الطلب",
+        pendingLabel: "جارٍ الإلغاء…",
+      }}
     >
       <Reason placeholder={status === "OUT_FOR_DELIVERY" ? "مثال: المستلم رفض الاستلام" : "مثال: طلب العميل الإلغاء"} />
       {paid ? (
@@ -124,7 +155,19 @@ export function OrderActions({
             id={id}
             to="CONFIRMED"
             label="المبلغ وصل — تأكيد الطلب"
-            confirm="هل طابقتِ المبلغ ورقم العملية مع كشف حساب بنكك؟"
+            confirm={{
+              icon: Landmark,
+              title: <>اعتماد دفعة بنكك للطلب {num}؟</>,
+              description: "افتحي تطبيق بنكك الخاص بالمحل وقارني التحويل بهذه الأرقام قبل الاعتماد.",
+              summary: [
+                { label: "المبلغ المطلوب", value: total },
+                { label: "رقم العملية في الإشعار", value: <bdi dir="ltr">{proofReference ?? "—"}</bdi> },
+              ],
+              acknowledge: "طابقتُ المبلغ ورقم العملية مع كشف بنكك",
+              irreversible: "يُسجَّل المبلغ في محفظة بنكك ويُؤكَّد الطلب.",
+              confirmLabel: "اعتماد الدفع",
+              pendingLabel: "جارٍ الاعتماد…",
+            }}
           >
             <input type="hidden" name="proofId" value={pendingProofId} />
             <p className="text-sm text-muted-foreground">
@@ -150,7 +193,19 @@ export function OrderActions({
       ) : null}
       {status === "NEW" ? <Step id={id} to="CONFIRMED" label="تأكيد الطلب" /> : null}
       {status === "CONFIRMED" ? (
-        <Step id={id} to="PREPARING" label="بدء التجهيز" confirm="بدء التجهيز يخصم الأصناف من المخزون. متابعة؟">
+        <Step
+          id={id}
+          to="PREPARING"
+          label="بدء التجهيز"
+          confirm={{
+            icon: PackageOpen,
+            title: <>بدء تجهيز الطلب {num}؟</>,
+            description: "تُخصم هذه الأصناف من المخزون الآن، ولا يُعدَّل الطلب بعدها.",
+            summary: items,
+            confirmLabel: "بدء التجهيز",
+            pendingLabel: "جارٍ البدء…",
+          }}
+        >
           <p className="text-sm text-muted-foreground">تُخصم الأصناف من المخزون الآن، ولا يُعدَّل الطلب بعدها.</p>
         </Step>
       ) : null}

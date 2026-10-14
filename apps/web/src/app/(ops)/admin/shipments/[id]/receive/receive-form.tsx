@@ -1,9 +1,11 @@
 "use client";
 
 import { dec, plainNumber, planReceipt, toLatinDigits, type ReceiptLine } from "@ghusn/core";
+import { PackageCheck } from "lucide-react";
 import { useActionState, useMemo, useState, useTransition } from "react";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog } from "@/components/ui/confirm-dialog";
 import { Input } from "@/components/ui/input";
 import { formatAmount } from "@/lib/format";
 import { receiveAction, type FormState } from "../../actions";
@@ -33,17 +35,21 @@ const isQty = (v: string) => /^\d{1,9}(\.\d{1,3})?$/.test(clean(v));
  */
 export function ReceiveForm({
   id,
+  number,
   lines,
   purchaseRate,
   costs,
 }: {
   id: string;
+  number: string;
   lines: ReceiveLine[];
   purchaseRate: string;
   costs: { amount: string; rateUsed: string }[];
 }) {
   const [state, action] = useActionState<FormState, unknown>(receiveAction.bind(null, id), {});
   const [pending, startTransition] = useTransition();
+  // النافذة تبقى مفتوحة حتى يرد الخادم: الخطأ يظهر داخلها، والنجاح ينقل لصفحة الشحنة (redirect)
+  const [confirming, setConfirming] = useState(false);
   const [rows, setRows] = useState<Record<string, Row>>(() =>
     Object.fromEntries(lines.map((l) => [l.id, { receivedQty: l.qty, damagedQty: "0", expiresAt: "" }])),
   );
@@ -85,8 +91,25 @@ export function ReceiveForm({
     (l) => isQty(rows[l.id]!.receivedQty) && dec(clean(rows[l.id]!.receivedQty)).isZero(),
   );
 
+  // ملخص النافذة: مجموع السليم والتالف والناقص (بوحدة واحدة إن اتحدت الوحدات)
+  const plan = preview.plan;
+  const totals = useMemo(() => {
+    if (!plan) return null;
+    let received = dec(0);
+    let damaged = dec(0);
+    let missing = dec(0);
+    for (const p of plan.values()) {
+      received = received.plus(p.receivedQty);
+      damaged = damaged.plus(clean(rows[p.key]!.damagedQty));
+      missing = missing.plus(p.missingQty);
+    }
+    const units = new Set(lines.map((l) => l.unit));
+    const unit = units.size === 1 ? ` ${UNIT_LABEL[lines[0]!.unit] ?? ""}` : "";
+    const only = lines.length === 1 ? plan.get(lines[0]!.id) : undefined;
+    return { received, damaged, missing, unit, unitCost: only?.landedUnitUsd ?? null };
+  }, [plan, rows, lines]);
+
   function submit() {
-    if (!window.confirm("تأكيد الاستلام؟ تدخل البضاعة المخزون وتُغلق الشحنة، ولا يمكن التراجع.")) return;
     startTransition(() => {
       action(
         lines.map((l) => ({
@@ -184,7 +207,54 @@ export function ReceiveForm({
         })}
       </ul>
       <div className="flex flex-wrap items-center gap-3">
-        <Button type="button" onClick={submit} disabled={pending || preview.issues.size > 0 || nothingReceived}>
+        <ConfirmDialog
+          open={confirming}
+          onCancel={() => setConfirming(false)}
+          onConfirm={submit}
+          pending={pending}
+          error={state.error}
+          icon={PackageCheck}
+          title={
+            <>
+              استلام <bdi dir="ltr">{number}</bdi>؟
+            </>
+          }
+          description="تدخل البضاعة المخزون بتكلفتها الواصلة، وتُغلق الشحنة."
+          summary={
+            totals
+              ? [
+                  {
+                    label: `سليم يدخل المخزون (${lines.length} ${lines.length === 1 ? "بند" : lines.length <= 10 ? "بنود" : "بنداً"})`,
+                    value: `${plainNumber(totals.received)}${totals.unit}`,
+                  },
+                  { label: "تالف", value: plainNumber(totals.damaged) },
+                  ...(totals.missing.gt(0) ? [{ label: "ناقص", value: plainNumber(totals.missing) }] : []),
+                  ...(totals.unitCost
+                    ? [
+                        {
+                          label: "التكلفة الواصلة للوحدة",
+                          value: <bdi dir="ltr">{formatAmount(totals.unitCost.toString())} $</bdi>,
+                          total: true,
+                        },
+                      ]
+                    : []),
+                ]
+              : undefined
+          }
+          warning={
+            costs.length
+              ? undefined
+              : "لا توجد تكاليف شحن أو جمارك مسجّلة. إن وصلت فاتورة لاحقاً تُضاف من صفحة الشحنة وتُعدِّل متوسط التكلفة."
+          }
+          irreversible="لا يمكن التراجع بعد الاستلام."
+          confirmLabel="تأكيد الاستلام"
+          pendingLabel="جارٍ الاستلام…"
+        />
+        <Button
+          type="button"
+          onClick={() => setConfirming(true)}
+          disabled={pending || preview.issues.size > 0 || nothingReceived}
+        >
           {pending ? "جارٍ الاستلام…" : "تأكيد الاستلام"}
         </Button>
         {nothingReceived ? <span className="text-sm text-destructive">أدخلي الكمية المستلمة.</span> : null}

@@ -1,4 +1,3 @@
-import { Archive } from "lucide-react";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { roleCan } from "@/lib/auth/permissions";
@@ -15,8 +14,7 @@ import {
 import { MAX_IMAGES_PER_PRODUCT, imageUrl } from "@/lib/product-images";
 import { formatDateTime } from "@/lib/format";
 import { plainNumber } from "@ghusn/core";
-import { archiveProductAction } from "../actions";
-import { ConfirmButton } from "../confirm-button";
+import { ArchiveProductForm } from "../archive-product-form";
 import { ProductForm } from "../product-form";
 import { PricingCard } from "../pricing-card";
 import { ProductImages } from "../product-images";
@@ -123,14 +121,7 @@ export default async function ProductPage({
 
       <PricingCard productId={product.id} role={session.user.role} />
 
-      {canArchive ? (
-        <form action={archiveProductAction} className="border-t border-border pt-6">
-          <input type="hidden" name="productId" value={product.id} />
-          <ConfirmButton message="أرشفة هذا المنتج؟ يختفي من القوائم ويبقى في السجلات.">
-            <Archive aria-hidden /> أرشفة المنتج
-          </ConfirmButton>
-        </form>
-      ) : null}
+      {canArchive ? <ArchiveProductForm productId={product.id} name={product.nameAr} /> : null}
     </div>
   );
 }
