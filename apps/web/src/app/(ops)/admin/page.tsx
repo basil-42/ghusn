@@ -337,7 +337,13 @@ async function OwnerHome({ user, can, period }: { user: User; can: Can; period: 
 
       {spending ? (
         <Section title={`المنصرفات · ${PERIOD_LABELS[period]}`}>
-          <SpendingPanel spending={spending} profitSdg={kpis.profitSdg} period={period} />
+          <SpendingPanel
+            spending={spending}
+            profitSdg={kpis.profitSdg}
+            period={period}
+            bucket={range.bucket}
+            nowKey={range.complete ? null : nowKey}
+          />
         </Section>
       ) : null}
 
@@ -658,18 +664,40 @@ function SpendingPanel({
   spending,
   profitSdg,
   period,
+  bucket,
+  nowKey,
 }: {
   spending: Spending;
   profitSdg: string;
   period: DashboardPeriod;
+  bucket: DashboardRange["bucket"];
+  nowKey: string | null;
 }) {
   const total = dec(spending.totalSdg);
   const opShare = total.gt(0) ? dec(spending.operatingSdg).div(total).times(100).toNumber() : 0;
   const net = dec(profitSdg).minus(spending.operatingSdg);
-  const colMax = spending.series.reduce((m, r) => {
-    const v = dec(r.operating).plus(r.purchase);
-    return v.gt(m) ? v : m;
-  }, dec(0));
+  // نفس رسم المبيعات مكدّساً: التشغيل (غابة) أسفل والمشتريات (رملي) فوقه، بمحور وأسماء أيام وتلميح
+  const axis = niceAxis(spending.series.reduce((m, r) => Math.max(m, dec(r.operating).plus(r.purchase).toNumber()), 0));
+  const axisTop = axis[axis.length - 1] ?? 0;
+  const every = spending.series.length > 16 ? 2 : 1;
+  const points: ChartPoint[] = spending.series.map((r, i) => {
+    const sum = dec(r.operating).plus(r.purchase);
+    const tick = bucketTick(r.key, bucket);
+    const labelled = i % every === 0 || i === spending.series.length - 1;
+    return {
+      key: r.key,
+      label: bucketLabel(r.key, bucket),
+      tick: labelled ? tick.top : "",
+      tickSub: labelled ? tick.sub : "",
+      shop: formatAmount(r.operating, 0),
+      store: formatAmount(r.purchase, 0),
+      total: formatAmount(sum.toFixed(0), 0),
+      short: compactSdg(sum.toNumber()),
+      ratio: axisTop > 0 ? sum.toNumber() / axisTop : 0,
+      split: sum.gt(0) ? dec(r.operating).div(sum).toNumber() : 0,
+      current: r.key === nowKey,
+    };
+  });
   const kinds = [
     { kind: "OPERATING", title: "مصاريف التشغيل", note: "تُخصم من الربح" },
     { kind: "PURCHASE", title: "مشتريات بضاعة", note: "تصير مخزوناً — ليست خسارة" },
@@ -743,33 +771,6 @@ function SpendingPanel({
           )}
         </div>
         <div className="flex flex-col gap-4 border-t border-line p-5 lg:border-s lg:border-t-0">
-          <div className="flex flex-col gap-2">
-            <h3 className="text-sm font-semibold text-muted-foreground">
-              المنصرف {period === "this-year" || period === "last-year" ? "شهرياً" : "يومياً"}
-            </h3>
-            <div aria-hidden className="flex h-36 items-end gap-1 border-b border-line">
-              {spending.series.map((r) => {
-                const op = colMax.gt(0) ? dec(r.operating).div(colMax).times(100).toNumber() : 0;
-                const pu = colMax.gt(0) ? dec(r.purchase).div(colMax).times(100).toNumber() : 0;
-                return (
-                  <span
-                    key={r.key}
-                    title={`${r.key}: تشغيل ${formatAmount(r.operating, 0)} · مشتريات ${formatAmount(r.purchase, 0)}`}
-                    className="flex h-full flex-1 flex-col justify-end"
-                  >
-                    {pu > 0 ? <span className="rounded-t-sm bg-sand" style={{ height: `${pu}%` }} /> : null}
-                    {op > 0 ? (
-                      <span className={`bg-forest ${pu > 0 ? "" : "rounded-t-sm"}`} style={{ height: `${op}%` }} />
-                    ) : null}
-                  </span>
-                );
-              })}
-            </div>
-            <span className="flex justify-between text-xs text-muted-foreground tabular-nums">
-              <span>{spending.series[0]?.key.slice(-2)}</span>
-              <span>{spending.series[spending.series.length - 1]?.key.slice(-2)}</span>
-            </span>
-          </div>
           <div className="flex flex-col gap-2 rounded-xl bg-muted p-4 text-sm">
             <b>النتيجة {soFar(period)}</b>
             <span className="flex justify-between">
@@ -784,6 +785,11 @@ function SpendingPanel({
                 {sdg(net.toFixed(0))}
               </b>
             </span>
+            {net.lt(0) ? (
+              <span className="text-xs font-semibold text-warning">
+                سالب لأن مصاريف الفترة (مثل إيجار أو راتب دُفع فيها) أكبر من ربحها — اختر «الشهر» للصورة الكاملة.
+              </span>
+            ) : null}
             <span className="text-xs text-muted-foreground">
               المشتريات لا تدخل هنا لأنها مخزون؛ تكلفتها في مجمل الربح حين يُباع الصنف. الصافي النهائي (مع خسائر
               المخزون) في التقرير الشهري.
@@ -791,6 +797,21 @@ function SpendingPanel({
           </div>
         </div>
       </div>
+      {axisTop > 0 ? (
+        <div className="flex flex-col gap-2 border-t border-line p-5">
+          <h3 className="text-sm font-semibold text-muted-foreground">
+            المنصرف {bucket === "month" ? "لكل شهر" : "لكل يوم"}
+            {period === "today" ? " · آخر 7 أيام" : ""}
+          </h3>
+          <SalesChart
+            points={points}
+            gridlines={axis.map((v) => ({ ratio: axisTop > 0 ? v / axisTop : 0, label: compactSdg(v) }))}
+            ariaLabel="المنصرف لكل يوم: التشغيل والمشتريات"
+            parts={["تشغيل", "مشتريات"]}
+            stacked
+          />
+        </div>
+      ) : null}
     </Panel>
   );
 }
