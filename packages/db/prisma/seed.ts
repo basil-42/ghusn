@@ -1,4 +1,4 @@
-// بيانات أولية: العملات، سعر صرف تجريبي، المحافظ، الأقسام، ومستخدم المالك
+// بيانات أولية: العملات، أسعار الدولار والريال الثابتة، المحافظ، الأقسام، ومستخدم المالك
 import { PrismaClient, RateSource, Role } from "@prisma/client";
 
 const prisma = new PrismaClient();
@@ -15,13 +15,11 @@ async function main() {
     await prisma.currency.upsert({ where: { code: c.code }, update: c, create: c });
   }
 
-  // أسعار تجريبية فقط — عدّلها من لوحة الإدارة لاحقاً
+  // الأسعار الثابتة فقط (D-141): الدولار والريال المربوط به. الجنيه واليوان والجنيه المصري تُدخل
+  // من «سعر الصرف» بسعرها الحقيقي — سعر تجريبي هنا كان سيُسعّر به أول شحنة وأول بيع
   const rates = [
     { currencyCode: "USD", unitsPerUsd: "1", source: RateSource.FIXED_PEG, note: "عملة الأساس" },
     { currencyCode: "QAR", unitsPerUsd: "3.64", source: RateSource.FIXED_PEG, note: "مربوط بالدولار" },
-    { currencyCode: "SDG", unitsPerUsd: "2500", source: RateSource.PARALLEL_MARKET, note: "سعر تجريبي" },
-    { currencyCode: "CNY", unitsPerUsd: "7.2", source: RateSource.BANK, note: "سعر تجريبي" },
-    { currencyCode: "EGP", unitsPerUsd: "48", source: RateSource.BANK, note: "سعر تجريبي" },
   ];
   if ((await prisma.exchangeRate.count()) === 0) {
     await prisma.exchangeRate.createMany({ data: rates });

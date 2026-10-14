@@ -9,6 +9,8 @@ dist
 next-env.d.ts
 *.tsbuildinfo
 uploads
+# نسخ احتياطية من pnpm db:fresh — بيانات حقيقية، لا تُرفع
+backups
 # يولّدها next dev تلقائياً (تعليمات للوكلاء) — لا تُرفع
 apps/web/AGENTS.md
 apps/web/CLAUDE.md
