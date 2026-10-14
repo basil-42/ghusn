@@ -18,6 +18,8 @@ export interface ChartPoint {
   ratio: number;
   /** اليوم/الشهر الحالي يُبرز بلون الغابة. */
   current: boolean;
+  /** في الرسم المكدّس: حصة الجزء الأول (السفلي) من العمود (0–1). */
+  split?: number;
 }
 
 const H = 200;
@@ -32,11 +34,17 @@ export function SalesChart({
   points,
   gridlines,
   ariaLabel,
+  parts = ["المحل", "المتجر"],
+  stacked = false,
 }: {
   points: ChartPoint[];
   /** خطوط المحور: موضعها (0–1) واسمها المختصر. */
   gridlines: { ratio: number; label: string }[];
   ariaLabel: string;
+  /** اسما الجزأين (shop/store) في التلميح والجدول — المنصرفات: التشغيل/المشتريات (D-137). */
+  parts?: [string, string];
+  /** عمود مكدّس: الجزء الأول بلون الغابة أسفل، والثاني رملي فوقه، مع مفتاح ألوان. */
+  stacked?: boolean;
 }) {
   const [hover, setHover] = useState<number | null>(null);
   const n = points.length;
@@ -85,7 +93,28 @@ export function SalesChart({
               const x = (n - 1 - i) * step;
               return (
                 <g key={p.key}>
-                  {h > 0 ? (
+                  {h > 0 && stacked ? (
+                    <g opacity={hover === null || hover === i ? 1 : 0.55}>
+                      <rect
+                        x={x + (step - barW) / 2}
+                        y={H - h}
+                        width={barW}
+                        height={h}
+                        rx={Math.min(5, barW / 3)}
+                        className="fill-sand"
+                      />
+                      {(p.split ?? 0) > 0 ? (
+                        <rect
+                          x={x + (step - barW) / 2}
+                          y={H - h * (p.split ?? 0)}
+                          width={barW}
+                          height={h * (p.split ?? 0)}
+                          rx={(p.split ?? 0) === 1 ? Math.min(5, barW / 3) : 0}
+                          className="fill-forest"
+                        />
+                      ) : null}
+                    </g>
+                  ) : h > 0 ? (
                     <rect
                       x={x + (step - barW) / 2}
                       y={H - h}
@@ -132,7 +161,7 @@ export function SalesChart({
               <p className="font-semibold">{active.label}</p>
               <p className="text-sm font-bold tabular-nums">{active.total} ج.س</p>
               <p className="tabular-nums opacity-80">
-                المحل {active.shop} · المتجر {active.store}
+                {parts[0]} {active.shop} · {parts[1]} {active.store}
               </p>
             </div>
           ) : null}
@@ -153,14 +182,26 @@ export function SalesChart({
           </span>
         ))}
       </div>
+      {stacked ? (
+        <div className="flex flex-wrap gap-4 text-xs text-muted-foreground">
+          <span className="flex items-center gap-1.5">
+            <i className="inline-block size-2.5 rounded-sm bg-forest" />
+            {parts[0]}
+          </span>
+          <span className="flex items-center gap-1.5">
+            <i className="inline-block size-2.5 rounded-sm bg-sand" />
+            {parts[1]}
+          </span>
+        </div>
+      ) : null}
       <details className="text-sm">
         <summary className="cursor-pointer text-muted-foreground">عرض كجدول</summary>
         <table className="mt-2 w-full text-start tabular-nums">
           <thead className="text-muted-foreground">
             <tr>
               <th className="py-1 text-start font-normal">الفترة</th>
-              <th className="py-1 text-start font-normal">المحل</th>
-              <th className="py-1 text-start font-normal">المتجر</th>
+              <th className="py-1 text-start font-normal">{parts[0]}</th>
+              <th className="py-1 text-start font-normal">{parts[1]}</th>
               <th className="py-1 text-start font-normal">المجموع</th>
             </tr>
           </thead>
