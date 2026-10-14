@@ -389,6 +389,13 @@ async function OwnerHome({ user, can, period }: { user: User; can: Can; period: 
                   </li>
                 ))}
               </ul>
+              <p className="flex flex-wrap justify-between gap-2 rounded-xl border border-line px-3 py-2 text-sm">
+                <span className="text-muted-foreground">مسلَّمة · {PERIOD_LABELS[period]}</span>
+                <span>
+                  <b className="tabular-nums">{kpis.storeCount}</b> طلب ·{" "}
+                  <b className="tabular-nums">{formatAmount(kpis.storeSdg, 0)}</b> ج.س
+                </span>
+              </p>
               <div className="flex flex-col gap-1.5">
                 <span className="text-xs font-semibold text-muted-foreground">الورديات المفتوحة</span>
                 {shifts.length ? (
@@ -679,7 +686,8 @@ function SpendingPanel({
   // نفس رسم المبيعات مكدّساً: التشغيل (غابة) أسفل والمشتريات (رملي) فوقه، بمحور وأسماء أيام وتلميح
   const axis = niceAxis(spending.series.reduce((m, r) => Math.max(m, dec(r.operating).plus(r.purchase).toNumber()), 0));
   const axisTop = axis[axis.length - 1] ?? 0;
-  const every = spending.series.length > 16 ? 2 : 1;
+  // الرسم في عمود أضيق: اسم كل يومين إن زادت الأعمدة عن 7
+  const every = spending.series.length > 7 ? 2 : 1;
   const points: ChartPoint[] = spending.series.map((r, i) => {
     const sum = dec(r.operating).plus(r.purchase);
     const tick = bucketTick(r.key, bucket);
@@ -709,8 +717,7 @@ function SpendingPanel({
           <span className="text-3xl font-bold tabular-nums">{sdg(spending.totalSdg)}</span>
           <span className="flex flex-wrap items-center gap-2 text-sm text-muted-foreground">
             <GrowthPill value={spending.change} invert />
-            {spending.change !== null ? COMPARED_TO[period] : "لا مقارنة بعد"}
-            {" · "}
+            {spending.change !== null ? `${COMPARED_TO[period]} · ` : null}
             <b className="text-foreground">متوسط اليوم {sdg(spending.perDaySdg)}</b>
           </span>
           {total.gt(0) ? (
@@ -795,23 +802,23 @@ function SpendingPanel({
               المخزون) في التقرير الشهري.
             </span>
           </div>
+          {axisTop > 0 ? (
+            <div className="flex flex-col gap-2">
+              <h3 className="text-sm font-semibold text-muted-foreground">
+                المنصرف {bucket === "month" ? "لكل شهر" : "لكل يوم"}
+                {period === "today" ? " · آخر 7 أيام" : ""}
+              </h3>
+              <SalesChart
+                points={points}
+                gridlines={axis.map((v) => ({ ratio: axisTop > 0 ? v / axisTop : 0, label: compactSdg(v) }))}
+                ariaLabel="المنصرف لكل يوم: التشغيل والمشتريات"
+                parts={["تشغيل", "مشتريات"]}
+                stacked
+              />
+            </div>
+          ) : null}
         </div>
       </div>
-      {axisTop > 0 ? (
-        <div className="flex flex-col gap-2 border-t border-line p-5">
-          <h3 className="text-sm font-semibold text-muted-foreground">
-            المنصرف {bucket === "month" ? "لكل شهر" : "لكل يوم"}
-            {period === "today" ? " · آخر 7 أيام" : ""}
-          </h3>
-          <SalesChart
-            points={points}
-            gridlines={axis.map((v) => ({ ratio: axisTop > 0 ? v / axisTop : 0, label: compactSdg(v) }))}
-            ariaLabel="المنصرف لكل يوم: التشغيل والمشتريات"
-            parts={["تشغيل", "مشتريات"]}
-            stacked
-          />
-        </div>
-      ) : null}
     </Panel>
   );
 }
@@ -925,7 +932,8 @@ function GrowthPill({
   /** الزيادة سيئة (المنصرفات): ↑ أحمر و↓ أخضر. */
   invert?: boolean;
 }) {
-  if (value === null) return small ? <span className="text-xs text-muted-foreground">لا مقارنة بعد</span> : null;
+  // «لا مقارنة بعد» تظهر مرة واحدة تحت رقم المبيعات فقط (D-138)
+  if (value === null) return null;
   const down = value.startsWith("-");
   const bad = invert ? !down : down;
   return (

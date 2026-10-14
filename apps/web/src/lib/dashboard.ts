@@ -58,6 +58,7 @@ async function salesBetween(start: Date, end: Date) {
     netSdg,
     shopSdg: dec(s(sales._sum.totalSdg)),
     storeSdg: dec(s(orders._sum.totalSdg)),
+    storeCount: orders._count,
     count,
     avgTicketSdg: count ? gross.div(count) : null,
     revenueUsd,
@@ -98,6 +99,7 @@ export async function periodKpis(range: DashboardRange) {
     netSdg: cur.netSdg.toFixed(0),
     // تقسيم الصافي: المتجر المسلَّم، والمحل بعد المرتجعات
     storeSdg: cur.storeSdg.toFixed(0),
+    storeCount: cur.storeCount,
     shopNetSdg: cur.netSdg.minus(cur.storeSdg).toFixed(0),
     count: cur.count,
     change: change(cur.netSdg, prev.netSdg),
