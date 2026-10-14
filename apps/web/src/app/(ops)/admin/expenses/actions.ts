@@ -72,5 +72,5 @@ export async function voidExpenseAction(_prev: FormState, formData: FormData): P
   }
   revalidatePath("/admin/expenses");
   revalidatePath("/admin/reports");
-  return { success: "تم الإلغاء." };
+  return { success: "أُلغي المصروف وعاد المبلغ إلى المحفظة." };
 }

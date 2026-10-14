@@ -4,7 +4,6 @@ import type { Metadata } from "next";
 import Image from "next/image";
 import Link from "next/link";
 import { EmptyState } from "@/components/admin/empty-state";
-import { Alert } from "@/components/ui/alert";
 import { Badge } from "@/components/ui/badge";
 import { Button } from "@/components/ui/button";
 import { Input, NativeSelect } from "@/components/ui/input";
@@ -22,11 +21,11 @@ import { PageHeader } from "@/components/admin/page-header";
 
 export const metadata: Metadata = { title: "المنتجات | غصن" };
 
-type SearchParams = Promise<{ q?: string; category?: string; page?: string; archived?: string; incomplete?: string }>;
+type SearchParams = Promise<{ q?: string; category?: string; page?: string; incomplete?: string }>;
 
 export default async function ProductsPage({ searchParams }: { searchParams: SearchParams }) {
   const session = await requirePermission({ product: ["read"] });
-  const { q = "", category = "", page: pageParam, archived, incomplete: incompleteParam } = await searchParams;
+  const { q = "", category = "", page: pageParam, incomplete: incompleteParam } = await searchParams;
   const incomplete = incompleteParam === "1";
   const page = Math.max(1, Number.parseInt(pageParam ?? "1", 10) || 1);
   const [categories, { items, total, pages }, incompleteCount] = await Promise.all([
@@ -53,8 +52,6 @@ export default async function ProductsPage({ searchParams }: { searchParams: Sea
           ) : null
         }
       />
-
-      {archived ? <Alert variant="success">تمت أرشفة المنتج.</Alert> : null}
 
       {/* جاهزية المتجر (D-106): رابط يعرض منتجات المتجر التي ينقصها شيء */}
       {incompleteCount > 0 || incomplete ? (

@@ -1,6 +1,5 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Alert } from "@/components/ui/alert";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { requirePermission } from "@/lib/auth/session";
 import { formatAmount, formatDateTime } from "@/lib/format";
@@ -31,7 +30,6 @@ export default async function ShiftPage({ searchParams }: { searchParams: Promis
 
   return (
     <div className="mx-auto flex max-w-2xl flex-col gap-4">
-      {!isOpen ? <Alert variant="success">أُغلقت الوردية.</Alert> : null}
       <Card>
         <CardHeader>
           <CardTitle>{isOpen ? "ورديتي الحالية" : "ملخص الوردية"}</CardTitle>
@@ -74,7 +72,7 @@ export default async function ShiftPage({ searchParams }: { searchParams: Promis
               عدّي النقد في الدرج. المتوقع = العهدة + المقبوض نقداً − المردود نقداً − المصاريف من الدرج.
             </CardDescription>
           </CardHeader>
-          <CloseShiftForm shiftId={summary.id} />
+          <CloseShiftForm shiftId={summary.id} expectedCash={summary.expectedCashSdg} />
         </Card>
       ) : (
         <Link href="/pos" className="font-semibold underline">

@@ -1,7 +1,9 @@
 "use client";
 
 import { CheckCircle2, X } from "lucide-react";
+import { usePathname, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useSyncExternalStore } from "react";
+import { FLASH_COOKIE } from "@/lib/flash-cookie";
 import { cn } from "@/lib/utils";
 
 /**
@@ -47,6 +49,18 @@ export function useActionToast(state: { success?: string } | undefined) {
   }, [state]);
 }
 
+/**
+ * يلف إجراء الخادم فتظهر رسالة نجاحه فور وصولها — للنماذج التي تختفي بعد نجاحها (إلغاء مصروف، تغيير
+ * حالة طلب)، حيث لا يلحق useActionToast أن يعمل قبل أن يُزال المكوّن.
+ */
+export function withToast<S extends { success?: string } | undefined, P>(fn: (prev: S, payload: P) => Promise<S>) {
+  return async (prev: S, payload: P): Promise<S> => {
+    const result = await fn(prev, payload);
+    if (result?.success) toast(result.success);
+    return result;
+  };
+}
+
 export function Toaster() {
   const list = useSyncExternalStore(
     subscribe,
@@ -81,4 +95,27 @@ export function Toaster() {
       ))}
     </div>
   );
+}
+
+/**
+ * رسالة نجاح محفوظة قبل الانتقال (flash في الخادم، D-140): تُعرض مرة عند كل تغيّر في العنوان ثم تُمسح.
+ * يحتاج Suspense في القالب (useSearchParams).
+ */
+export function FlashToast() {
+  const pathname = usePathname();
+  const search = useSearchParams();
+  useEffect(() => {
+    const raw = document.cookie
+      .split("; ")
+      .find((c) => c.startsWith(`${FLASH_COOKIE}=`))
+      ?.slice(FLASH_COOKIE.length + 1);
+    if (!raw) return;
+    document.cookie = `${FLASH_COOKIE}=; path=/; max-age=0; samesite=lax`;
+    try {
+      toast(decodeURIComponent(raw));
+    } catch {
+      // قيمة تالفة — تُتجاهل
+    }
+  }, [pathname, search]);
+  return null;
 }

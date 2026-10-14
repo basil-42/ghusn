@@ -5,6 +5,7 @@ import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { z } from "zod";
 import { requirePermission } from "@/lib/auth/session";
+import { flash } from "@/lib/flash";
 import { customerCardByPhone } from "@/lib/customers";
 import { saleSchema } from "@/lib/sale-schema";
 import { ApprovalRequired, SaleError, createSale, findPosItems } from "@/lib/sales";
@@ -53,6 +54,7 @@ export async function closeShiftAction(_prev: FormState, formData: FormData): Pr
     throw e;
   }
   revalidatePath("/pos");
+  await flash("أُغلقت الوردية — هذا ملخصها.");
   redirect(`/pos/shift?closed=${String(formData.get("shiftId"))}`);
 }
 
@@ -170,5 +172,5 @@ export async function cashOutCreditAction(_prev: FormState, formData: FormData):
     throw e;
   }
   revalidatePath(`/pos/returns/${id}`);
-  return { success: "تم رد الرصيد نقداً." };
+  return { success: "سُجّل الرد النقدي — سلّمي المبلغ للعميل من الدرج." };
 }

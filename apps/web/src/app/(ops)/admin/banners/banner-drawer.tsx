@@ -7,6 +7,7 @@ import { useActionState, useEffect, useMemo, useRef, useState } from "react";
 import { ImageInput } from "@/components/image-input";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
+import { ConfirmDialog, useConfirmForm } from "@/components/ui/confirm-dialog";
 import { Input, NativeSelect } from "@/components/ui/input";
 import { useActionToast } from "@/components/ui/toast";
 import type { AdminBanner } from "@/lib/banners";
@@ -52,6 +53,12 @@ function useSmallWarning(url: string | null, minWidth: number) {
  * تحرير بانر في لوحة جانبية (D-122): معاينة حية بنفس شكل رئيسية المتجر (كمبيوتر/جوال، عربي/English)،
  * والحقول في ثلاث خطوات — كلها في نموذج واحد يُحفظ مرة واحدة. الصور بالسحب أو الاختيار.
  */
+// الحذف ينقل لقائمة البانرات (redirect) ورسالة النجاح تعبر الانتقال (flash)
+const removeBanner = async (_prev: FormState, data: FormData): Promise<FormState> => {
+  await deleteBannerAction(data);
+  return {};
+};
+
 export function BannerDrawer({
   initial,
   statusLabel,
@@ -64,6 +71,8 @@ export function BannerDrawer({
   const router = useRouter();
   const [state, action, pending] = useActionState<FormState, FormData>(saveBannerAction, {});
   useActionToast(state);
+  const [delState, deleteAction, deleting] = useActionState<FormState, FormData>(removeBanner, {});
+  const del = useConfirmForm(deleteAction, delState, deleting);
   const [step, setStep] = useState(0);
   const [device, setDevice] = useState<"desktop" | "mobile">("desktop");
   const [lang, setLang] = useState<"ar" | "en">("ar");
@@ -396,7 +405,7 @@ export function BannerDrawer({
         </form>
 
         {initial ? (
-          <form id="banner-delete" action={deleteBannerAction} className="hidden">
+          <form id="banner-delete" action={deleteAction} onSubmit={del.onSubmit} className="hidden">
             <input type="hidden" name="id" value={initial.id} />
           </form>
         ) : null}
@@ -435,9 +444,6 @@ export function BannerDrawer({
               <button
                 type="submit"
                 form="banner-delete"
-                onClick={(e) => {
-                  if (!confirm(`حذف بانر «${initial.titleAr}»؟`)) e.preventDefault();
-                }}
                 className="flex min-h-11 items-center gap-1.5 rounded-xl border border-danger/40 px-3 text-sm font-semibold text-danger hover:bg-danger/10"
               >
                 <Trash2 aria-hidden className="size-4" /> حذف
@@ -445,6 +451,17 @@ export function BannerDrawer({
             ) : null}
           </div>
         </footer>
+        {initial ? (
+          <ConfirmDialog
+            {...del.dialog}
+            tone="danger"
+            icon={Trash2}
+            title={`حذف بانر «${initial.titleAr}»؟`}
+            description="يختفي من واجهة المتجر فوراً."
+            confirmLabel="حذف البانر"
+            pendingLabel="جارٍ الحذف…"
+          />
+        ) : null}
       </section>
     </div>
   );

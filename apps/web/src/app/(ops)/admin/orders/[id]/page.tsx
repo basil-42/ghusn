@@ -291,7 +291,11 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
                 canCancel={roleCan(role, { order: ["cancel"] })}
                 canReviewPayment={canSeeProofs}
                 pendingProofId={o.proofs.find((p) => !p.reviewedAt)?.id ?? null}
+                proofReference={o.proofs.find((p) => !p.reviewedAt)?.reference ?? null}
                 paid={o.payments.some((p) => !p.amountSdg.startsWith("-"))}
+                number={o.number}
+                total={sdg(o.totalSdg)}
+                lines={o.lines.map((l) => ({ label: l.label, qty: formatAmount(l.qty, 0) }))}
               />
             </div>
           ) : null}

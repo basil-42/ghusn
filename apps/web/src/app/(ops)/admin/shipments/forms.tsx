@@ -1,7 +1,8 @@
 "use client";
 
-import { useActionToast } from "@/components/ui/toast";
-import { Plus, Search, Trash2 } from "lucide-react";
+import { useActionToast, withToast } from "@/components/ui/toast";
+import { Ban, Plus, Search, Trash2 } from "lucide-react";
+import { ConfirmDialog, useConfirmForm } from "@/components/ui/confirm-dialog";
 import { useActionState, useEffect, useState, useTransition } from "react";
 import { Field, SelectField } from "@/components/form-field";
 import { OVER_BALANCE, exceedsAvailable } from "@/lib/wallet-hint";
@@ -52,22 +53,34 @@ export function NewShipmentForm({ suppliers }: { suppliers: Option[] }) {
   );
 }
 
-export function StatusActions({ id, next }: { id: string; next: Option[] }) {
-  const [state, action, pending] = useActionState<FormState, FormData>(transitionAction, {});
-  useActionToast(state);
+// بعد الإلغاء تختفي أزرار الحالة، فالرسالة تُعرض فور وصولها
+const transition = withToast(transitionAction);
+
+export function StatusActions({
+  id,
+  next,
+  number,
+  supplier,
+  goodsTotal,
+  purchased,
+}: {
+  id: string;
+  next: Option[];
+  number: string;
+  /** شراؤها مؤكَّد (لها قيمة في حساب المورد) — المسودة لا. */
+  purchased: boolean;
+  supplier: string;
+  /** قيمة البضاعة منسّقة بعملتها («12,400 ¥»). */
+  goodsTotal: string;
+}) {
+  const [state, action, pending] = useActionState<FormState, FormData>(transition, {});
+  const cancel = useConfirmForm(action, state, pending);
   return (
     <div className="flex flex-col gap-3">
       <Messages state={state} />
       <div className="flex flex-wrap gap-2">
         {next.map((n) => (
-          <form
-            key={n.value}
-            action={action}
-            onSubmit={(e) => {
-              if (n.value === "CANCELLED" && !window.confirm("إلغاء الشحنة؟ تُلغى قيمتها من حساب المورد."))
-                e.preventDefault();
-            }}
-          >
+          <form key={n.value} action={action} onSubmit={n.value === "CANCELLED" ? cancel.onSubmit : undefined}>
             <input type="hidden" name="id" value={id} />
             <input type="hidden" name="to" value={n.value} />
             <Button
@@ -81,6 +94,28 @@ export function StatusActions({ id, next }: { id: string; next: Option[] }) {
           </form>
         ))}
       </div>
+      <ConfirmDialog
+        {...cancel.dialog}
+        tone="danger"
+        icon={Ban}
+        title={
+          <>
+            إلغاء الشحنة <bdi dir="ltr">{number}</bdi>؟
+          </>
+        }
+        description={
+          purchased
+            ? "تُلغى قيمتها من حساب المورد، وتبقى في السجلات ملغاة."
+            : "مسودة لم يُؤكَّد شراؤها — لا شيء في حساب المورد. تبقى في السجلات ملغاة."
+        }
+        summary={[
+          { label: "المورد", value: supplier },
+          { label: "قيمة البضاعة", value: <bdi dir="ltr">{goodsTotal}</bdi> },
+        ]}
+        irreversible="الشحنة الملغاة لا يُعاد فتحها."
+        confirmLabel="إلغاء الشحنة"
+        pendingLabel="جارٍ الإلغاء…"
+      />
     </div>
   );
 }

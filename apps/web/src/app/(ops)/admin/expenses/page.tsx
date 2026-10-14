@@ -137,7 +137,15 @@ export default async function ExpensesPage({ searchParams }: { searchParams: Pro
                       = {formatAmount(e.amountUsd)} $
                     </span>
                   ) : null}
-                  {full && !e.voided ? <VoidExpenseForm id={e.id} /> : null}
+                  {full && !e.voided ? (
+                    <VoidExpenseForm
+                      id={e.id}
+                      number={e.number}
+                      category={e.category}
+                      amount={`${formatAmount(e.amount, e.currencyCode === "SDG" ? 0 : 2)} ${e.currencyCode}`}
+                      wallet={e.walletName}
+                    />
+                  ) : null}
                 </div>
               </li>
             ))}
