@@ -27,6 +27,7 @@ We are building, in one codebase:
 | `docs/system-design.md` | Original full design document (Arabic). Some infra details are superseded by `decisions.md` |
 | `docs/glossary.md` | Arabic ↔ English domain terms and code names |
 | `docs/backlog.md` | Approved ideas for later (do not build unless asked) |
+| `docs/trial-run.md` | Trial-run checklist from an empty system (after `pnpm db:fresh`) |
 
 If something is ambiguous or not covered, **ask Basil before inventing business rules**. Never silently change an approved decision; propose it and wait.
 
@@ -69,7 +70,8 @@ Money math lives in `@ghusn/core` only — apps call it, never re-implement it. 
 pnpm install
 pnpm db:up          # start local Postgres (OrbStack/Docker must be running)
 pnpm db:migrate     # prisma migrate dev (root .env loaded via dotenv-cli)
-pnpm db:seed        # currencies, sample rates, wallets, 9 categories, owner user
+pnpm db:seed        # currencies, fixed USD/QAR rates (no sample SDG rate), wallets, 9 categories, owner user
+pnpm db:fresh       # wipe everything for a trial run: backup → migrate reset → seed → delete uploads → owner:setup (local DB only, asks to type «صفر»)
 pnpm owner:setup    # set the owner's name, phone and password (first login / recovery)
 pnpm db:studio
 pnpm dev            # http://localhost:3000
