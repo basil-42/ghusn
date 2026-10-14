@@ -265,6 +265,8 @@ model Category {
   // هامش الربح المستهدف والحد الأدنى للتنبيه (نسبة من سعر البيع)
   targetMargin Decimal @default(0.40) @db.Decimal(5, 4)
   minMargin    Decimal @default(0.35) @db.Decimal(5, 4)
+  // صورة القسم في دوائر المتجر (D-139)؛ بدونها صورة أحدث منتج
+  imageKey     String?
 
   products    Product[]
   stockCounts StockCount[]

@@ -3,6 +3,8 @@ import { prisma } from "@ghusn/db";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { roleCan } from "@/lib/auth/permissions";
 import { requirePermission } from "@/lib/auth/session";
+import { imageUrl } from "@/lib/product-images";
+import { categoryAutoCovers } from "@/lib/storefront";
 import { CategoryForm, NewCategoryForm } from "./forms";
 import { PageHeader } from "@/components/admin/page-header";
 
@@ -13,10 +15,13 @@ const pct = (d: { mul(n: number): { toString(): string } }) => d.mul(100).toStri
 export default async function CategoriesPage() {
   const session = await requirePermission({ category: ["update"] });
   const canEditMargin = roleCan(session.user.role, { margin: ["update"] });
-  const categories = await prisma.category.findMany({
-    orderBy: { sortOrder: "asc" },
-    include: { _count: { select: { products: { where: { deletedAt: null } } } } },
-  });
+  const [categories, autoCovers] = await Promise.all([
+    prisma.category.findMany({
+      orderBy: { sortOrder: "asc" },
+      include: { _count: { select: { products: { where: { deletedAt: null } } } } },
+    }),
+    categoryAutoCovers(),
+  ]);
 
   return (
     <div className="flex flex-col gap-6">
@@ -50,6 +55,8 @@ export default async function CategoriesPage() {
               targetMarginPct: pct(c.targetMargin),
               minMarginPct: pct(c.minMargin),
               productCount: c._count.products,
+              imageUrl: c.imageKey ? imageUrl(c.imageKey, "thumb") : null,
+              fallbackUrl: autoCovers.get(c.id) ?? null,
             }}
           />
         ))}

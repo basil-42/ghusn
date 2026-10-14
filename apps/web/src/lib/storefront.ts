@@ -54,6 +54,7 @@ export async function listStoreCategories(locale: Locale): Promise<StoreCategory
       slug: true,
       nameAr: true,
       nameEn: true,
+      imageKey: true,
       products: {
         where: { ...visibleProduct, variants: { some: sellable } },
         orderBy: { createdAt: "desc" },
@@ -64,12 +65,14 @@ export async function listStoreCategories(locale: Locale): Promise<StoreCategory
   return categories
     .filter((c) => c.products.length > 0)
     .map((c) => {
+      // صورة القسم المرفوعة أولاً (D-139)، وإلا صورة أحدث منتج
       const cover = c.products.find((p) => p.images[0])?.images[0];
+      const key = c.imageKey ?? cover?.key;
       return {
         slug: c.slug,
         name: locale === "en" ? c.nameEn : c.nameAr,
         count: c.products.length,
-        imageUrl: cover ? imageUrl(cover.key, "thumb") : null,
+        imageUrl: key ? imageUrl(key, "thumb") : null,
       };
     });
 }
@@ -508,4 +511,26 @@ export async function getOccasionShareInfo(locale: Locale, slug: string) {
     imageFile: key ? imageFileKey(key, "full") : null,
     version: createHash("sha1").update([name, key, locale].join("|")).digest("hex").slice(0, 10),
   };
+}
+
+/** صورة أحدث منتج ظاهر ومتاح لكل قسم — ما يظهر في دائرة القسم إن لم تُرفع له صورة (D-139). */
+export async function categoryAutoCovers(): Promise<Map<string, string>> {
+  const sellable = await sellableVariant();
+  const categories = await prisma.category.findMany({
+    select: {
+      id: true,
+      products: {
+        where: { ...visibleProduct, variants: { some: sellable }, images: { some: {} } },
+        orderBy: { createdAt: "desc" },
+        take: 1,
+        select: { images: { orderBy: { sortOrder: "asc" }, take: 1, select: { key: true } } },
+      },
+    },
+  });
+  const map = new Map<string, string>();
+  for (const c of categories) {
+    const key = c.products[0]?.images[0]?.key;
+    if (key) map.set(c.id, imageUrl(key, "thumb"));
+  }
+  return map;
 }

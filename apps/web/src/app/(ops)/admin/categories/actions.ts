@@ -7,6 +7,7 @@ import { z } from "zod";
 import { changesLine, diffFields, recordAudit } from "@/lib/audit";
 import { roleCan } from "@/lib/auth/permissions";
 import { requirePermission } from "@/lib/auth/session";
+import { ImageError, savePublicImage } from "@/lib/product-images";
 
 export type CategoryState = { error?: string; success?: string };
 
@@ -43,10 +44,24 @@ export async function updateCategory(_prev: CategoryState, formData: FormData): 
     margins.minMargin = minMargin.toFixed(4);
   }
 
+  // صورة القسم في دوائر المتجر (D-139): رفع جديد يستبدلها، و«حذفها» يعيد صورة أحدث منتج
+  const image = formData.get("image");
+  let imageKey: string | null | undefined;
+  if (image instanceof File && image.size > 0) {
+    try {
+      imageKey = await savePublicImage(image, "categories");
+    } catch (e) {
+      if (e instanceof ImageError) return { error: e.message };
+      throw e;
+    }
+  } else if (formData.get("removeImage") === "on") {
+    imageKey = null;
+  }
+
   const before = await prisma.category.findUnique({ where: { id } });
   const after = await prisma.category.update({
     where: { id },
-    data: { nameAr, nameEn, isActive: isActive === "on", ...margins },
+    data: { nameAr, nameEn, isActive: isActive === "on", ...margins, ...(imageKey !== undefined ? { imageKey } : {}) },
   });
   if (before) {
     const pct = (v: { toString(): string }) => `${dec(v.toString()).mul(100).toDecimalPlaces(2).toFixed()}%`;
@@ -57,6 +72,7 @@ export async function updateCategory(_prev: CategoryState, formData: FormData): 
         isActive: before.isActive,
         targetMargin: pct(before.targetMargin),
         minMargin: pct(before.minMargin),
+        image: before.imageKey ? "مرفوعة" : "—",
       },
       {
         nameAr: after.nameAr,
@@ -64,6 +80,7 @@ export async function updateCategory(_prev: CategoryState, formData: FormData): 
         isActive: after.isActive,
         targetMargin: pct(after.targetMargin),
         minMargin: pct(after.minMargin),
+        image: after.imageKey === before.imageKey ? (before.imageKey ? "مرفوعة" : "—") : after.imageKey ? "جديدة" : "—",
       },
       {
         nameAr: "الاسم",
@@ -71,6 +88,7 @@ export async function updateCategory(_prev: CategoryState, formData: FormData): 
         isActive: "نشط",
         targetMargin: "الهامش المستهدف",
         minMargin: "الحد الأدنى للهامش",
+        image: "صورة القسم",
       },
     );
     if (changes.length) {
@@ -87,6 +105,7 @@ export async function updateCategory(_prev: CategoryState, formData: FormData): 
     }
   }
   revalidatePath("/admin/categories");
+  revalidatePath("/", "layout");
   return { success: "تم الحفظ." };
 }
 
