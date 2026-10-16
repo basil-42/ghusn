@@ -4,6 +4,7 @@ import { nextDocumentNumber } from "./documents";
 import { formatAmount } from "./format";
 import { getRateInfoAt } from "./exchange-rates";
 import { posWallets } from "./settings";
+import { safeShiftFor, voidShiftFor } from "./shifts";
 
 /**
  * المحافظ: الأرصدة والتحويلات والتسويات (D-86). الرصيد لا يُخزَّن — يُحسب من الحركات في
@@ -332,6 +333,10 @@ export async function createTransfer(input: TransferInput, userId: string, now =
     // D-132: التحويل يخرج من رصيد موجود (التحويلات للمالك فقط، فالرسالة تذكر الرصيد)
     const short = await coverageError(tx, from.id, input.fromAmount, true);
     if (short) throw new WalletError(short);
+    // من الخزنة أو إليها ← على الوردية المفتوحة (D-143): الإيداع في بنكك يُنقص الدرج
+    const shiftId =
+      (await safeShiftFor(tx, from.id, input.at, (m) => new WalletError(m))) ??
+      (await safeShiftFor(tx, to.id, input.at, (m) => new WalletError(m)));
     const number = await nextDocumentNumber(tx, "TRF", input.at, 4);
     const rate =
       derived && isToday
@@ -364,6 +369,7 @@ export async function createTransfer(input: TransferInput, userId: string, now =
         occurredAt: input.at,
         reference: input.reference,
         note: input.note,
+        shiftId,
         createdById: userId,
       },
     });
@@ -405,11 +411,17 @@ export async function listTransfers(take = 50) {
 
 /** إلغاء تحويل بسبب. السعر الناتج عنه يبقى في سجل الأسعار (D-67) — يُصحَّح بإدخال سعر جديد. */
 export async function voidTransfer(id: string, reason: string, userId: string): Promise<void> {
-  const r = await prisma.walletTransfer.updateMany({
-    where: { id, voidedAt: null },
-    data: { voidedAt: new Date(), voidedById: userId, voidReason: reason },
+  await prisma.$transaction(async (tx) => {
+    const t = await tx.walletTransfer.findFirst({ where: { id, voidedAt: null }, select: { shiftId: true } });
+    if (!t) throw new WalletError("التحويل غير موجود أو ملغى.");
+    // من خزنة وردية مغلقة ← يُنسب للوردية المفتوحة الآن (D-143)
+    const voidShiftId = await voidShiftFor(tx, t.shiftId);
+    const r = await tx.walletTransfer.updateMany({
+      where: { id, voidedAt: null },
+      data: { voidedAt: new Date(), voidedById: userId, voidReason: reason, voidShiftId },
+    });
+    if (r.count === 0) throw new WalletError("التحويل غير موجود أو ملغى.");
   });
-  if (r.count === 0) throw new WalletError("التحويل غير موجود أو ملغى.");
 }
 
 async function adjustmentMoney(currencyCode: string, amount: Decimal, at: Date) {

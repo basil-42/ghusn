@@ -1,9 +1,11 @@
 "use client";
 
-import { useActionToast } from "@/components/ui/toast";
+import { useActionToast, withToast } from "@/components/ui/toast";
 import { useActionState, useState } from "react";
 import { OVER_BALANCE, exceedsAvailable } from "@/lib/wallet-hint";
 import type { WalletPick } from "@/lib/wallets";
+import type { SafeStatus } from "@/lib/shifts";
+import { OUTSIDE, PaySource, safeBlocked } from "@/components/admin/pay-source";
 import { Field, SelectField } from "@/components/form-field";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -95,11 +97,18 @@ export function PaymentForm({
   supplierId,
   supplierCurrency,
   wallets,
+  safe,
+  allowOutside,
+  currencies,
   today,
 }: {
   supplierId: string;
   supplierCurrency: string;
   wallets: WalletPick[];
+  safe: SafeStatus;
+  /** المالك: «دُفع من خارج المحل» (D-143) */
+  allowOutside: boolean;
+  currencies: string[];
   today: string;
 }) {
   const [state, action, pending] = useActionState<FormState, FormData>(recordPaymentAction, {});
@@ -107,11 +116,14 @@ export function PaymentForm({
   const [walletId, setWalletId] = useState(
     wallets.find((w) => w.currency === supplierCurrency)?.value ?? wallets[0]?.value ?? "",
   );
-  const walletCurrency = wallets.find((w) => w.value === walletId)?.currency;
-  const available = wallets.find((w) => w.value === walletId)?.available ?? null;
+  const outside = walletId === OUTSIDE;
+  const [outsideCurrency, setOutsideCurrency] = useState(supplierCurrency);
+  const walletCurrency = outside ? outsideCurrency : wallets.find((w) => w.value === walletId)?.currency;
+  const available = outside ? null : (wallets.find((w) => w.value === walletId)?.available ?? null);
   const [paidAmount, setPaidAmount] = useState("");
   const exceeds = exceedsAvailable(paidAmount, available);
   const crossCurrency = walletCurrency && walletCurrency !== supplierCurrency;
+  const blocked = safeBlocked(walletId, safe);
 
   return (
     <form action={action} key={state.success} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -119,22 +131,34 @@ export function PaymentForm({
         <Messages state={state} />
       </div>
       <input type="hidden" name="supplierId" value={supplierId} />
-      <div className="flex min-w-0 flex-col gap-1.5">
-        <Label htmlFor="walletId">من محفظة</Label>
-        <select
-          id="walletId"
-          name="walletId"
+      <div className="sm:col-span-2">
+        <PaySource
+          wallets={wallets}
+          safe={safe}
+          allowOutside={allowOutside}
           value={walletId}
-          onChange={(e) => setWalletId(e.target.value)}
-          className="min-h-12 w-full min-w-0 rounded-xl border border-input bg-card px-4 text-base"
-        >
-          {wallets.map((w) => (
-            <option key={w.value} value={w.value}>
-              {w.label}
-            </option>
-          ))}
-        </select>
+          onChange={setWalletId}
+          amount={paidAmount}
+        />
       </div>
+      {outside ? (
+        <div className="flex min-w-0 flex-col gap-1.5">
+          <Label htmlFor="paidCurrency">عملة ما دفعته</Label>
+          <select
+            id="paidCurrency"
+            name="paidCurrency"
+            value={outsideCurrency}
+            onChange={(e) => setOutsideCurrency(e.target.value)}
+            className="min-h-12 w-full min-w-0 rounded-xl border border-input bg-card px-4 text-base"
+          >
+            {currencies.map((c) => (
+              <option key={c} value={c}>
+                {c}
+              </option>
+            ))}
+          </select>
+        </div>
+      ) : null}
       <Field label="التاريخ" name="date" type="date" defaultValue={today} max={today} dir="ltr" required />
       <Field
         label={`المبلغ المدفوع${walletCurrency ? ` (${walletCurrency})` : ""}`}
@@ -152,14 +176,14 @@ export function PaymentForm({
           name="supplierAmount"
           inputMode="decimal"
           dir="ltr"
-          hint="المحفظة بعملة غير عملة المورد — اكتبي ما وصل للمورد"
+          hint="الدفع بعملة غير عملة المورد — اكتبي ما وصل للمورد"
           required
         />
       ) : null}
       <Field label="رقم التحويل أو الإيصال (اختياري)" name="reference" dir="ltr" />
       <Field label="ملاحظة (اختياري)" name="note" />
       <div className="sm:col-span-2">
-        <Button type="submit" disabled={pending || exceeds} className="w-full sm:w-auto">
+        <Button type="submit" disabled={pending || exceeds || blocked} className="w-full sm:w-auto">
           {pending ? "جارٍ التسجيل…" : "تسجيل الدفعة"}
         </Button>
       </div>
@@ -167,9 +191,11 @@ export function PaymentForm({
   );
 }
 
+// الحركة تُشطب ويختفي زرها بعد الإلغاء، فالرسالة تُعرض فور وصولها
+const voidEntry = withToast(voidEntryAction);
+
 export function VoidEntryForm({ supplierId, entryId }: { supplierId: string; entryId: string }) {
-  const [state, action, pending] = useActionState<FormState, FormData>(voidEntryAction, {});
-  useActionToast(state);
+  const [state, action, pending] = useActionState<FormState, FormData>(voidEntry, {});
   const [open, setOpen] = useState(false);
   if (!open) {
     return (

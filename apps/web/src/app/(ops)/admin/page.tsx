@@ -520,7 +520,7 @@ async function StaffHome({ user, can }: { user: User; can: Can }) {
   const now = new Date();
   const sells = can({ pos: ["sell"] });
   const [shift, tabs, count, stock] = await Promise.all([
-    sells ? getOpenShift(user.id) : null,
+    sells ? getOpenShift() : null,
     can({ order: ["read"] }) ? orderTabCounts() : null,
     can({ stock: ["adjust"] }) ? activeCount() : null,
     can({ stock: ["read"] }) ? lowStock(5) : null,

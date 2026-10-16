@@ -253,15 +253,15 @@ export async function createSale(input: SaleInput, cashierId: string): Promise<{
 
   try {
     const result = await prisma.$transaction(async (tx) => {
-      // قفل الوردية: لا تُغلق أثناء بيع، ولا بيع على وردية مغلقة.
-      // دون اتصال: الوردية التي كانت مفتوحة وقت البيع
+      // قفل الوردية: لا تُغلق أثناء بيع، ولا بيع على وردية مغلقة. وردية واحدة للخزنة (D-143): البيع على
+      // الوردية المفتوحة أياً كانت صاحبتها، والبائعة تُحفظ في الفاتورة. دون اتصال: الوردية المفتوحة وقت البيع
       const [shift] = offline
         ? await tx.$queryRaw<{ id: string; closedAt: Date | null }[]>`
-            SELECT "id", "closedAt" FROM "Shift" WHERE "userId" = ${cashierId} AND "openedAt" <= ${offline.createdAt}
+            SELECT "id", "closedAt" FROM "Shift" WHERE "openedAt" <= ${offline.createdAt}
               AND ("closedAt" IS NULL OR "closedAt" >= ${offline.createdAt})
             ORDER BY "openedAt" DESC LIMIT 1 FOR UPDATE`
         : await tx.$queryRaw<{ id: string; closedAt: Date | null }[]>`
-            SELECT "id", "closedAt" FROM "Shift" WHERE "userId" = ${cashierId} AND "closedAt" IS NULL FOR UPDATE`;
+            SELECT "id", "closedAt" FROM "Shift" WHERE "closedAt" IS NULL ORDER BY "openedAt" ASC LIMIT 1 FOR UPDATE`;
       if (!shift) throw new SaleError("افتحي الوردية أولاً.");
       if (shift.closedAt) review.push("أُغلقت الوردية قبل وصول هذه الفاتورة — راجعي مطابقة النقد.");
 

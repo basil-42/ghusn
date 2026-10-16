@@ -1,3 +1,4 @@
+import { prisma } from "@ghusn/db";
 import {
   allowedShipmentTransitions,
   canChangeShipmentCosts,
@@ -15,6 +16,7 @@ import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@
 import { roleCan } from "@/lib/auth/permissions";
 import { requirePermission } from "@/lib/auth/session";
 import { walletPicks } from "@/lib/wallets";
+import { safeStatus } from "@/lib/shifts";
 import { formatAmount, formatDateTime } from "@/lib/format";
 import { COST_LABELS, STATUS_LABELS, getShipment } from "@/lib/shipments";
 import { COUNTRIES } from "@/lib/suppliers";
@@ -53,6 +55,12 @@ export default async function ShipmentPage({ params }: { params: Promise<{ id: s
   const received = s.status === "RECEIVED";
   // «المتاح» بجانب كل محفظة للمالك فقط (D-86)، ويُمنع مبلغ فوقه (D-132)
   const wallets = canCost ? await walletPicks(roleCan(role, { wallet: ["update"] })) : [];
+  const [safe, currencies] = canCost
+    ? await Promise.all([
+        safeStatus(),
+        prisma.currency.findMany({ where: { isActive: true }, select: { code: true }, orderBy: { code: "asc" } }),
+      ])
+    : [null, []];
   const today = shopDay(new Date());
   const cur = s.currency;
   const landedByLine = new Map(s.landed?.lines.map((l) => [l.lineId, l]) ?? []);
@@ -200,6 +208,9 @@ export default async function ShipmentPage({ params }: { params: Promise<{ id: s
             id={s.id}
             today={today}
             wallets={wallets}
+            safe={safe ?? { cashWalletId: null, shift: null }}
+            allowOutside={roleCan(role, { shipmentCost: ["outside"] })}
+            currencies={currencies.map((c) => c.code)}
             kinds={Object.entries(COST_LABELS).map(([value, label]) => ({ value, label }))}
           />
         ) : null}

@@ -48,7 +48,12 @@ export async function closeShiftAction(_prev: FormState, formData: FormData): Pr
       .trim()
       .slice(0, 300) || null;
   try {
-    await closeShift(String(formData.get("shiftId") ?? ""), session.user.id, dec(counted.data).toFixed(2), note);
+    await closeShift(
+      String(formData.get("shiftId") ?? ""),
+      { id: session.user.id, role: session.user.role },
+      dec(counted.data).toFixed(2),
+      note,
+    );
   } catch (e) {
     if (e instanceof ShiftError) return { error: e.message };
     throw e;
@@ -163,10 +168,10 @@ export async function createReturnAction(input: unknown): Promise<SaleResult> {
 }
 
 export async function cashOutCreditAction(_prev: FormState, formData: FormData): Promise<FormState> {
-  const session = await requirePermission({ pos: ["sell"] });
+  await requirePermission({ pos: ["sell"] });
   const id = String(formData.get("returnId") ?? "");
   try {
-    await cashOutCredit(id, session.user.id);
+    await cashOutCredit(id);
   } catch (e) {
     if (e instanceof ReturnError || e instanceof SaleError) return { error: e.message };
     throw e;

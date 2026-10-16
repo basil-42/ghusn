@@ -1,5 +1,7 @@
 import { dec, shopDay } from "@ghusn/core";
+import { prisma } from "@ghusn/db";
 import { walletPicks } from "@/lib/wallets";
+import { safeStatus } from "@/lib/shifts";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
@@ -25,6 +27,12 @@ export default async function SupplierPage({ params }: { params: Promise<{ id: s
   const canVoid = roleCan(role, { supplierPayment: ["void"] });
   // أرصدة المحافظ للمالك فقط (D-86): تظهر في النموذج ويُمنع الدفع فوقها (D-132)
   const wallets = canPay ? await walletPicks(roleCan(role, { wallet: ["update"] })) : [];
+  const [safe, currencies] = canPay
+    ? await Promise.all([
+        safeStatus(),
+        prisma.currency.findMany({ where: { isActive: true }, select: { code: true }, orderBy: { code: "asc" } }),
+      ])
+    : [null, []];
   const money = (v: string) => `${formatAmount(v, cur.decimals)} ${cur.symbol}`;
 
   return (
@@ -76,13 +84,18 @@ export default async function SupplierPage({ params }: { params: Promise<{ id: s
         <Card>
           <CardHeader>
             <CardTitle>تسجيل دفعة</CardTitle>
-            <CardDescription>تُحوَّل للدولار بسعر صرف عملة المحفظة في تاريخ الدفع.</CardDescription>
+            <CardDescription>
+              تُحوَّل للدولار بسعر صرف عملة الدفع في تاريخه. من الخزنة: على الوردية المفتوحة.
+            </CardDescription>
           </CardHeader>
           <PaymentForm
             supplierId={supplier.id}
             supplierCurrency={cur.code}
             today={shopDay(new Date())}
             wallets={wallets}
+            safe={safe ?? { cashWalletId: null, shift: null }}
+            allowOutside={roleCan(role, { supplierPayment: ["outside"] })}
+            currencies={currencies.map((c) => c.code)}
           />
         </Card>
       ) : null}

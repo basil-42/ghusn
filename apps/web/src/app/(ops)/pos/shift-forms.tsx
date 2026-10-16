@@ -29,7 +29,16 @@ export function OpenShiftForm() {
 
 const sdg = (v: string) => `${formatAmount(v, 0)} ج.س`;
 
-export function CloseShiftForm({ shiftId, expectedCash }: { shiftId: string; expectedCash: string }) {
+export function CloseShiftForm({
+  shiftId,
+  expectedCash,
+  breakdown,
+}: {
+  shiftId: string;
+  expectedCash: string;
+  /** للنافذة: العهدة، المقبوض نقداً، ما دخل غير البيع، وما خرج من الخزنة (D-143) */
+  breakdown: { opening: string; cashIn: string; otherIn: string; out: string };
+}) {
   const [state, action, pending] = useActionState<FormState, FormData>(closeShiftAction, {});
   const confirm = useConfirmForm(action, state, pending);
   // حقول محكومة: React يفرّغ النموذج بعد كل إرسال، ولا نريد إعادة العدّ بعد رسالة خطأ
@@ -80,7 +89,11 @@ export function CloseShiftForm({ shiftId, expectedCash }: { shiftId: string; exp
         title="إغلاق الوردية؟"
         description="لا يمكن البيع عليها بعد الإغلاق."
         summary={[
-          { label: "النقد المتوقع", value: sdg(expectedCash) },
+          { label: "العهدة الافتتاحية", value: sdg(breakdown.opening) },
+          { label: "المقبوض نقداً", value: sdg(breakdown.cashIn) },
+          ...(breakdown.otherIn !== "0" ? [{ label: "دخل الخزنة غير البيع", value: sdg(breakdown.otherIn) }] : []),
+          { label: "خرج من الخزنة", value: sdg(breakdown.out) },
+          { label: "النقد المتوقع", value: sdg(expectedCash), total: true },
           { label: "المعدود", value: countedValue ? sdg(countedValue) : "—" },
           ...(difference
             ? [

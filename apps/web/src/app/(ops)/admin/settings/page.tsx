@@ -86,7 +86,7 @@ export default async function SettingsPage() {
           <CardTitle>المتجر الإلكتروني</CardTitle>
           <CardDescription>التوصيل عبر شركة توصيل، ورسومه يدفعها العميل لها (D-88).</CardDescription>
         </CardHeader>
-        <StoreSettingsForm initial={store} wallets={wallets.map((w) => ({ value: w.id, label: w.name }))} />
+        <StoreSettingsForm initial={store} />
         <p className="border-t border-border pt-4 text-sm text-muted-foreground">
           بانرات الرئيسية (الصور والنصوص والمدة) من صفحة{" "}
           <Link href="/admin/banners" className="font-semibold text-primary underline">

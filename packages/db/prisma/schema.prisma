@@ -221,8 +221,14 @@ model WalletTransfer {
   voidedById       String?
   voidReason       String?
 
+  // الخزنة (D-143): الوردية المفتوحة التي خرج منها المبلغ أو دخل إليها، والتي عاد إليها عند إلغائه بعد إغلاق ورديته
+  shiftId     String?
+  voidShiftId String?
+
   @@index([fromWalletId, occurredAt])
   @@index([toWalletId, occurredAt])
+  @@index([shiftId])
+  @@index([voidShiftId])
 }
 
 enum WalletAdjustmentKind {
@@ -431,7 +437,13 @@ model SupplierLedgerEntry {
   voidedById  String?
   voidReason  String?
 
+  // الخزنة (D-143): الوردية المفتوحة التي خرج منها المبلغ أو دخل إليها، والتي عاد إليها عند إلغائه بعد إغلاق ورديته
+  shiftId     String?
+  voidShiftId String?
+
   @@index([supplierId, occurredAt])
+  @@index([shiftId])
+  @@index([voidShiftId])
 }
 
 // ---------- الشحنات والتكلفة الواصلة (D-77) ----------
@@ -518,8 +530,9 @@ model ShipmentCost {
   currencyCode String
   rateUsed     Decimal          @db.Decimal(18, 6)
   amountUsd    Decimal          @db.Decimal(18, 2)
-  wallet       Wallet           @relation(fields: [walletId], references: [id])
-  walletId     String
+  // بلا محفظة = «دُفع من خارج المحل» (المالك، D-143)
+  wallet       Wallet?          @relation(fields: [walletId], references: [id])
+  walletId     String?
   paidAt       DateTime
   note         String?
   createdBy    User?            @relation("costCreatedBy", fields: [createdById], references: [id])
@@ -532,7 +545,13 @@ model ShipmentCost {
 
   stockMovements StockMovement[]
 
+  // الخزنة (D-143): الوردية المفتوحة التي خرج منها المبلغ أو دخل إليها، والتي عاد إليها عند إلغائه بعد إغلاق ورديته
+  shiftId     String?
+  voidShiftId String?
+
   @@index([shipmentId])
+  @@index([shiftId])
+  @@index([voidShiftId])
 }
 
 // عدّاد أرقام المستندات حسب النوع والسنة (SHP-2026، GHS-2026…)
@@ -937,30 +956,30 @@ enum ReturnReason {
 }
 
 model SaleReturn {
-  id             String   @id
-  number         String   @unique
-  sale           Sale     @relation(fields: [saleId], references: [id])
+  id             String        @id
+  number         String        @unique
+  sale           Sale          @relation(fields: [saleId], references: [id])
   saleId         String
-  shift          Shift    @relation(fields: [shiftId], references: [id])
+  shift          Shift         @relation(fields: [shiftId], references: [id])
   shiftId        String
-  cashier        User     @relation("returnCashier", fields: [cashierId], references: [id])
+  cashier        User          @relation("returnCashier", fields: [cashierId], references: [id])
   cashierId      String
   // بعد مدة المرتجع يحتاج موافقة
-  approvedBy     User?    @relation("returnApprovedBy", fields: [approvedById], references: [id])
+  approvedBy     User?         @relation("returnApprovedBy", fields: [approvedById], references: [id])
   approvedById   String?
   // سبب ثابت للتقارير (D-129)؛ المرتجعات الأقدم بلا سبب = «غير محدد»
   reasonCode     ReturnReason?
   // ملاحظة حرة (مطلوبة مع «أخرى»)
   reason         String?
   // المسترد بالسعر الفعلي بعد الخصم، وما يعادله بالدولار بسعر يوم البيع (عكس الإيراد)
-  refundSdg      Decimal  @db.Decimal(18, 2)
-  refundUsd      Decimal  @db.Decimal(18, 2)
+  refundSdg      Decimal       @db.Decimal(18, 2)
+  refundUsd      Decimal       @db.Decimal(18, 2)
   // تكلفة السليم العائد للمخزون، وتكلفة التالف (خسارة)
-  restockCostUsd Decimal  @db.Decimal(18, 2)
-  damagedCostUsd Decimal  @db.Decimal(18, 2)
+  restockCostUsd Decimal       @db.Decimal(18, 2)
+  damagedCostUsd Decimal       @db.Decimal(18, 2)
   // استبدال: المبلغ رصيد يُستخدم في فاتورة جديدة
-  isExchange     Boolean  @default(false)
-  createdAt      DateTime @default(now())
+  isExchange     Boolean       @default(false)
+  createdAt      DateTime      @default(now())
 
   lines          SaleReturnLine[]
   refunds        ReturnRefund[]
@@ -1044,8 +1063,12 @@ model Expense {
   voidedById    String?
   voidReason    String?
 
+  // إلغاء بعد إغلاق ورديته: المبلغ يعود للوردية المفتوحة وقت الإلغاء (D-143)
+  voidShiftId String?
+
   @@index([spentAt])
   @@index([shiftId])
+  @@index([voidShiftId])
 }
 
 // مال دخل المحل من خارجه (تمويل): يزيد المحفظة فقط — رأس المال واسترداده خارج النظام (D-142)
@@ -1065,6 +1088,12 @@ model CapitalContribution {
   voidReason    String?
   wallet        Wallet?   @relation(fields: [walletId], references: [id])
   walletId      String?
+  // الخزنة (D-143): الوردية المفتوحة التي خرج منها المبلغ أو دخل إليها، والتي عاد إليها عند إلغائه بعد إغلاق ورديته
+  shiftId       String?
+  voidShiftId   String?
+
+  @@index([shiftId])
+  @@index([voidShiftId])
 }
 
 // ---------- طلبات المتجر (المرحلة 2 — D-88، customer-journey) ----------
