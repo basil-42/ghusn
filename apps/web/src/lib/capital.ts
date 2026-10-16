@@ -38,23 +38,19 @@ export async function addContribution(
   input: {
     partnerName: string;
     amount: string;
-    currencyCode: string;
-    walletId: string | null;
+    walletId: string;
     contributedAt: Date;
     note: string | null;
   },
   userId: string,
 ): Promise<void> {
-  // دخل محفظة (يزيد رصيدها — D-86): العملة عملة المحفظة
-  if (input.walletId) {
-    const wallet = await prisma.wallet.findFirst({ where: { id: input.walletId, isActive: true } });
-    if (!wallet) throw new CapitalError("المحفظة غير موجودة.");
-    if (wallet.currencyCode !== input.currencyCode) {
-      throw new CapitalError(`عملة المحفظة ${wallet.currencyCode} — اختر نفس العملة.`);
-    }
-  }
-  const rate = await getRateAt(input.currencyCode, input.contributedAt);
-  if (!rate) throw new CapitalError(`لا يوجد سعر صرف لـ ${input.currencyCode} في ذلك اليوم.`);
+  // «مال دخل المحل» دائماً إلى علبة (D-144): يزيد رصيدها، والعملة عملتها. ما دُفع مباشرة لمورد أو
+  // لتكلفة شحنة يُسجَّل هناك «دُفع من خارج المحل» (D-143)
+  const wallet = await prisma.wallet.findFirst({ where: { id: input.walletId, isActive: true } });
+  if (!wallet) throw new CapitalError("اختر العلبة التي دخلها المال.");
+  const currencyCode = wallet.currencyCode;
+  const rate = await getRateAt(currencyCode, input.contributedAt);
+  if (!rate) throw new CapitalError(`لا يوجد سعر صرف لـ ${currencyCode} في ذلك اليوم.`);
   await prisma.$transaction(async (tx) => {
     // إلى الخزنة ← على الوردية المفتوحة: يزيد النقد المتوقع في الدرج (D-143)
     const shiftId = await safeShiftFor(tx, input.walletId, input.contributedAt, (m) => new CapitalError(m));
@@ -63,7 +59,7 @@ export async function addContribution(
         shiftId,
         partnerName: input.partnerName,
         amount: input.amount,
-        currencyCode: input.currencyCode,
+        currencyCode,
         rateUsed: rate,
         amountUsd: roundMoney(toUsdExact(input.amount, rate)).toFixed(2),
         walletId: input.walletId,

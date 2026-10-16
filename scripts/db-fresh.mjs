@@ -77,7 +77,9 @@ async function main() {
     `  • قاعدة البيانات «${url.pathname.slice(1)}» على ${url.hostname}: الطلبات، المبيعات، الشحنات، المخزون، الحركات، المستخدمون`,
   );
   console.log(`  • الصور المرفوعة: ${uploads}`);
-  console.log("ويبقى بعده: العملات، المحافظ الثلاث (فارغة)، الأقسام التسعة، وحساب المالك.\n");
+  console.log(
+    "ويبقى بعده: العملات، العلب الثلاث (الخزنة، بنكك، محفظة الريال – قطر — فارغة)، الأقسام التسعة، وحساب المالك.\n",
+  );
 
   const rl = createInterface({ input: stdin, output: stdout });
   let answer = process.env.GHUSN_FRESH_CONFIRM;

@@ -112,13 +112,9 @@ const GROUPS: Group[] = [
       },
       {
         key: "wallets",
-        label: "المحافظ والتمويل",
-        partialLabel: "المحافظ",
+        label: "المال",
         icon: "wallets",
-        pages: [
-          { href: "/admin/wallets", label: "المحافظ", permission: { wallet: ["update"] } },
-          { href: "/admin/capital", label: "التمويل", permission: { capital: ["update"] } },
-        ],
+        pages: [{ href: "/admin/wallets", label: "المال", permission: { wallet: ["update"] } }],
       },
       {
         key: "rates",

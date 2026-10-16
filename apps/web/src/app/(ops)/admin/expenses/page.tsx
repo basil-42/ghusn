@@ -48,7 +48,7 @@ export default async function ExpensesPage({ searchParams }: { searchParams: Pro
           <CardTitle>مصروف جديد</CardTitle>
           <CardDescription>
             {full
-              ? "من أي محفظة بعملتها، ويُحسب بالدولار بسعر يوم الدفع. النقد من صندوق المحل أثناء ورديتك ينقص من درجها."
+              ? "من أي محفظة بعملتها، ويُحسب بالدولار بسعر يوم الدفع. النقد من الخزنة ينقص من درج الوردية المفتوحة."
               : "للأقسام المسموحة لكِ فقط، ويُخصم من نقد درج ورديتك."}
           </CardDescription>
         </CardHeader>

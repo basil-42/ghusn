@@ -112,7 +112,7 @@ export function PosSettingsForm({
         <label className={field}>
           <span className="font-semibold">محفظة النقد</span>
           <NativeSelect name="cashWalletId" defaultValue={initial.cashWalletId ?? ""}>
-            <option value="">صندوق المحل (افتراضي)</option>
+            <option value="">الخزنة (افتراضي)</option>
             {wallets.map((w) => (
               <option key={w.value} value={w.value}>
                 {w.label}

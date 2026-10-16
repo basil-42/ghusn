@@ -15,11 +15,7 @@ export async function addContributionAction(_prev: FormState, formData: FormData
     .object({
       partnerName: z.string().trim().min(2, "اكتب من أين جاء المال").max(60),
       amount: amountField("المبلغ"),
-      currencyCode: z.string().min(3).max(3),
-      walletId: z
-        .string()
-        .optional()
-        .transform((v) => v || null),
+      walletId: z.string().min(1, "اختر العلبة التي دخلها المال"),
       contributedAt: z.string().transform((v, ctx) => {
         const at = shopMomentForDate(v);
         if (!at) ctx.addIssue({ code: "custom", message: "التاريخ غير صحيح أو في المستقبل." });
@@ -40,16 +36,17 @@ export async function addContributionAction(_prev: FormState, formData: FormData
     if (e instanceof CapitalError) return { error: e.message };
     throw e;
   }
-  revalidatePath("/admin/capital");
   revalidatePath("/admin/reports");
   revalidatePath("/admin/wallets", "layout");
-  return { success: "تم تسجيل التمويل." };
+  revalidatePath("/pos/shift");
+  return { success: "سُجّل المال الداخل — ليس دخلاً ولا ربحاً." };
 }
 
 export async function voidContributionAction(formData: FormData): Promise<void> {
   await requirePermission({ capital: ["update"] });
   const reason = String(formData.get("reason") ?? "").trim() || "تصحيح";
   await voidContribution(String(formData.get("id") ?? ""), reason.slice(0, 200));
-  revalidatePath("/admin/capital");
   revalidatePath("/admin/reports");
+  revalidatePath("/admin/wallets", "layout");
+  revalidatePath("/pos/shift");
 }

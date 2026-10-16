@@ -291,11 +291,11 @@ export async function auditFeed(f: FeedFilter): Promise<FeedItem[]> {
               at: c.createdAt,
               category: "money",
               kind: "CAPITAL",
-              title: `تمويل · ${c.partnerName}`,
+              title: `مال دخل المحل · ${c.partnerName}`,
               detail: join(money(c.amount, c.currencyCode), c.note),
               actors: who(c.createdBy?.name),
               actorIds: [c.createdById].filter(Boolean) as string[],
-              href: "/admin/capital",
+              href: "/admin/wallets#money-in",
               sensitive: false,
             });
         }),
