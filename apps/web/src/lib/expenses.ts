@@ -6,6 +6,7 @@ import { nextDocumentNumber } from "./documents";
 import { getRateAt } from "./exchange-rates";
 import { PrivateImageError, savePrivateImage } from "./private-images";
 import { getPosSettings, posWallets } from "./settings";
+import { safeShiftFor, voidShiftFor } from "./shifts";
 
 export class ExpenseError extends Error {}
 
@@ -68,12 +69,10 @@ export async function createExpense(input: ExpenseInput, user: { id: string; rol
 
   const rate = await getRateAt(wallet.currencyCode, input.spentAt);
   if (!rate) throw new ExpenseError(`لا يوجد سعر صرف لـ ${wallet.currencyCode} في ذلك اليوم.`);
-  const shift =
-    wallet.id === wallets.cash ? await prisma.shift.findFirst({ where: { userId: user.id, closedAt: null } }) : null;
-  if (!full && !shift) throw new ExpenseError("افتحي الوردية أولاً — المصروف يخرج من درجها.");
-
   const key = input.attachment && input.attachment.size > 0 ? await saveAttachment(input.attachment) : null;
   const expense = await prisma.$transaction(async (tx) => {
+    // من الخزنة ← على الوردية المفتوحة أياً كانت صاحبتها (D-143)
+    const shiftId = await safeShiftFor(tx, wallet.id, input.spentAt, (m) => new ExpenseError(m));
     // D-132: المصروف يخرج من رصيد موجود (الأرصدة تظهر للمالك فقط)
     const short = await coverageError(tx, wallet.id, input.amount, roleCan(user.role, { wallet: ["update"] }));
     if (short) throw new ExpenseError(short);
@@ -89,7 +88,7 @@ export async function createExpense(input: ExpenseInput, user: { id: string; rol
         spentAt: input.spentAt,
         note: input.note,
         attachmentKey: key,
-        shiftId: shift?.id ?? null,
+        shiftId,
         createdById: user.id,
       },
     });
@@ -98,11 +97,17 @@ export async function createExpense(input: ExpenseInput, user: { id: string; rol
 }
 
 export async function voidExpense(id: string, reason: string, userId: string): Promise<void> {
-  const updated = await prisma.expense.updateMany({
-    where: { id, voidedAt: null },
-    data: { voidedAt: new Date(), voidedById: userId, voidReason: reason },
+  await prisma.$transaction(async (tx) => {
+    const expense = await tx.expense.findFirst({ where: { id, voidedAt: null }, select: { shiftId: true } });
+    if (!expense) throw new ExpenseError("المصروف غير موجود أو ملغى.");
+    // من خزنة وردية مغلقة ← يعود للوردية المفتوحة الآن (D-143)
+    const voidShiftId = await voidShiftFor(tx, expense.shiftId);
+    const updated = await tx.expense.updateMany({
+      where: { id, voidedAt: null },
+      data: { voidedAt: new Date(), voidedById: userId, voidReason: reason, voidShiftId },
+    });
+    if (updated.count === 0) throw new ExpenseError("المصروف غير موجود أو ملغى.");
   });
-  if (updated.count === 0) throw new ExpenseError("المصروف غير موجود أو ملغى.");
 }
 
 /** قائمة المصاريف لشهر؛ الموظفة ترى ما سجّلته فقط. */

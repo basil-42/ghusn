@@ -20,6 +20,7 @@ import { nextDocumentNumber } from "./documents";
 import { getRateAt } from "./exchange-rates";
 import { ShipmentError } from "./shipment-error";
 import { revalueForCost } from "./stock";
+import { safeShiftFor, voidShiftFor } from "./shifts";
 
 export { ShipmentError };
 
@@ -197,7 +198,8 @@ export async function getShipment(id: string) {
       currencyCode: c.currencyCode,
       rateUsed: c.rateUsed.toString(),
       amountUsd: c.amountUsd.toString(),
-      walletName: c.wallet.name,
+      // بلا محفظة = دُفع من خارج المحل (D-143)
+      walletName: c.wallet?.name ?? "من خارج المحل",
       paidAt: c.paidAt,
       note: c.note,
       voided: c.voidedAt ? { at: c.voidedAt, by: c.voidedBy?.name ?? null, reason: c.voidReason } : null,
@@ -414,28 +416,45 @@ export async function transitionShipment(id: string, to: ShipmentStatus, userId:
 
 export async function addShipmentCost(
   id: string,
-  input: { kind: ShipmentCostKind; amount: string; walletId: string; paidAt: Date; note: string | null },
+  input: {
+    kind: ShipmentCostKind;
+    amount: string;
+    /** null = «دُفع من خارج المحل» (المالك، D-143): لا تنقص أي محفظة، والعملة تُختار */
+    walletId: string | null;
+    currencyCode?: string;
+    paidAt: Date;
+    note: string | null;
+  },
   userId: string,
   /** يرى أرصدة المحافظ (المالك): رسالة الرفض تذكر الرصيد (D-132) */
   showBalance = false,
 ): Promise<void> {
-  const wallet = await prisma.wallet.findFirst({ where: { id: input.walletId, isActive: true } });
-  if (!wallet) throw new ShipmentError("اختاري المحفظة.");
-  const rate = await rateOrThrow(wallet.currencyCode, input.paidAt);
+  const wallet = input.walletId
+    ? await prisma.wallet.findFirst({ where: { id: input.walletId, isActive: true } })
+    : null;
+  if (input.walletId && !wallet) throw new ShipmentError("اختاري المحفظة.");
+  const currencyCode = wallet?.currencyCode ?? input.currencyCode;
+  if (!currencyCode) throw new ShipmentError("اختاري العملة.");
+  const rate = await rateOrThrow(currencyCode, input.paidAt);
   await prisma.$transaction(async (tx) => {
     const s = await loadForCosts(tx, id);
-    // D-132: التكلفة تُدفع من رصيد موجود
-    const short = await coverageError(tx, wallet.id, input.amount, showBalance);
-    if (short) throw new ShipmentError(short);
+    let shiftId: string | null = null;
+    if (wallet) {
+      // D-132: التكلفة تُدفع من رصيد موجود؛ ومن الخزنة على الوردية المفتوحة (D-143)
+      const short = await coverageError(tx, wallet.id, input.amount, showBalance);
+      if (short) throw new ShipmentError(short);
+      shiftId = await safeShiftFor(tx, wallet.id, input.paidAt, (m) => new ShipmentError(m));
+    }
     const cost = await tx.shipmentCost.create({
       data: {
         shipmentId: id,
         kind: input.kind,
         amount: dec(input.amount).toFixed(2),
-        currencyCode: wallet.currencyCode,
+        currencyCode,
         rateUsed: rate,
         amountUsd: roundMoney(toUsdExact(input.amount, rate)).toFixed(2),
-        walletId: wallet.id,
+        walletId: wallet?.id ?? null,
+        shiftId,
         paidAt: input.paidAt,
         note: input.note,
         createdById: userId,
@@ -460,10 +479,11 @@ export async function voidShipmentCost(id: string, costId: string, reason: strin
     const s = await loadForCosts(tx, id);
     const cost = await tx.shipmentCost.findFirst({ where: { id: costId, shipmentId: id, voidedAt: null } });
     if (!cost) throw new ShipmentError("التكلفة غير موجودة أو ملغاة.");
-    // الشرط voidedAt: null يمنع إلغاءها مرتين من جهازين
+    // الشرط voidedAt: null يمنع إلغاءها مرتين من جهازين؛ من خزنة وردية مغلقة ← تعود للمفتوحة (D-143)
+    const voidShiftId = await voidShiftFor(tx, cost.shiftId);
     const updated = await tx.shipmentCost.updateMany({
       where: { id: costId, voidedAt: null },
-      data: { voidedAt: new Date(), voidedById: userId, voidReason: reason },
+      data: { voidedAt: new Date(), voidedById: userId, voidReason: reason, voidShiftId },
     });
     if (updated.count === 0) throw new ShipmentError("التكلفة غير موجودة أو ملغاة.");
     if (s.status === "RECEIVED") {

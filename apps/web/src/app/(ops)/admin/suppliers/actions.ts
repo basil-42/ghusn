@@ -84,7 +84,8 @@ export async function updateSupplierAction(_prev: FormState, formData: FormData)
 
 const paymentSchema = z.object({
   supplierId: z.string().min(1),
-  walletId: z.string().min(1, "اختاري المحفظة"),
+  walletId: z.string().min(1, "اختاري من أين خرج المال"),
+  paidCurrency: z.string().length(3).optional(),
   paidAmount: amountField("المبلغ المدفوع"),
   supplierAmount: z.string().optional(),
   date: dateField,
@@ -96,7 +97,14 @@ export async function recordPaymentAction(_prev: FormState, formData: FormData):
   const session = await requirePermission({ supplierPayment: ["create"] });
   const parsed = paymentSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { error: parsed.error.issues[0]?.message };
-  const { supplierId, walletId, paidAmount, date, reference, note } = parsed.data;
+  const { supplierId, paidAmount, date, reference, note } = parsed.data;
+  // «دُفع من خارج المحل» للمالك فقط (D-143)
+  const outside = parsed.data.walletId === "OUTSIDE";
+  if (outside && !roleCan(session.user.role, { supplierPayment: ["outside"] })) {
+    return { error: "الدفع من خارج المحل للمالك فقط." };
+  }
+  if (outside && !parsed.data.paidCurrency) return { error: "اختاري عملة الدفع." };
+  const walletId = outside ? null : parsed.data.walletId;
 
   let supplierAmount: string | null = null;
   if (parsed.data.supplierAmount?.trim()) {
@@ -107,7 +115,16 @@ export async function recordPaymentAction(_prev: FormState, formData: FormData):
 
   try {
     await recordPayment(
-      { supplierId, walletId, paidAmount, supplierAmount, at: date, reference, note },
+      {
+        supplierId,
+        walletId,
+        paidCurrencyCode: outside ? parsed.data.paidCurrency : undefined,
+        paidAmount,
+        supplierAmount,
+        at: date,
+        reference,
+        note,
+      },
       session.user.id,
       roleCan(session.user.role, { wallet: ["update"] }),
     );

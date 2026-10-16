@@ -7,6 +7,8 @@ import { useActionState, useEffect, useState, useTransition } from "react";
 import { Field, SelectField } from "@/components/form-field";
 import { OVER_BALANCE, exceedsAvailable } from "@/lib/wallet-hint";
 import type { WalletPick } from "@/lib/wallets";
+import type { SafeStatus } from "@/lib/shifts";
+import { OUTSIDE, PaySource, safeBlocked } from "@/components/admin/pay-source";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input, NativeSelect } from "@/components/ui/input";
@@ -557,13 +559,21 @@ export function CostForm({
   wallets,
   kinds,
   today,
+  safe,
+  allowOutside,
+  currencies,
 }: {
   id: string;
   wallets: WalletPick[];
   kinds: Option[];
   today: string;
+  safe: SafeStatus;
+  /** المالك: «دُفع من خارج المحل» (D-143) */
+  allowOutside: boolean;
+  currencies: string[];
 }) {
   const [walletId, setWalletId] = useState(wallets[0]?.value ?? "");
+  const [currency, setCurrency] = useState(currencies.includes("QAR") ? "QAR" : (currencies[0] ?? ""));
   const [amount, setAmount] = useState("");
   const [state, action, pending] = useActionState<FormState, FormData>(async (prev, data) => {
     const result = await addCostAction(prev, data);
@@ -571,7 +581,9 @@ export function CostForm({
     return result;
   }, {});
   useActionToast(state);
-  const exceeds = exceedsAvailable(amount, wallets.find((w) => w.value === walletId)?.available);
+  const outside = walletId === OUTSIDE;
+  const exceeds = outside ? false : exceedsAvailable(amount, wallets.find((w) => w.value === walletId)?.available);
+  const blocked = safeBlocked(walletId, safe);
   return (
     <form action={action} key={state.success} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
       <div className="flex flex-col gap-3 sm:col-span-2">
@@ -585,19 +597,31 @@ export function CostForm({
           </option>
         ))}
       </SelectField>
-      <SelectField
-        label="دُفع من محفظة (بعملتها)"
-        name="walletId"
-        id="cost-wallet"
-        value={walletId}
-        onChange={(e) => setWalletId(e.target.value)}
-      >
-        {wallets.map((w) => (
-          <option key={w.value} value={w.value}>
-            {w.label}
-          </option>
-        ))}
-      </SelectField>
+      <div className="sm:col-span-2">
+        <PaySource
+          wallets={wallets}
+          safe={safe}
+          allowOutside={allowOutside}
+          value={walletId}
+          onChange={setWalletId}
+          amount={amount}
+        />
+      </div>
+      {outside ? (
+        <SelectField
+          label="عملة ما دفعته"
+          name="currencyCode"
+          id="cost-currency"
+          value={currency}
+          onChange={(e) => setCurrency(e.target.value)}
+        >
+          {currencies.map((c) => (
+            <option key={c} value={c}>
+              {c}
+            </option>
+          ))}
+        </SelectField>
+      ) : null}
       <Field
         label="المبلغ"
         name="amount"
@@ -623,7 +647,7 @@ export function CostForm({
         <Field label="ملاحظة (اختياري)" name="note" id="cost-note" />
       </div>
       <div className="sm:col-span-2">
-        <Button type="submit" variant="outline" disabled={pending || exceeds}>
+        <Button type="submit" variant="outline" disabled={pending || exceeds || blocked}>
           <Plus aria-hidden /> إضافة التكلفة
         </Button>
       </div>
@@ -631,9 +655,11 @@ export function CostForm({
   );
 }
 
+// التكلفة تُشطب ويختفي زرها بعد الإلغاء، فالرسالة تُعرض فور وصولها
+const voidCost = withToast(voidCostAction);
+
 export function VoidCostForm({ id, costId }: { id: string; costId: string }) {
-  const [state, action, pending] = useActionState<FormState, FormData>(voidCostAction, {});
-  useActionToast(state);
+  const [state, action, pending] = useActionState<FormState, FormData>(voidCost, {});
   const [open, setOpen] = useState(false);
   if (!open) {
     return (

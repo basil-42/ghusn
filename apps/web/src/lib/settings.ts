@@ -64,8 +64,6 @@ export const getPosSettings = () => read("pos", posSettingsSchema, POS_DEFAULTS)
  * وحساب بنكك الذي يحوّل إليه العميل (D-90) — بلا رقم حساب لا يظهر خيار بنكك في المتجر.
  */
 export const storeSettingsSchema = z.object({
-  courierWalletId: z.string().nullable(),
-  codMaxSdg: z.number().int().min(0).max(1_000_000_000),
   bankakAccountName: z.string().max(80),
   bankakAccountNumber: z.string().max(40),
   bankakNote: z.string().max(200),
@@ -76,8 +74,6 @@ export const storeSettingsSchema = z.object({
 });
 export type StoreSettings = z.infer<typeof storeSettingsSchema>;
 const STORE_DEFAULTS: StoreSettings = {
-  courierWalletId: null,
-  codMaxSdg: 0,
   bankakAccountName: "",
   bankakAccountNumber: "",
   bankakNote: "",
@@ -102,14 +98,6 @@ export async function saveStoreSettings(value: StoreSettings): Promise<void> {
   });
 }
 
-/** محفظة شركة التوصيل: من الضبط، وإلا بالاسم المزروع. */
-export async function courierWallet(): Promise<string | null> {
-  const { courierWalletId } = await getStoreSettings();
-  const wallets = await prisma.wallet.findMany({ where: { isActive: true, currencyCode: "SDG" } });
-  return (
-    wallets.find((w) => w.id === courierWalletId)?.id ?? wallets.find((w) => w.name === "شركة التوصيل")?.id ?? null
-  );
-}
 /** إعدادات عامة (D-133): يوم بداية الأسبوع لفترات الرئيسية (0 = الأحد … 6 = السبت). */
 export const generalSettingsSchema = z.object({
   weekStartsOn: z.union([

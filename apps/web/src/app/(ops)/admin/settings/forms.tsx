@@ -244,45 +244,14 @@ export function ExpenseCategoryForm({
   );
 }
 
-/** إعدادات المتجر (D-88، D-90): محفظة شركة التوصيل، وحد الدفع عند الاستلام، وحساب بنكك. */
-export function StoreSettingsForm({
-  initial,
-  wallets,
-}: {
-  initial: StoreSettings;
-  wallets: { value: string; label: string }[];
-}) {
+/** إعدادات المتجر (D-90): حساب بنكك. التوصيل ببنكك مسبقاً فقط (D-143). */
+export function StoreSettingsForm({ initial }: { initial: StoreSettings }) {
   const [state, action, pending] = useActionState<FormState, FormData>(saveStoreSettingsAction, {});
   useActionToast(state);
   return (
     <form action={action} className="flex flex-col gap-3">
       <Messages state={state} />
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
-        <label className={field}>
-          <span className="font-semibold">محفظة شركة التوصيل</span>
-          <NativeSelect name="courierWalletId" defaultValue={initial.courierWalletId ?? ""}>
-            <option value="">«شركة التوصيل» (افتراضي)</option>
-            {wallets.map((w) => (
-              <option key={w.value} value={w.value}>
-                {w.label}
-              </option>
-            ))}
-          </NativeSelect>
-          <span className="text-xs text-muted-foreground">
-            يدخلها ما يحصّله المندوب عند الاستلام حتى تحوّله الشركة.
-          </span>
-        </label>
-        <label className={field}>
-          <span className="font-semibold">حد الدفع عند الاستلام (ج.س)</span>
-          <Input
-            name="codMaxSdg"
-            defaultValue={initial.codMaxSdg ? String(initial.codMaxSdg) : ""}
-            inputMode="numeric"
-            dir="ltr"
-            placeholder="0"
-          />
-          <span className="text-xs text-muted-foreground">فارغ أو 0 = بلا حد. الطلب الأعلى منه يُطلب دفعه ببنكك.</span>
-        </label>
         <label className={field}>
           <span className="font-semibold">اسم حساب بنكك</span>
           <Input name="bankakAccountName" defaultValue={initial.bankakAccountName} maxLength={80} />

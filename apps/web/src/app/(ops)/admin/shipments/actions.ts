@@ -186,7 +186,8 @@ const costSchema = z.object({
   id: z.string().min(1),
   kind: z.enum(Object.keys(COST_LABELS) as [keyof typeof COST_LABELS, ...(keyof typeof COST_LABELS)[]]),
   amount: amountField("المبلغ"),
-  walletId: z.string().min(1, "اختاري المحفظة"),
+  walletId: z.string().min(1, "اختاري من أين خرج المال"),
+  currencyCode: z.string().length(3).optional(),
   paidAt: z.string().transform((v, ctx) => {
     const at = shopMomentForDate(v);
     if (!at) ctx.addIssue({ code: "custom", message: "تاريخ الدفع غير صحيح أو في المستقبل." });
@@ -204,8 +205,15 @@ export async function addCostAction(_prev: FormState, formData: FormData): Promi
   const session = await requirePermission({ shipmentCost: ["create"] });
   const parsed = costSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { error: parsed.error.issues[0]?.message };
-  const { id, ...input } = parsed.data;
-  if (dec(input.amount).lte(0)) return { error: "المبلغ يجب أن يكون أكبر من صفر." };
+  const { id, walletId, currencyCode, ...rest } = parsed.data;
+  if (dec(rest.amount).lte(0)) return { error: "المبلغ يجب أن يكون أكبر من صفر." };
+  // «دُفع من خارج المحل» للمالك فقط (D-143)
+  const outside = walletId === "OUTSIDE";
+  if (outside && !roleCan(session.user.role, { shipmentCost: ["outside"] })) {
+    return { error: "الدفع من خارج المحل للمالك فقط." };
+  }
+  if (outside && !currencyCode) return { error: "اختاري العملة." };
+  const input = { ...rest, walletId: outside ? null : walletId, currencyCode: outside ? currencyCode : undefined };
   try {
     await addShipmentCost(id, input, session.user.id, roleCan(session.user.role, { wallet: ["update"] }));
   } catch (error) {

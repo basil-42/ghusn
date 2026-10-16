@@ -10,13 +10,13 @@ import { ReturnForm } from "./return-form";
 export const metadata: Metadata = { title: "مرتجع | غصن" };
 
 export default async function ReturnsPage({ searchParams }: { searchParams: Promise<{ invoice?: string }> }) {
-  const { user } = await requirePermission({ pos: ["sell"] });
+  await requirePermission({ pos: ["sell"] });
   const { invoice = "" } = await searchParams;
-  const [shift, settings] = await Promise.all([getOpenShift(user.id), getPosSettings()]);
+  const [shift, settings] = await Promise.all([getOpenShift(), getPosSettings()]);
   if (!shift) {
     return (
       <Card className="mx-auto max-w-md">
-        <p>افتحي الوردية أولاً — المردود النقدي يخرج من درجها.</p>
+        <p>افتحي الوردية أولاً — المردود النقدي يخرج من الخزنة.</p>
         <Link href="/pos" className="font-semibold underline">
           فتح وردية
         </Link>

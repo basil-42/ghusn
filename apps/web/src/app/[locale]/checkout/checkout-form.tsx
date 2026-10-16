@@ -45,8 +45,17 @@ export function CheckoutForm({ bankakEnabled, wrapStyles }: { bankakEnabled: boo
   const { quote, loading } = useQuote(items, wrapStyleId);
   // معرّف ثابت لهذه المحاولة: الإرسال مرتين (شبكة ضعيفة) لا ينشئ طلبين
   const [orderId] = useState(() => createId());
-  const [fulfillment, setFulfillment] = useState<"DELIVERY" | "PICKUP">("DELIVERY");
-  const [payment, setPayment] = useState<"ON_RECEIPT" | "BANKAK">("ON_RECEIPT");
+  // التوصيل ببنكك مسبقاً فقط (D-143): بلا بنكك يبقى الاستلام من المحل
+  const [fulfillment, setFulfillment] = useState<"DELIVERY" | "PICKUP">(bankakEnabled ? "DELIVERY" : "PICKUP");
+  const [payment, setPayment] = useState<"ON_RECEIPT" | "BANKAK">(bankakEnabled ? "BANKAK" : "ON_RECEIPT");
+  const fulfillments = bankakEnabled ? (["DELIVERY", "PICKUP"] as const) : (["PICKUP"] as const);
+  const payments =
+    fulfillment === "DELIVERY"
+      ? (["BANKAK"] as const)
+      : bankakEnabled
+        ? (["ON_RECEIPT", "BANKAK"] as const)
+        : (["ON_RECEIPT"] as const);
+  const effectivePayment = fulfillment === "DELIVERY" ? "BANKAK" : bankakEnabled ? payment : "ON_RECEIPT";
   const [gift, setGift] = useState(false);
   const [noteOpen, setNoteOpen] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -81,14 +90,14 @@ export function CheckoutForm({ bankakEnabled, wrapStyles }: { bankakEnabled: boo
           recipientName: gift ? s("recipientName") : null,
           recipientPhone: gift ? s("recipientPhone") : null,
           note: s("note"),
-          payment: bankakEnabled ? payment : "ON_RECEIPT",
+          payment: effectivePayment,
           wrapStyleId,
           cardMessage: card.trim() || null,
           items,
           expectedTotalSdg: quote.totalSdg,
         });
         if (r.ok) {
-          track("order_placed", { payment: bankakEnabled ? payment : "ON_RECEIPT", fulfillment, items: items.length });
+          track("order_placed", { payment: effectivePayment, fulfillment, items: items.length });
           clearCart();
           router.push(`/o/${r.trackingToken}?new=1`);
           return;
@@ -163,7 +172,7 @@ export function CheckoutForm({ bankakEnabled, wrapStyles }: { bankakEnabled: boo
         <Section n={2} title={t("receive")}>
           <fieldset className="grid gap-2.5 sm:grid-cols-2">
             <legend className="sr-only">{t("receive")}</legend>
-            {(["DELIVERY", "PICKUP"] as const).map((f) => (
+            {fulfillments.map((f) => (
               <label key={f} className={choice}>
                 <input
                   type="radio"
@@ -319,13 +328,13 @@ export function CheckoutForm({ bankakEnabled, wrapStyles }: { bankakEnabled: boo
         <Section n={4} title={t("payment")}>
           <fieldset className="grid gap-2.5 sm:grid-cols-2">
             <legend className="sr-only">{t("payment")}</legend>
-            {(bankakEnabled ? (["ON_RECEIPT", "BANKAK"] as const) : (["ON_RECEIPT"] as const)).map((m) => (
+            {payments.map((m) => (
               <label key={m} className={choice}>
                 <input
                   type="radio"
                   name="payment"
                   value={m}
-                  checked={bankakEnabled ? payment === m : true}
+                  checked={effectivePayment === m}
                   onChange={() => setPayment(m)}
                   className="peer sr-only"
                 />
@@ -333,7 +342,7 @@ export function CheckoutForm({ bankakEnabled, wrapStyles }: { bankakEnabled: boo
                 <span className="min-w-0">
                   <b className="block text-sm">{m === "BANKAK" ? t("bankak") : t("payOnReceipt")}</b>
                   <span className={`${hint} leading-relaxed`}>
-                    {m === "BANKAK" ? t("bankakHint") : fulfillment === "DELIVERY" ? t("codHint") : t("inShopHint")}
+                    {m === "BANKAK" ? t("bankakHint") : t("inShopHint")}
                   </span>
                 </span>
               </label>

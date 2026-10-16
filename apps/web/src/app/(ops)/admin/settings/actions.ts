@@ -43,8 +43,6 @@ const FIELD_LABELS: Record<string, string> = {
   bankakWalletId: "محفظة بنكك",
   staffExpenseLimitSdg: "حد مصروف الموظفة",
   shortageAlertSdg: "حد تنبيه العجز",
-  courierWalletId: "محفظة شركة التوصيل",
-  codMaxSdg: "حد الدفع عند الاستلام",
   bankakAccountName: "اسم حساب بنكك",
   bankakAccountNumber: "رقم حساب بنكك",
   bankakNote: "ملاحظة بنكك",
@@ -176,8 +174,6 @@ export async function saveStoreSettingsAction(_prev: FormState, formData: FormDa
   const parsed = storeSettingsSchema.safeParse({
     // الصور تُرفع من أماكنها — تبقى كما هي
     ...before,
-    courierWalletId: text(formData, "courierWalletId") || null,
-    codMaxSdg: text(formData, "codMaxSdg") ? numberOf(formData, "codMaxSdg") : 0,
     bankakAccountName: text(formData, "bankakAccountName"),
     bankakAccountNumber: text(formData, "bankakAccountNumber"),
     bankakNote: text(formData, "bankakNote"),

@@ -1,6 +1,7 @@
 import { roundMoney, sum, toUsdExact } from "@ghusn/core";
 import { prisma } from "@ghusn/db";
 import { getRateAt } from "./exchange-rates";
+import { safeShiftFor, voidShiftFor } from "./shifts";
 
 export class CapitalError extends Error {}
 
@@ -54,25 +55,36 @@ export async function addContribution(
   }
   const rate = await getRateAt(input.currencyCode, input.contributedAt);
   if (!rate) throw new CapitalError(`لا يوجد سعر صرف لـ ${input.currencyCode} في ذلك اليوم.`);
-  await prisma.capitalContribution.create({
-    data: {
-      partnerName: input.partnerName,
-      amount: input.amount,
-      currencyCode: input.currencyCode,
-      rateUsed: rate,
-      amountUsd: roundMoney(toUsdExact(input.amount, rate)).toFixed(2),
-      walletId: input.walletId,
-      contributedAt: input.contributedAt,
-      note: input.note,
-      createdById: userId,
-    },
+  await prisma.$transaction(async (tx) => {
+    // إلى الخزنة ← على الوردية المفتوحة: يزيد النقد المتوقع في الدرج (D-143)
+    const shiftId = await safeShiftFor(tx, input.walletId, input.contributedAt, (m) => new CapitalError(m));
+    await tx.capitalContribution.create({
+      data: {
+        shiftId,
+        partnerName: input.partnerName,
+        amount: input.amount,
+        currencyCode: input.currencyCode,
+        rateUsed: rate,
+        amountUsd: roundMoney(toUsdExact(input.amount, rate)).toFixed(2),
+        walletId: input.walletId,
+        contributedAt: input.contributedAt,
+        note: input.note,
+        createdById: userId,
+      },
+    });
   });
 }
 
 export async function voidContribution(id: string, reason: string): Promise<void> {
-  const r = await prisma.capitalContribution.updateMany({
-    where: { id, voidedAt: null },
-    data: { voidedAt: new Date(), voidReason: reason },
+  await prisma.$transaction(async (tx) => {
+    const c = await tx.capitalContribution.findFirst({ where: { id, voidedAt: null }, select: { shiftId: true } });
+    if (!c) throw new CapitalError("غير موجود أو ملغى.");
+    // إلى خزنة وردية مغلقة ← يُرد من الوردية المفتوحة الآن (D-143)
+    const voidShiftId = await voidShiftFor(tx, c.shiftId);
+    const r = await tx.capitalContribution.updateMany({
+      where: { id, voidedAt: null },
+      data: { voidedAt: new Date(), voidReason: reason, voidShiftId },
+    });
+    if (r.count === 0) throw new CapitalError("غير موجود أو ملغى.");
   });
-  if (r.count === 0) throw new CapitalError("غير موجود أو ملغى.");
 }

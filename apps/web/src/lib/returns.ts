@@ -104,7 +104,7 @@ export async function createReturn(input: ReturnInput, cashierId: string): Promi
   try {
     return await prisma.$transaction(async (tx) => {
       const [shift] = await tx.$queryRaw<{ id: string }[]>`
-        SELECT "id" FROM "Shift" WHERE "userId" = ${cashierId} AND "closedAt" IS NULL FOR UPDATE`;
+        SELECT "id" FROM "Shift" WHERE "closedAt" IS NULL ORDER BY "openedAt" ASC LIMIT 1 FOR UPDATE`;
       if (!shift) throw new ReturnError("افتحي الوردية أولاً.");
       // قفل الفاتورة: مرتجعان متزامنان لا يُرجعان نفس القطعة مرتين
       await tx.$queryRaw`SELECT "id" FROM "Sale" WHERE "id" = ${input.saleId} FOR UPDATE`;
@@ -249,11 +249,11 @@ export async function createReturn(input: ReturnInput, cashierId: string): Promi
 }
 
 /** رصيد استبدال لم يُستخدم ← يُرد نقداً (العميل غيّر رأيه). */
-export async function cashOutCredit(returnId: string, cashierId: string): Promise<void> {
+export async function cashOutCredit(returnId: string): Promise<void> {
   const wallets = await posWallets();
   await prisma.$transaction(async (tx) => {
     const [shift] = await tx.$queryRaw<{ id: string }[]>`
-      SELECT "id" FROM "Shift" WHERE "userId" = ${cashierId} AND "closedAt" IS NULL FOR UPDATE`;
+      SELECT "id" FROM "Shift" WHERE "closedAt" IS NULL ORDER BY "openedAt" ASC LIMIT 1 FOR UPDATE`;
     if (!shift) throw new ReturnError("افتحي الوردية أولاً.");
     await tx.$queryRaw`SELECT "id" FROM "SaleReturn" WHERE "id" = ${returnId} FOR UPDATE`;
     const left = await availableCredit(tx, returnId);

@@ -16,7 +16,8 @@ export default async function PosPage({
 }) {
   const { user } = await requirePermission({ pos: ["sell"] });
   const { credit: creditId, customer: customerId } = await searchParams;
-  const shift = await getOpenShift(user.id);
+  // وردية واحدة للخزنة (D-143): البيع على المفتوحة أياً كانت صاحبتها
+  const shift = await getOpenShift();
   if (!shift) {
     return (
       <Card className="mx-auto max-w-md">
@@ -40,12 +41,19 @@ export default async function PosPage({
       ? { returnId: ret.id, number: ret.number, amountSdg: dec(ret.creditLeftSdg).toFixed(0) }
       : null;
   return (
-    <PosTerminal
-      key={credit?.returnId ?? customerId ?? "sale"}
-      maxDiscountPercent={settings.maxDiscountPercent}
-      hasRate={!!rate}
-      credit={credit}
-      customer={customer}
-    />
+    <>
+      {shift.userId !== user.id ? (
+        <p className="mb-3 rounded-xl border border-border bg-card px-4 py-2 text-sm text-muted-foreground">
+          الخزنة مع {shift.user.name} — البيع يُسجَّل على ورديتها.
+        </p>
+      ) : null}
+      <PosTerminal
+        key={credit?.returnId ?? customerId ?? "sale"}
+        maxDiscountPercent={settings.maxDiscountPercent}
+        hasRate={!!rate}
+        credit={credit}
+        customer={customer}
+      />
+    </>
   );
 }

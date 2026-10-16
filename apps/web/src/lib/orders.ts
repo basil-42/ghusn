@@ -27,7 +27,7 @@ import { kickPushDelivery } from "./push";
 import { currentSellingRate } from "./pricing";
 import { PrivateImageError, savePrivateImage } from "./private-images";
 import { activeWrapStyle } from "./wrapping";
-import { bankakAccount, courierWallet, getStoreSettings, posWallets } from "./settings";
+import { bankakAccount, posWallets } from "./settings";
 
 /**
  * طلبات المتجر (D-88، customer-journey). السعر بالجنيه يُثبَّت عند الإنشاء؛ المخزون محجوز حتى
@@ -48,7 +48,7 @@ export class OrderError extends Error {
       | "INVALID_RECIPIENT_PHONE"
       | "UNAVAILABLE"
       | "PRICE_CHANGED"
-      | "COD_LIMIT"
+      | "DELIVERY_NEEDS_BANKAK"
       | "CONFLICT"
       | "INVALID"
       | "BANKAK_UNAVAILABLE"
@@ -280,12 +280,10 @@ export async function createWebOrder(input: CreateOrderInput): Promise<{ number:
   if (!totals.totalSdg.eq(input.expectedTotalSdg)) {
     throw new OrderError("PRICE_CHANGED", { total: totals.totalSdg.toFixed(0) });
   }
-  const paymentMethod = input.payment === "BANKAK" ? "BANKAK" : input.fulfillment === "DELIVERY" ? "COD" : "IN_SHOP";
+  // التوصيل لا يُرسل إلا بعد تحويل بنكك (D-143): لا دفع عند الاستلام مع المندوب. الاستلام من المحل: بنكك أو في المحل
+  if (input.fulfillment === "DELIVERY" && input.payment !== "BANKAK") throw new OrderError("DELIVERY_NEEDS_BANKAK");
+  const paymentMethod = input.payment === "BANKAK" ? "BANKAK" : "IN_SHOP";
   if (paymentMethod === "BANKAK" && !(await bankakAccount())) throw new OrderError("BANKAK_UNAVAILABLE");
-  const { codMaxSdg } = await getStoreSettings();
-  if (paymentMethod === "COD" && codMaxSdg > 0 && totals.totalSdg.gt(codMaxSdg)) {
-    throw new OrderError("COD_LIMIT", { limit: String(codMaxSdg) });
-  }
 
   const now = new Date();
   // بنكك: السعر والمخزون محجوزان 24 ساعة حتى يصل الإشعار (D-12)
@@ -408,7 +406,6 @@ export const UNPAID_CANCEL_REASON = "لم يُدفع خلال المهلة";
 
 interface TransitionContext {
   rate: string | null;
-  courier: string | null;
   shopWallets: { cash: string; bankak: string } | null;
 }
 
@@ -417,7 +414,6 @@ async function transitionContext(to: OrderStatus, needsBankak: boolean): Promise
   if (to === "DELIVERED" && !rate) throw new OrderActionError("لا يوجد سعر للجنيه اليوم — اطلبي من المديرة إدخاله.");
   return {
     rate,
-    courier: to === "DELIVERED" ? await courierWallet() : null,
     shopWallets: to === "DELIVERED" || needsBankak ? await posWallets() : null,
   };
 }
@@ -561,7 +557,7 @@ async function applyTransition(
   opts: TransitionOptions,
   ctx: TransitionContext,
 ): Promise<void> {
-  const { rate, courier, shopWallets } = ctx;
+  const { rate, shopWallets } = ctx;
   const reason = opts.reason?.trim() || null;
   await tx.$queryRaw`SELECT "id" FROM "Order" WHERE "id" = ${orderId} FOR UPDATE`;
   const order = await tx.order.findUnique({
@@ -732,25 +728,16 @@ async function applyTransition(
     data.sdgPerUsd = rate;
     data.revenueUsd = roundMoney(total.div(rate)).toFixed(2);
     if (order.paymentMethod === "COD") {
-      if (!courier) throw new OrderActionError("حددي محفظة شركة التوصيل من الضبط.");
-      await tx.orderPayment.create({
-        data: {
-          orderId: order.id,
-          method: "COD",
-          amountSdg: total.toFixed(2),
-          walletId: courier,
-          receivedById: actorId,
-          receivedAt: now,
-        },
-      });
+      // أُلغي الدفع عند الاستلام مع المندوب (D-143): لا تُقبل طلبات جديدة به
+      throw new OrderActionError("طلب قديم بالدفع عند الاستلام — لم يعد مدعوماً. سجّلي المبلغ يدوياً من المال.");
     } else if (order.paymentMethod === "IN_SHOP") {
       if (!opts.channel) throw new OrderActionError("اختاري طريقة الدفع: نقداً أو بنكك.");
       let shiftId: string | null = null;
       if (opts.channel === "CASH") {
-        // النقد يدخل درج وردية الموظفة (يدخل النقد المتوقع عند الإغلاق)
+        // النقد يدخل الخزنة: على الوردية المفتوحة أياً كانت صاحبتها (D-143)
         const [shift] = await tx.$queryRaw<{ id: string }[]>`
-          SELECT "id" FROM "Shift" WHERE "userId" = ${actorId} AND "closedAt" IS NULL FOR UPDATE`;
-        if (!shift) throw new OrderActionError("افتحي ورديتك أولاً لاستلام النقد.");
+          SELECT "id" FROM "Shift" WHERE "closedAt" IS NULL ORDER BY "openedAt" ASC LIMIT 1 FOR UPDATE`;
+        if (!shift) throw new OrderActionError("افتحي الوردية أولاً — النقد يدخل الخزنة.");
         shiftId = shift.id;
       }
       if (!shopWallets) throw new Error("wallets");

@@ -3,6 +3,7 @@ import { prisma, type SupplierEntryKind } from "@ghusn/db";
 import { z } from "zod";
 import { getRateAt } from "./exchange-rates";
 import { coverageError } from "./wallets";
+import { safeShiftFor, voidShiftFor } from "./shifts";
 
 export const COUNTRIES: Record<string, string> = {
   SD: "السودان",
@@ -127,7 +128,8 @@ export async function getSupplierStatement(id: string) {
           occurredAt: e.occurredAt,
           amount: e.amount.toString(),
           amountUsd: e.amountUsd.toString(),
-          walletName: e.wallet?.name ?? null,
+          // دفعة بلا محفظة = دُفعت من خارج المحل (D-143)
+          walletName: e.wallet?.name ?? (e.kind === "PAYMENT" ? "خارج المحل" : null),
           paidAmount: e.paidAmount?.toString() ?? null,
           paidCurrencyCode: e.paidCurrencyCode,
           reference: e.reference,
@@ -201,11 +203,15 @@ export async function createSupplier(
 /**
  * دفعة للمورد من محفظة. إن كانت عملة المحفظة غير عملة المورد يُسجَّل المبلغان:
  * ما خرج من المحفظة (بسعر صرف عملتها يوم الدفع) وما خُصم من حساب المورد.
+ * بلا محفظة = «دُفع من خارج المحل» (المالك، D-143): ينقص دين المورد ولا تتأثر أي محفظة؛ عملة الدفع تُختار.
+ * من الخزنة ← على الوردية المفتوحة (D-143).
  */
 export async function recordPayment(
   input: {
     supplierId: string;
-    walletId: string;
+    walletId: string | null;
+    /** عملة ما دُفع من خارج المحل (حين لا محفظة) */
+    paidCurrencyCode?: string;
     paidAmount: string;
     supplierAmount: string | null;
     at: Date;
@@ -218,16 +224,18 @@ export async function recordPayment(
 ): Promise<void> {
   const [supplier, wallet] = await Promise.all([
     prisma.supplier.findFirst({ where: { id: input.supplierId, deletedAt: null } }),
-    prisma.wallet.findFirst({ where: { id: input.walletId, isActive: true } }),
+    input.walletId ? prisma.wallet.findFirst({ where: { id: input.walletId, isActive: true } }) : null,
   ]);
   if (!supplier) throw new SupplierError("المورد غير موجود.");
-  if (!wallet) throw new SupplierError("اختاري المحفظة.");
+  if (input.walletId && !wallet) throw new SupplierError("اختاري المحفظة.");
+  const paidCurrency = wallet?.currencyCode ?? input.paidCurrencyCode;
+  if (!paidCurrency) throw new SupplierError("اختاري عملة الدفع.");
 
-  const sameCurrency = wallet.currencyCode === supplier.currencyCode;
+  const sameCurrency = paidCurrency === supplier.currencyCode;
   if (!sameCurrency && !input.supplierAmount) {
     throw new SupplierError(`اكتبي المبلغ المخصوم من حساب المورد بـ ${supplier.currencyCode}.`);
   }
-  const paidRate = await rateOrThrow(wallet.currencyCode, input.at);
+  const paidRate = await rateOrThrow(paidCurrency, input.at);
   const paidUsd = toUsdExact(input.paidAmount, paidRate);
   const supplierAmount = dec(sameCurrency ? input.paidAmount : input.supplierAmount!);
   // سعر عملة المورد الضمني لهذه الدفعة = ما خُصم ÷ ما دُفع بالدولار
@@ -235,9 +243,13 @@ export async function recordPayment(
 
   const paid = dec(input.paidAmount);
   await prisma.$transaction(async (tx) => {
-    // D-132: لا تُسجَّل دفعة أكبر من رصيد المحفظة — الرصيد السالب يعني تمويلاً أو تحويلاً لم يُسجَّل
-    const short = await coverageError(tx, wallet.id, paid, showBalance);
-    if (short) throw new SupplierError(short);
+    let shiftId: string | null = null;
+    if (wallet) {
+      // D-132: لا تُسجَّل دفعة أكبر من رصيد المحفظة — الرصيد السالب يعني تمويلاً أو تحويلاً لم يُسجَّل
+      const short = await coverageError(tx, wallet.id, paid, showBalance);
+      if (short) throw new SupplierError(short);
+      shiftId = await safeShiftFor(tx, wallet.id, input.at, (m) => new SupplierError(m));
+    }
     await tx.supplierLedgerEntry.create({
       data: {
         supplierId: supplier.id,
@@ -247,12 +259,13 @@ export async function recordPayment(
         currencyCode: supplier.currencyCode,
         rateUsed: rateUsed.toDecimalPlaces(6).toString(),
         amountUsd: roundMoney(paidUsd).neg().toFixed(2),
-        walletId: wallet.id,
+        walletId: wallet?.id ?? null,
         paidAmount: paid.toFixed(2),
-        paidCurrencyCode: wallet.currencyCode,
+        paidCurrencyCode: paidCurrency,
         paidRate,
         reference: input.reference,
         note: input.note,
+        shiftId,
         createdById: userId,
       },
     });
@@ -264,8 +277,13 @@ export async function voidEntry(supplierId: string, entryId: string, reason: str
   const entry = await prisma.supplierLedgerEntry.findFirst({ where: { id: entryId, supplierId, voidedAt: null } });
   if (!entry) throw new SupplierError("الحركة غير موجودة أو ملغاة.");
   if (entry.kind === "PURCHASE") throw new SupplierError("حركة الشحنة تُعدَّل من الشحنة نفسها.");
-  await prisma.supplierLedgerEntry.update({
-    where: { id: entry.id },
-    data: { voidedAt: new Date(), voidedById: userId, voidReason: reason },
+  await prisma.$transaction(async (tx) => {
+    // من خزنة وردية مغلقة ← يعود المبلغ للوردية المفتوحة الآن (D-143)
+    const voidShiftId = await voidShiftFor(tx, entry.shiftId);
+    const updated = await tx.supplierLedgerEntry.updateMany({
+      where: { id: entry.id, voidedAt: null },
+      data: { voidedAt: new Date(), voidedById: userId, voidReason: reason, voidShiftId },
+    });
+    if (updated.count === 0) throw new SupplierError("الحركة غير موجودة أو ملغاة.");
   });
 }
