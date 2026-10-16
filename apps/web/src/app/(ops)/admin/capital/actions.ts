@@ -13,7 +13,7 @@ export async function addContributionAction(_prev: FormState, formData: FormData
   const session = await requirePermission({ capital: ["update"] });
   const parsed = z
     .object({
-      partnerName: z.string().trim().min(2, "اسم الشريك").max(60),
+      partnerName: z.string().trim().min(2, "اكتب من أين جاء المال").max(60),
       amount: amountField("المبلغ"),
       currencyCode: z.string().min(3).max(3),
       walletId: z

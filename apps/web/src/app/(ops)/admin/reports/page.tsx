@@ -3,7 +3,6 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { ExportLink } from "@/components/admin/export-button";
 import { Card, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
-import { roleCan } from "@/lib/auth/permissions";
 import { requirePermission } from "@/lib/auth/session";
 import { formatAmount, formatMargin, formatMonthKey } from "@/lib/format";
 import { currentShopMonth, monthlyReport, reportMonths } from "@/lib/reports";
@@ -131,30 +130,6 @@ export default async function ReportsPage({ searchParams }: { searchParams: Prom
         </Card>
 
         <div className="flex flex-col gap-6">
-          <Card>
-            <CardHeader>
-              <CardTitle>رأس المال والتوزيع</CardTitle>
-              <CardDescription>
-                الربح كله يسترد تمويل باسل أولاً؛ بعد اكتماله يُوزَّع 25% لكل شريك (D-83).
-              </CardDescription>
-            </CardHeader>
-            <dl className="divide-y divide-border">
-              <Row label="التمويل الكلي" value={usd(r.capital.totalUsd)} />
-              <Row label="لاسترداد رأس المال هذا الشهر" value={usd(r.capital.toCapitalThisMonthUsd)} />
-              <Row label="المسترد حتى الآن" value={usd(r.capital.recoveredUsd)} />
-              <Row label="المتبقي للاسترداد" value={usd(r.capital.remainingUsd)} strong />
-              <Row label="قابل للتوزيع هذا الشهر" value={usd(r.capital.distributableUsd)} strong />
-              {dec(r.capital.distributableUsd).gt(0) ? (
-                <Row label="لكل شريك (25%)" value={usd(r.capital.perPartnerUsd)} strong />
-              ) : null}
-            </dl>
-            {roleCan(session.user.role, { capital: ["update"] }) ? (
-              <Link href="/admin/capital" className="text-sm font-semibold underline">
-                سجل التمويل
-              </Link>
-            ) : null}
-          </Card>
-
           {r.adjustmentsByReason.length ? (
             <Card>
               <CardHeader>

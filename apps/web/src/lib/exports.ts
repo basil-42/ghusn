@@ -72,15 +72,6 @@ export async function monthlyReportSheets(month: string): Promise<Sheet<never>[]
     { label: "فروقات الصندوق", usd: fmtUsd(r.cashDifferenceUsd), sdg: r.cashDifferenceSdg },
     { label: "صافي الربح", usd: r.netProfitUsd, strong: true },
   ];
-  const capital: Line[] = [
-    { label: "التمويل الكلي", usd: r.capital.totalUsd },
-    { label: "الربح التراكمي قبل الشهر", usd: r.capital.profitBeforeUsd },
-    { label: "لاسترداد رأس المال هذا الشهر", usd: r.capital.toCapitalThisMonthUsd },
-    { label: "المسترد حتى الآن", usd: r.capital.recoveredUsd },
-    { label: "المتبقي للاسترداد", usd: r.capital.remainingUsd },
-    { label: "قابل للتوزيع هذا الشهر", usd: r.capital.distributableUsd },
-    { label: "لكل شريك (25%)", usd: r.capital.perPartnerUsd },
-  ];
   return [
     sheet<Line>({
       name: "الربح والخسارة",
@@ -146,15 +137,6 @@ export async function monthlyReportSheets(month: string): Promise<Sheet<never>[]
       ],
       rows: r.cashDifferenceByCashier,
       totals: true,
-    }),
-    sheet<Line>({
-      name: "رأس المال والتوزيع",
-      title: `رأس المال والتوزيع — ${month}`,
-      columns: [
-        { header: "البند", value: (l) => l.label, width: 36 },
-        { header: "بالدولار", kind: "usd", value: (l) => l.usd },
-      ],
-      rows: capital,
     }),
   ];
 }

@@ -36,12 +36,6 @@ export function monthProfit(f: MonthFigures) {
 }
 
 /**
- * استرداد رأس المال (D-83): الربح يذهب كله لاسترداد تمويل باسل أولاً، ولا يُوزَّع شيء حتى
- * يكتمل. بعدها يُوزَّع الربح بالتساوي (4 شركاء × 25% — D-06). الخسارة تُعيد المتبقي للارتفاع.
- *   المسترد حتى نهاية الشهر = min(رأس المال، max(0، الربح التراكمي))
- *   القابل للتوزيع هذا الشهر = max(0، تراكمي النهاية − رأس المال) − max(0، تراكمي البداية − رأس المال)
- */
-/**
  * فرق عدّ الوردية (D-87): المعدود − المتوقع بالجنيه، وقيمته بالدولار بسعر لحظة الإغلاق
  * (تُحسب مرة واحدة وتُحفظ). سالب = عجز.
  */
@@ -54,31 +48,6 @@ export function shiftDifference(input: {
   const rate = dec(input.sdgPerUsd);
   if (!rate.isFinite() || rate.lte(0)) throw new CoreError("INVALID_RATE", "Rate must be > 0");
   return { differenceSdg, differenceUsd: roundMoney(differenceSdg.div(rate)) };
-}
-
-export function capitalRecovery(input: {
-  capitalUsd: DecimalInput;
-  /** مجموع صافي الربح من البداية حتى قبل هذا الشهر. */
-  profitBeforeUsd: DecimalInput;
-  monthProfitUsd: DecimalInput;
-  partners?: number;
-}) {
-  const capital = dec(input.capitalUsd);
-  const before = dec(input.profitBeforeUsd);
-  const after = before.plus(input.monthProfitUsd);
-  const over = (x: Decimal) => Decimal.max(0, x.minus(capital));
-  const recovered = Decimal.min(capital, Decimal.max(0, after));
-  const distributable = over(after).minus(over(before));
-  const partners = input.partners ?? 4;
-  return {
-    recoveredUsd: roundMoney(recovered),
-    remainingUsd: roundMoney(capital.minus(recovered)),
-    /** ما ذهب لاسترداد رأس المال من ربح هذا الشهر (سالب إن خسر الشهر). */
-    toCapitalThisMonthUsd: roundMoney(recovered.minus(Decimal.min(capital, Decimal.max(0, before)))),
-    distributableUsd: roundMoney(distributable),
-    perPartnerUsd: roundMoney(distributable.div(partners)),
-    fullyRecovered: capital.gt(0) ? after.gte(capital) : true,
-  };
 }
 
 /** مجموع مبالغ بعملاتها الأصلية: { SDG: 150000, QAR: 300 } — للعرض بجانب الدولار. */

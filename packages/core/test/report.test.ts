@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { capitalRecovery, monthProfit, shiftDifference, totalsByCurrency } from "../src";
+import { monthProfit, shiftDifference, totalsByCurrency } from "../src";
 
 const s = (d: { toString(): string } | null) => (d === null ? null : d.toString());
 
@@ -31,37 +31,6 @@ describe("monthProfit", () => {
     expect(s(p.netCogsUsd)).toBe("545");
     expect(s(p.grossProfitUsd)).toBe("355");
     expect(s(p.netProfitUsd)).toBe("185");
-  });
-});
-
-describe("capitalRecovery (D-83)", () => {
-  it("all profit repays capital first — nothing distributed", () => {
-    const r = capitalRecovery({ capitalUsd: 10_000, profitBeforeUsd: 2_000, monthProfitUsd: 1_500 });
-    expect([s(r.recoveredUsd), s(r.remainingUsd), s(r.toCapitalThisMonthUsd), s(r.distributableUsd)]).toEqual([
-      "3500",
-      "6500",
-      "1500",
-      "0",
-    ]);
-    expect(r.fullyRecovered).toBe(false);
-  });
-  it("the month that finishes recovery splits only the excess, 25% each", () => {
-    const r = capitalRecovery({ capitalUsd: 10_000, profitBeforeUsd: 9_600, monthProfitUsd: 1_000 });
-    expect(s(r.toCapitalThisMonthUsd)).toBe("400");
-    expect(s(r.distributableUsd)).toBe("600");
-    expect(s(r.perPartnerUsd)).toBe("150");
-    expect(r.fullyRecovered).toBe(true);
-  });
-  it("after recovery everything is distributable", () => {
-    const r = capitalRecovery({ capitalUsd: 10_000, profitBeforeUsd: 12_000, monthProfitUsd: 800 });
-    expect(s(r.distributableUsd)).toBe("800");
-    expect(s(r.perPartnerUsd)).toBe("200");
-  });
-  it("a losing month raises what is left to recover and distributes nothing", () => {
-    const r = capitalRecovery({ capitalUsd: 10_000, profitBeforeUsd: 3_000, monthProfitUsd: -500 });
-    expect(s(r.remainingUsd)).toBe("7500");
-    expect(s(r.toCapitalThisMonthUsd)).toBe("-500");
-    expect(s(r.distributableUsd)).toBe("0");
   });
 });
 

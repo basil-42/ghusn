@@ -35,13 +35,6 @@ const GROUPS: { label: string; soon?: boolean; reports: Report[] }[] = [
         href: "/admin/reports/cash",
         permission: { report: ["read"], wallet: ["update"] },
       },
-      {
-        question: "كم نصيب كل شريك؟",
-        answer: "كشوف الشركاء الشهرية — PDF يُرسل على واتساب",
-        href: "/admin/reports/partners",
-        permission: { partner: ["read"] },
-        isNew: true,
-      },
     ],
   },
   {
