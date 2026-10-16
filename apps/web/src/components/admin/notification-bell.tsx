@@ -8,7 +8,6 @@ import {
   ClipboardCheck,
   Clock,
   CreditCard,
-  FileText,
   Package,
   Settings,
   ScanBarcode,
@@ -45,7 +44,6 @@ const ICONS: Partial<Record<NotificationItem["type"], LucideIcon>> = {
   STOCK_ADJUSTED: ClipboardCheck,
   STOCK_COUNT: ScanBarcode,
   SECURITY_ALERT: ShieldAlert,
-  PARTNER_STATEMENTS: FileText,
 };
 const ACTIONS: Partial<Record<NotificationItem["type"], string>> = {
   ORDER_NEW: "فتح الطلب",
@@ -55,7 +53,6 @@ const ACTIONS: Partial<Record<NotificationItem["type"], string>> = {
   PRICE_SUGGESTIONS: "مراجعة الأسعار",
   STOCK_ADJUSTMENT: "مراجعة التسوية",
   STOCK_COUNT: "فتح الجرد",
-  PARTNER_STATEMENTS: "فتح الكشوف",
 };
 type Tab = "all" | "unread" | "urgent";
 const TABS: { key: Tab; label: string }[] = [

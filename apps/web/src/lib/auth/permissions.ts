@@ -32,8 +32,6 @@ export const statements = {
   audit: ["read"],
   // العملاء (D-115): القائمة والملف والملاحظات وتعديل الاسم، و«value» للإنفاق والمتوسط والتصدير
   customer: ["read", "update", "value"],
-  // الشركاء وكشوفهم الشهرية (D-130): العرض والتنزيل والإرسال، و«manage» لإضافة الشركاء والإصدار
-  partner: ["read", "manage"],
 } as const;
 
 export const ac = createAccessControl(statements);
@@ -65,7 +63,6 @@ export const roles = {
     order: ["read", "update", "cancel", "payment"],
     audit: ["read"],
     customer: ["read", "update", "value"],
-    partner: ["read", "manage"],
   }),
   // المديرة: سعر الصرف والهوامش (D-29) وترى التكاليف، وتدير الكتالوج (D-69)
   MANAGER: ac.newRole({
@@ -88,7 +85,6 @@ export const roles = {
     // طلبات المتجر: التجهيز والتسليم والإلغاء (D-88)
     order: ["read", "update", "cancel", "payment"],
     customer: ["read", "update", "value"],
-    partner: ["read"],
   }),
   // الموظفة: ترى سعر الصرف فقط، ولا ترى التكاليف ولا الهوامش (system-design §4.9)
   STAFF: ac.newRole({

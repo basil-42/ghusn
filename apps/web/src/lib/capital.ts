@@ -4,7 +4,7 @@ import { getRateAt } from "./exchange-rates";
 
 export class CapitalError extends Error {}
 
-/** تمويل الشركاء — يُسترد من الربح قبل أي توزيع (D-83). */
+/** مال دخل المحل من خارجه (تمويل) — يزيد المحفظة فقط؛ رأس المال واسترداده خارج النظام (D-142). */
 export async function listContributions() {
   const rows = await prisma.capitalContribution.findMany({
     orderBy: { contributedAt: "desc" },

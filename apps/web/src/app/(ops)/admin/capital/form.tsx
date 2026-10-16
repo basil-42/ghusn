@@ -24,7 +24,7 @@ export function ContributionForm({
 
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <label className="flex flex-col gap-1">
-          <span className="font-semibold">الشريك</span>
+          <span className="font-semibold">من</span>
           <Input name="partnerName" defaultValue="باسل" required />
         </label>
         <label className="flex flex-col gap-1">

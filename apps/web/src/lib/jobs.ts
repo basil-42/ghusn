@@ -1,5 +1,4 @@
 import { PgBoss } from "pg-boss";
-import { runMonthlyStatements } from "./partners";
 import { expireUnpaidOrders } from "./orders";
 import {
   cleanupNotifications,
@@ -26,12 +25,11 @@ const DELIVER_PUSH = "deliver-pending-push";
 const NOTIFY_MINUTE = "notifications-minute";
 const NOTIFY_HOURLY = "notifications-hourly";
 const DAILY_SUMMARY = "notifications-daily-summary";
-const PARTNER_STATEMENTS = "partner-statements-monthly";
 const CLEANUP = "notifications-cleanup";
 /** تذكير الجرد الأسبوعي (D-112): السبت 10 ص — قسم الأسبوع، والجرد الكامل كل 90 يوماً، والرصيد السالب. */
 const COUNT_REMINDER = "stock-count-reminder";
-/** مهمة الموافقة الضمنية على صور الهدايا — أُلغيت الميزة (D-99)، فيُحذف جدولها المحفوظ إن وُجد. */
-const RETIRED_QUEUES = ["approve-overdue-gift-photos"];
+/** مهام أُلغيت ميزاتها فيُحذف جدولها المحفوظ إن وُجد: صور الهدايا (D-99)، كشوف الشركاء (D-142). */
+const RETIRED_QUEUES = ["approve-overdue-gift-photos", "partner-statements-monthly"];
 
 const globalForJobs = globalThis as unknown as { ghusnJobs?: Promise<PgBoss | null> };
 
@@ -68,8 +66,6 @@ async function start(): Promise<PgBoss | null> {
     [DAILY_SUMMARY, "0 22 * * *", () => sendDailySummary()],
     [CLEANUP, "20 4 * * *", () => cleanupNotifications()],
     [COUNT_REMINDER, "0 10 * * 6", () => runCountReminders()],
-    // كشوف الشركاء للشهر السابق (D-130) — يوم 1 الساعة 9 ص؛ تُعاد كل ساعة حتى الظهر إن تعذّر الـ PDF
-    [PARTNER_STATEMENTS, "0 9-12 1 * *", () => runMonthlyStatements()],
   ];
   for (const [name, cron, run] of scheduled) {
     await boss.createQueue(name);

@@ -161,13 +161,6 @@ export const NOTIFICATION_EVENTS: {
     priority: "DAILY",
     audience: { capital: ["update"] },
   },
-  {
-    type: "PARTNER_STATEMENTS",
-    label: "كشوف الشركاء الشهرية",
-    hint: "يوم 1 من كل شهر حين تصدر كشوف الشهر السابق — للإرسال على واتساب",
-    priority: "NORMAL",
-    audience: { partner: ["manage"] },
-  },
 ];
 
 /** الأحداث التي تخص دور المستخدمة — التفضيلات لا تعرض غيرها. */
@@ -244,7 +237,7 @@ const FILTER_TYPES: Partial<Record<NotificationFilter, NotificationType[]>> = {
   payment: ["PAYMENT_PROOF", "BANKAK_EXPIRING"],
   stock: ["LOW_STOCK", "BATCH_EXPIRING", "STOCK_ADJUSTMENT", "STOCK_ADJUSTED", "STOCK_COUNT"],
   prices: ["PRICE_SUGGESTIONS"],
-  summary: ["DAILY_SUMMARY", "PARTNER_STATEMENTS"],
+  summary: ["DAILY_SUMMARY"],
 };
 
 export interface NotificationItem {

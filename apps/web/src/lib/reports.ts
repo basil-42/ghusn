@@ -1,5 +1,4 @@
 import {
-  capitalRecovery,
   dec,
   monthProfit,
   monthsEndingAt,
@@ -11,7 +10,6 @@ import {
   type Decimal,
 } from "@ghusn/core";
 import { prisma, type Prisma } from "@ghusn/db";
-import { totalCapitalUsd } from "./capital";
 
 /** الشهر الحالي بتوقيت المحل: YYYY-MM. */
 export const currentShopMonth = () => shopDay(new Date()).slice(0, 7);
@@ -153,7 +151,7 @@ async function firstActivity(): Promise<Date | null> {
 
 /**
  * التقرير الشهري (D-83): الربح بالدولار (عملة الأساس — D-20) والمبالغ الفعلية بالجنيه بجانبه،
- * ثم استرداد رأس المال: الربح كله يسترد التمويل أولاً، وبعد اكتماله يُوزَّع 25% لكل شريك.
+ * رأس المال واسترداده وتوزيع الربح بين الشركاء خارج النظام (D-142).
  */
 export async function monthlyReport(month: string) {
   const range = shopMonthRange(month);
@@ -168,24 +166,6 @@ export async function monthlyReport(month: string) {
     cashDifferenceUsd: f.cashDifferenceUsd,
   });
 
-  // الربح التراكمي قبل هذا الشهر
-  const first = await firstActivity();
-  let profitBefore = dec(0);
-  if (first && first < range.start) {
-    const before = await figures({ start: first, end: range.start });
-    profitBefore = monthProfit({
-      revenueUsd: before.revenueUsd,
-      refundUsd: before.refundUsd,
-      cogsUsd: before.cogsUsd,
-      restockCostUsd: before.restockCostUsd,
-      expensesUsd: before.expensesUsd,
-      stockLossUsd: before.stockLossUsd,
-      cashDifferenceUsd: before.cashDifferenceUsd,
-    }).netProfitUsd;
-  }
-  const capitalUsd = await totalCapitalUsd(range.end);
-  const capital = capitalRecovery({ capitalUsd, profitBeforeUsd: profitBefore, monthProfitUsd: profit.netProfitUsd });
-
   return {
     month,
     ...f,
@@ -195,16 +175,6 @@ export async function monthlyReport(month: string) {
     grossMargin: profit.grossMargin?.toString() ?? null,
     netProfitUsd: profit.netProfitUsd.toFixed(2),
     netSalesSdg: dec(f.salesSdg).plus(f.ordersSdg).minus(f.refundSdg).toFixed(0),
-    capital: {
-      totalUsd: capitalUsd,
-      profitBeforeUsd: profitBefore.toFixed(2),
-      recoveredUsd: capital.recoveredUsd.toFixed(2),
-      remainingUsd: capital.remainingUsd.toFixed(2),
-      toCapitalThisMonthUsd: capital.toCapitalThisMonthUsd.toFixed(2),
-      distributableUsd: capital.distributableUsd.toFixed(2),
-      perPartnerUsd: capital.perPartnerUsd.toFixed(2),
-      fullyRecovered: capital.fullyRecovered,
-    },
   };
 }
 

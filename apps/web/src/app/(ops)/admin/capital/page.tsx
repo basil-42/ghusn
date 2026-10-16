@@ -27,21 +27,23 @@ export default async function CapitalPage() {
   return (
     <div className="flex flex-col gap-6">
       <PageHeader
-        title="التمويل ورأس المال"
+        title="التمويل"
         description={
           <>
             الإجمالي{" "}
             <bdi dir="ltr" className="font-bold text-foreground">
               {formatAmount(total)} $
             </bdi>{" "}
-            — يُسترد من الربح أولاً قبل أي توزيع (D-83). كل مبلغ بعملته وسعر يومه.
+            — مال دخل المحل من خارجه، بعملته وسعر يومه. رأس المال واسترداده خارج النظام (D-142).
           </>
         }
       />
       <Card>
         <CardHeader>
           <CardTitle>تمويل جديد</CardTitle>
-          <CardDescription>ما دفعه الشريك للمشروع: شراء بضاعة، تجهيز المحل، تحويلات…</CardDescription>
+          <CardDescription>
+            مال جديد دخل محفظة: تمويل، تغطية عجز، تحويل من خارج المحل. ليس دخلاً ولا ربحاً.
+          </CardDescription>
         </CardHeader>
         <ContributionForm currencies={currencies.map((c) => c.code)} wallets={wallets} today={shopDay(new Date())} />
       </Card>
