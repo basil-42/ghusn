@@ -186,13 +186,13 @@ export async function saveReceiptSettings(value: ReceiptSettings): Promise<void>
   });
 }
 
-/** محفظتا النقد وبنكك: من الضبط، وإلا بالأسماء المزروعة (صندوق المحل، بنكك). */
+/** محفظتا النقد وبنكك: من الضبط، وإلا بالأسماء المزروعة (الخزنة — «صندوق المحل» قبل D-144 — وبنكك). */
 export async function posWallets(): Promise<{ cash: string; bankak: string }> {
   const settings = await getPosSettings();
   const wallets = await prisma.wallet.findMany({ where: { isActive: true, currencyCode: "SDG" } });
-  const pick = (id: string | null, name: string) =>
-    wallets.find((w) => w.id === id)?.id ?? wallets.find((w) => w.name === name)?.id;
-  const cash = pick(settings.cashWalletId, "صندوق المحل");
+  const pick = (id: string | null, ...names: string[]) =>
+    wallets.find((w) => w.id === id)?.id ?? wallets.find((w) => names.includes(w.name))?.id;
+  const cash = pick(settings.cashWalletId, "الخزنة", "صندوق المحل");
   const bankak = pick(settings.bankakWalletId, "بنكك");
   if (!cash || !bankak) throw new Error("POS wallets are not configured");
   return { cash, bankak };

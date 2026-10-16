@@ -350,7 +350,7 @@ async function OwnerHome({ user, can, period }: { user: User; can: Can; period: 
       <Section title="المال والعمليات · الآن">
         <div className="grid gap-4 md:grid-cols-2 xl:grid-cols-3">
           {wallets ? (
-            <Panel title="المال" href="/admin/wallets" link="المحافظ">
+            <Panel title="المال" href="/admin/wallets" link="صفحة المال">
               {rate ? <RateBand rate={rate} /> : null}
               <ul className="flex flex-col divide-y divide-line text-sm">
                 {shownWallets.map((w) => (

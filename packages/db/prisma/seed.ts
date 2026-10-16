@@ -26,8 +26,8 @@ async function main() {
   }
 
   const wallets = [
-    { name: "حساب باسل – قطر", currencyCode: "QAR" },
-    { name: "صندوق المحل", currencyCode: "SDG" },
+    { name: "محفظة الريال – قطر", currencyCode: "QAR" },
+    { name: "الخزنة", currencyCode: "SDG" },
     { name: "بنكك", currencyCode: "SDG" },
   ];
   if ((await prisma.wallet.count()) === 0) {

@@ -11,14 +11,14 @@ import { voidAdjustmentAction } from "../actions";
 import { AdjustmentForm, OpeningForm, ToggleWalletForm } from "../forms";
 import { PageHeader } from "@/components/admin/page-header";
 
-export const metadata: Metadata = { title: "كشف محفظة | غصن" };
+export const metadata: Metadata = { title: "كشف علبة | غصن" };
 
 const LINKS: Partial<Record<MovementKind, (id: string) => string>> = {
   SALE: (id) => `/pos/receipt/${id}`,
   REFUND: (id) => `/pos/returns/${id}`,
   SHIPMENT_COST: (id) => `/admin/shipments/${id}`,
   SUPPLIER_PAYMENT: (id) => `/admin/suppliers/${id}`,
-  CAPITAL: () => "/admin/capital",
+  CAPITAL: () => "/admin/wallets#money-in",
   ORDER: (id) => `/admin/orders/${id}`,
   ORDER_REFUND: (id) => `/admin/orders/${id}`,
 };
@@ -47,7 +47,7 @@ export default async function WalletPage({
     <div className="flex flex-col gap-6">
       <PageHeader
         title={wallet.name}
-        back={{ href: "/admin/wallets", label: "المحافظ" }}
+        back={{ href: "/admin/wallets", label: "المال" }}
         description={
           <>
             الرصيد{" "}

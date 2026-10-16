@@ -170,7 +170,7 @@ model ExchangeRate {
 // ---------- المحافظ (أماكن المال) ----------
 model Wallet {
   id           String   @id @default(cuid())
-  name         String // صندوق المحل، بنكك، حساب باسل – قطر
+  name         String // الخزنة، بنكك، محفظة الريال – قطر
   currency     Currency @relation(fields: [currencyCode], references: [code])
   currencyCode String
   isActive     Boolean  @default(true)
