@@ -27,18 +27,16 @@ export function shopDay(at: Date): string {
 
 /**
  * سعر الصرف الساري لعملة في لحظة ما (currency-and-costing §2):
- * - آخر سجل effectiveAt ≤ اللحظة.
- * - الأولوية: سعر تحويل فعلي (ACTUAL_TRANSFER) في نفس اليوم يتقدّم على سعر الجدول اليومي.
+ * آخر سجل effectiveAt ≤ اللحظة أياً كان مصدره — يدوي أو تحويل فعلي (D-145: «آخر سعر أُدخل هو الساري»).
  * يُرجع null إن لم يوجد سعر قبل تلك اللحظة.
  */
 export function effectiveRate<T extends RateEntry>(entries: readonly T[], currencyCode: string, at: Date): T | null {
-  const candidates = entries
-    .filter((e) => e.currencyCode === currencyCode && e.effectiveAt.getTime() <= at.getTime())
-    .sort((a, b) => b.effectiveAt.getTime() - a.effectiveAt.getTime());
-
-  const today = shopDay(at);
-  const transferToday = candidates.find((e) => e.source === "ACTUAL_TRANSFER" && shopDay(e.effectiveAt) === today);
-  return transferToday ?? candidates[0] ?? null;
+  let latest: T | null = null;
+  for (const e of entries) {
+    if (e.currencyCode !== currencyCode || e.effectiveAt.getTime() > at.getTime()) continue;
+    if (!latest || e.effectiveAt.getTime() > latest.effectiveAt.getTime()) latest = e;
+  }
+  return latest;
 }
 
 /** نسبة التغيّر بين سعرين: (الجديد − القديم) ÷ القديم. موجبة = الجنيه ضعف. */

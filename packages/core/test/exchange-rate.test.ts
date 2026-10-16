@@ -31,13 +31,15 @@ describe("effectiveRate", () => {
     expect(effectiveRate(rates, "SDG", at("2026-09-28T20:00:00Z"))?.unitsPerUsd).toBe("2500");
     expect(effectiveRate(rates, "SDG", at("2026-09-29T08:00:00Z"))?.unitsPerUsd).toBe("2550");
   });
-  it("prefers a same-day actual transfer over later table rates", () => {
+  it("an actual transfer is current until the next entry (D-145)", () => {
     expect(effectiveRate(rates, "SDG", at("2026-09-29T11:00:00Z"))?.unitsPerUsd).toBe("2530");
-    expect(effectiveRate(rates, "SDG", at("2026-09-29T16:00:00Z"))?.unitsPerUsd).toBe("2530");
   });
-  it("drops the transfer priority the next shop day (Khartoum time)", () => {
-    // 22:30Z يوم 29 = 00:30 يوم 30 بتوقيت الخرطوم
+  it("a manual rate entered after a same-day transfer replaces it (D-145)", () => {
+    expect(effectiveRate(rates, "SDG", at("2026-09-29T16:00:00Z"))?.unitsPerUsd).toBe("2600");
     expect(effectiveRate(rates, "SDG", at("2026-09-29T22:30:00Z"))?.unitsPerUsd).toBe("2600");
+  });
+  it("does not depend on input order", () => {
+    expect(effectiveRate([...rates].reverse(), "SDG", at("2026-09-29T16:00:00Z"))?.unitsPerUsd).toBe("2600");
   });
   it("filters by currency", () => {
     expect(effectiveRate(rates, "QAR", at("2026-09-29T12:00:00Z"))?.unitsPerUsd).toBe("3.64");

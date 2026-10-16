@@ -20,7 +20,7 @@ amountUsd = amount / rateUsed        (rateUsed = units of currency per 1 USD)
 
 - جدول `ExchangeRate`: `currencyCode`, `unitsPerUsd` (Decimal 18,6), `source` (PARALLEL_MARKET | BANK | ACTUAL_TRANSFER | FIXED_PEG), `effectiveAt`, `enteredBy`.
 - السعر الساري لعملة في لحظة ما = آخر سجل `effectiveAt <= t`.
-- **الأولوية:** سعر تحويل فعلي في نفس اليوم (ACTUAL_TRANSFER) ← سعر الجدول اليومي.
+- **الساري:** آخر سعر أُدخل أياً كان مصدره — يدوي أو تحويل فعلي (ACTUAL_TRANSFER) — من لحظة حفظه حتى السعر التالي (D-145؛ كانت أولوية التحويل الفعلي طوال اليوم).
 - QAR ثابت 3.64 (FIXED_PEG). USD = 1.
 - **تنبيه تقلب:** إذا تغيّر `SDG/USD` بأكثر من نسبة قابلة للضبط (افتراضي 5%) منذ آخر مراجعة أسعار ← إشعار «منتجات تحتاج مراجعة سعر».
 
