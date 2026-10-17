@@ -71,8 +71,9 @@ export async function createExpense(input: ExpenseInput, user: { id: string; rol
   if (!rate) throw new ExpenseError(`لا يوجد سعر صرف لـ ${wallet.currencyCode} في ذلك اليوم.`);
   const key = input.attachment && input.attachment.size > 0 ? await saveAttachment(input.attachment) : null;
   const expense = await prisma.$transaction(async (tx) => {
-    // من الخزنة ← على الوردية المفتوحة أياً كانت صاحبتها (D-143)
-    const shiftId = await safeShiftFor(tx, wallet.id, input.spentAt, (m) => new ExpenseError(m));
+    // من الخزنة ← على الوردية المفتوحة أياً كانت صاحبتها (D-143)؛ الموظفة تصرف من درج وردية مفتوحة فقط،
+    // والمديرة/المالك بلا وردية أيضاً — والوردية التالية تبدأ من الرصيد (D-146)
+    const shiftId = await safeShiftFor(tx, wallet.id, input.spentAt, (m) => new ExpenseError(m), !full);
     // D-132: المصروف يخرج من رصيد موجود (الأرصدة تظهر للمالك فقط)
     const short = await coverageError(tx, wallet.id, input.amount, roleCan(user.role, { wallet: ["update"] }));
     if (short) throw new ExpenseError(short);

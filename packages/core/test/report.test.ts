@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { monthProfit, shiftDifference, totalsByCurrency } from "../src";
+import { monthProfit, shiftDifference, shiftOpening, totalsByCurrency } from "../src";
 
 const s = (d: { toString(): string } | null) => (d === null ? null : d.toString());
 
@@ -57,5 +57,28 @@ describe("cash differences (D-87)", () => {
     expect(s(d.differenceSdg)).toBe("-10000");
     expect(s(d.differenceUsd)).toBe("-4");
     expect(s(shiftDifference({ expectedSdg: "1000", countedSdg: "1000", sdgPerUsd: "2500" }).differenceUsd)).toBe("0");
+  });
+});
+
+describe("shiftOpening (D-146)", () => {
+  it("starts from the system balance when not counted", () => {
+    const r = shiftOpening({ systemSdg: "140000" });
+    expect(r.openingSdg.toString()).toBe("140000");
+    expect(r.differenceSdg.isZero()).toBe(true);
+  });
+  it("uses the counted cash and records the difference", () => {
+    const r = shiftOpening({ systemSdg: "140000", countedSdg: "135000" });
+    expect(r.openingSdg.toString()).toBe("135000");
+    expect(r.differenceSdg.toString()).toBe("-5000");
+  });
+  it("a matching count has no difference", () => {
+    expect(shiftOpening({ systemSdg: "140000", countedSdg: "140000" }).differenceSdg.isZero()).toBe(true);
+  });
+  it("a negative system balance needs a count", () => {
+    expect(() => shiftOpening({ systemSdg: "-1000" })).toThrow(/count/i);
+    expect(shiftOpening({ systemSdg: "-1000", countedSdg: "0" }).differenceSdg.toString()).toBe("1000");
+  });
+  it("rejects a negative count", () => {
+    expect(() => shiftOpening({ systemSdg: "0", countedSdg: "-5" })).toThrow();
   });
 });

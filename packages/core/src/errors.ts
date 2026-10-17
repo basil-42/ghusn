@@ -7,7 +7,8 @@ export type CoreErrorCode =
   | "EMPTY_CART"
   | "INVALID_TRANSITION"
   | "INSUFFICIENT_STOCK"
-  | "COST_REQUIRED";
+  | "COST_REQUIRED"
+  | "COUNT_REQUIRED";
 
 /** خطأ منطق عمل بكود ثابت، حتى تعرضه الواجهة برسالة عربية مناسبة. */
 export class CoreError extends Error {

@@ -21,6 +21,8 @@ const LINKS: Partial<Record<MovementKind, (id: string) => string>> = {
   CAPITAL: () => "/admin/wallets#money-in",
   ORDER: (id) => `/admin/orders/${id}`,
   ORDER_REFUND: (id) => `/admin/orders/${id}`,
+  SHIFT_DIFF: (id) => `/pos/shift?closed=${id}`,
+  SHIFT_OPEN_DIFF: (id) => `/pos/shift?closed=${id}`,
 };
 
 export default async function WalletPage({

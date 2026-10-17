@@ -8,7 +8,7 @@ import { Field, SelectField } from "@/components/form-field";
 import { OVER_BALANCE, exceedsAvailable } from "@/lib/wallet-hint";
 import type { WalletPick } from "@/lib/wallets";
 import type { SafeStatus } from "@/lib/shifts";
-import { OUTSIDE, PaySource, safeBlocked } from "@/components/admin/pay-source";
+import { OUTSIDE, PaySource } from "@/components/admin/pay-source";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input, NativeSelect } from "@/components/ui/input";
@@ -583,7 +583,6 @@ export function CostForm({
   useActionToast(state);
   const outside = walletId === OUTSIDE;
   const exceeds = outside ? false : exceedsAvailable(amount, wallets.find((w) => w.value === walletId)?.available);
-  const blocked = safeBlocked(walletId, safe);
   return (
     <form action={action} key={state.success} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
       <div className="flex flex-col gap-3 sm:col-span-2">
@@ -647,7 +646,7 @@ export function CostForm({
         <Field label="ملاحظة (اختياري)" name="note" id="cost-note" />
       </div>
       <div className="sm:col-span-2">
-        <Button type="submit" variant="outline" disabled={pending || exceeds || blocked}>
+        <Button type="submit" variant="outline" disabled={pending || exceeds}>
           <Plus aria-hidden /> إضافة التكلفة
         </Button>
       </div>

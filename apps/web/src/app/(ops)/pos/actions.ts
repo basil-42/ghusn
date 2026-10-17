@@ -27,10 +27,20 @@ const whole = (label: string) =>
 
 export async function openShiftAction(_prev: FormState, formData: FormData): Promise<FormState> {
   const session = await requirePermission({ pos: ["sell"] });
-  const parsed = whole("العهدة الافتتاحية").safeParse(String(formData.get("openingCash") ?? ""));
-  if (!parsed.success) return { error: parsed.error.issues[0]?.message };
+  // D-146: البداية رصيد الخزنة في النظام؛ المعدود اختياري («عددتُ الدرج ووجدت غير ذلك»)
+  const raw = formData.get("countedCash");
+  let count: { countedSdg: string; note: string | null } | null = null;
+  if (raw !== null) {
+    const parsed = whole("المعدود في الدرج").safeParse(String(raw));
+    if (!parsed.success) return { error: parsed.error.issues[0]?.message };
+    const note =
+      String(formData.get("note") ?? "")
+        .trim()
+        .slice(0, 300) || null;
+    count = { countedSdg: dec(parsed.data).toFixed(2), note };
+  }
   try {
-    await openShift(session.user.id, dec(parsed.data).toFixed(2));
+    await openShift(session.user.id, count);
   } catch (e) {
     if (e instanceof ShiftError) return { error: e.message };
     throw e;

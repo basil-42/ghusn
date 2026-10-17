@@ -71,7 +71,8 @@ export default async function ShiftPage({ searchParams }: { searchParams: Promis
             ...(summary.transfersOutSdg !== "0" ? [["إيداع في محافظ أخرى", sdg(summary.transfersOutSdg)]] : []),
             ...(summary.moneyInSdg !== "0" ? [["مال دخل الخزنة", sdg(summary.moneyInSdg)]] : []),
             ...(summary.voidedNetSdg !== "0" ? [["إلغاءات من ورديات سابقة", sdg(summary.voidedNetSdg)]] : []),
-            ["العهدة الافتتاحية", sdg(summary.openingCashSdg)],
+            ["بداية الوردية", sdg(summary.openingCashSdg)],
+            ...(summary.openingDiffSdg ? [["فرق عدّ الفتح", sdg(summary.openingDiffSdg)]] : []),
             ["النقد المتوقع في الدرج", sdg(summary.expectedCashSdg)],
             ...(summary.countedCashSdg ? [["النقد المعدود", sdg(summary.countedCashSdg)]] : []),
             ...(summary.differenceSdg ? [["الفرق", sdg(summary.differenceSdg)]] : []),
@@ -82,6 +83,7 @@ export default async function ShiftPage({ searchParams }: { searchParams: Promis
             </div>
           ))}
         </dl>
+        {summary.openingNote ? <p className="text-sm">سبب فرق عدّ الفتح: {summary.openingNote}</p> : null}
         {summary.closeNote ? <p className="text-sm">ملاحظة: {summary.closeNote}</p> : null}
       </Card>
 
@@ -119,7 +121,7 @@ export default async function ShiftPage({ searchParams }: { searchParams: Promis
           <CardHeader>
             <CardTitle>إغلاق الوردية</CardTitle>
             <CardDescription>
-              عدّي النقد في الدرج. المتوقع = العهدة + كل ما دخل الخزنة − كل ما خرج منها في هذه الوردية.
+              عدّي النقد في الدرج. المتوقع = بداية الوردية + كل ما دخل الخزنة − كل ما خرج منها في هذه الوردية.
             </CardDescription>
           </CardHeader>
           <CloseShiftForm

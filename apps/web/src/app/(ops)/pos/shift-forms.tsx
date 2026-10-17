@@ -11,15 +11,48 @@ import { formatAmount } from "@/lib/format";
 import { Input } from "@/components/ui/input";
 import { closeShiftAction, openShiftAction, type FormState } from "./actions";
 
-export function OpenShiftForm() {
+/**
+ * فتح الوردية (D-146): تبدأ من رصيد الخزنة في النظام — زر واحد. «عددتُ الدرج ووجدت غير ذلك» يفتح
+ * خانتي المعدود والسبب، والفرق يُسجَّل.
+ */
+export function OpenShiftForm({ systemSdg }: { systemSdg: string }) {
   const [state, action, pending] = useActionState<FormState, FormData>(openShiftAction, {});
+  const negative = dec(systemSdg).lt(0);
+  const [counting, setCounting] = useState(negative);
   return (
     <form action={action} className="flex flex-col gap-4">
       {state.error ? <Alert variant="destructive">{state.error}</Alert> : null}
-      <label className="flex flex-col gap-1">
-        <span className="font-semibold">النقد في الدرج الآن (ج.س)</span>
-        <Input name="openingCash" inputMode="numeric" dir="ltr" required autoFocus placeholder="0" />
-      </label>
+      <div className="rounded-xl border border-border bg-muted/40 p-4">
+        <p className="text-sm text-muted-foreground">في الخزنة حسب النظام</p>
+        <p className="text-2xl font-bold tabular-nums">
+          <bdi dir="ltr">{formatAmount(systemSdg, 0)}</bdi> ج.س
+        </p>
+      </div>
+      {counting ? (
+        <>
+          <label className="flex flex-col gap-1">
+            <span className="font-semibold">المعدود في الدرج (ج.س)</span>
+            <Input name="countedCash" inputMode="numeric" dir="ltr" required autoFocus placeholder="0" />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="font-semibold">سبب الفرق</span>
+            <Input name="note" maxLength={300} placeholder="مثال: أخذت 20,000 للترحيل ولم تُسجَّل" />
+          </label>
+          {!negative ? (
+            <button
+              type="button"
+              className="self-start text-sm text-muted-foreground underline"
+              onClick={() => setCounting(false)}
+            >
+              المبلغ مطابق — افتحي بدون عدّ
+            </button>
+          ) : null}
+        </>
+      ) : (
+        <button type="button" className="self-start text-sm font-semibold underline" onClick={() => setCounting(true)}>
+          عددتُ الدرج ووجدت غير ذلك
+        </button>
+      )}
       <Button type="submit" disabled={pending}>
         {pending ? "جارٍ الفتح…" : "فتح الوردية"}
       </Button>
@@ -36,7 +69,7 @@ export function CloseShiftForm({
 }: {
   shiftId: string;
   expectedCash: string;
-  /** للنافذة: العهدة، المقبوض نقداً، ما دخل غير البيع، وما خرج من الخزنة (D-143) */
+  /** للنافذة: بداية الوردية، المقبوض نقداً، ما دخل غير البيع، وما خرج من الخزنة (D-143) */
   breakdown: { opening: string; cashIn: string; otherIn: string; out: string };
 }) {
   const [state, action, pending] = useActionState<FormState, FormData>(closeShiftAction, {});
@@ -89,7 +122,7 @@ export function CloseShiftForm({
         title="إغلاق الوردية؟"
         description="لا يمكن البيع عليها بعد الإغلاق."
         summary={[
-          { label: "العهدة الافتتاحية", value: sdg(breakdown.opening) },
+          { label: "بداية الوردية", value: sdg(breakdown.opening) },
           { label: "المقبوض نقداً", value: sdg(breakdown.cashIn) },
           ...(breakdown.otherIn !== "0" ? [{ label: "دخل الخزنة غير البيع", value: sdg(breakdown.otherIn) }] : []),
           { label: "خرج من الخزنة", value: sdg(breakdown.out) },

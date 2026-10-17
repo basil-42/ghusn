@@ -50,6 +50,21 @@ export function shiftDifference(input: {
   return { differenceSdg, differenceUsd: roundMoney(differenceSdg.div(rate)) };
 }
 
+/**
+ * عهدة الوردية عند الفتح (D-146): رصيد الخزنة في النظام، إلا إن عدّت الموظفة الدرج ووجدت غيره —
+ * فالعهدة المعدود، والفرق (المعدود − النظام) يُسجَّل كفرق صندوق. الرصيد السالب يحتاج عدّاً.
+ */
+export function shiftOpening(input: { systemSdg: DecimalInput; countedSdg?: DecimalInput | null }) {
+  const system = dec(input.systemSdg);
+  if (input.countedSdg === null || input.countedSdg === undefined) {
+    if (system.lt(0)) throw new CoreError("COUNT_REQUIRED", "System balance is negative — count the drawer");
+    return { openingSdg: system, differenceSdg: dec(0) };
+  }
+  const counted = dec(input.countedSdg);
+  if (!counted.isFinite() || counted.lt(0)) throw new CoreError("INVALID_AMOUNT", "Counted cash must be ≥ 0");
+  return { openingSdg: counted, differenceSdg: counted.minus(system) };
+}
+
 /** مجموع مبالغ بعملاتها الأصلية: { SDG: 150000, QAR: 300 } — للعرض بجانب الدولار. */
 export function totalsByCurrency(rows: readonly { currencyCode: string; amount: DecimalInput }[]) {
   const out = new Map<string, Decimal>();

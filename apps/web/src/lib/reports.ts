@@ -11,6 +11,9 @@ import {
 } from "@ghusn/core";
 import { prisma, type Prisma } from "@ghusn/db";
 
+/** صف فروقات عدّ الفتح في «فروقات الصندوق حسب الموظفة» (D-146). */
+const BETWEEN_SHIFTS = "بين الورديات (عدّ الفتح)";
+
 /** الشهر الحالي بتوقيت المحل: YYYY-MM. */
 export const currentShopMonth = () => shopDay(new Date()).slice(0, 7);
 
@@ -68,6 +71,11 @@ async function figures(range: { start: Date; end: Date }) {
          AND m."createdAt" >= ${range.start} AND m."createdAt" < ${range.end}
        GROUP BY u."name"`,
     ]);
+  // فروقات عدّ الفتح (D-146) — بتاريخ الفتح، ضمن فروقات الصندوق
+  const openings = await prisma.shift.findMany({
+    where: { openedAt: within, openingDiffUsd: { not: null } },
+    select: { openingDiffUsd: true, openingCashSdg: true, openingSystemSdg: true },
+  });
   const s = (v: { toString(): string } | null | undefined) => v?.toString() ?? "0";
   const byCategory = new Map<string, { usd: string[]; rows: { currencyCode: string; amount: string }[] }>();
   for (const e of expenses) {
@@ -86,6 +94,16 @@ async function figures(range: { start: Date; end: Date }) {
     else c.overSdg = c.overSdg.plus(diff);
     c.usd.push(s(sh.differenceUsd));
     byCashier.set(sh.user.name, c);
+  }
+  // فرق عدّ الفتح يخص ما بين الورديات، لا صاحبة الوردية الجديدة
+  const openingDiffs = openings.map((o) => dec(s(o.openingCashSdg)).minus(s(o.openingSystemSdg)));
+  if (openings.length) {
+    byCashier.set(BETWEEN_SHIFTS, {
+      shifts: openings.length,
+      shortSdg: sum(openingDiffs.filter((d) => d.lt(0)).map((d) => d.neg())),
+      overSdg: sum(openingDiffs.filter((d) => d.gt(0))),
+      usd: openings.map((o) => s(o.openingDiffUsd)),
+    });
   }
   return {
     salesCount: sales._count,
@@ -120,8 +138,14 @@ async function figures(range: { start: Date; end: Date }) {
     adjustmentsByUser: adjByUser
       .map((r) => ({ name: r.name, count: Number(r.count), usd: dec(r.expenseUsd.toString()).toFixed(2) }))
       .sort((a, b) => dec(b.usd).comparedTo(a.usd)),
-    cashDifferenceUsd: sumUsd(shifts.map((sh) => s(sh.differenceUsd))).toFixed(2),
-    cashDifferenceSdg: sum(shifts.map((sh) => dec(s(sh.countedCashSdg)).minus(s(sh.expectedCashSdg)))).toFixed(0),
+    cashDifferenceUsd: sumUsd([
+      ...shifts.map((sh) => s(sh.differenceUsd)),
+      ...openings.map((o) => s(o.openingDiffUsd)),
+    ]).toFixed(2),
+    cashDifferenceSdg: sum([
+      ...shifts.map((sh) => dec(s(sh.countedCashSdg)).minus(s(sh.expectedCashSdg))),
+      ...openingDiffs,
+    ]).toFixed(0),
     cashDifferenceByCashier: [...byCashier.entries()]
       .map(([name, c]) => ({
         name,
