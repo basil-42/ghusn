@@ -300,7 +300,11 @@ export async function auditFeed(f: FeedFilter): Promise<FeedItem[]> {
             });
         }),
       prisma.shift
-        .findMany({ where: { closedAt: range }, take: TAKE, include: { user: { select: { name: true } } } })
+        .findMany({
+          where: { closedAt: range },
+          take: TAKE,
+          include: { user: { select: { name: true } }, closedBy: { select: { name: true } } },
+        })
         .then((rows) => {
           for (const s of rows) {
             const diff = dec(s.countedCashSdg?.toString() ?? "0").minus(s.expectedCashSdg?.toString() ?? "0");
@@ -310,15 +314,21 @@ export async function auditFeed(f: FeedFilter): Promise<FeedItem[]> {
               at: s.closedAt!,
               category: "money",
               kind: "SHIFT_CLOSE",
-              title: diff.isZero() ? "إغلاق وردية مطابقة" : short ? "إغلاق وردية بعجز" : "إغلاق وردية بزيادة",
+              title: diff.isZero()
+                ? s.closedAsMatch
+                  ? "إغلاق وردية مطابقة (بإقرار دون كتابة المعدود)"
+                  : "إغلاق وردية مطابقة"
+                : short
+                  ? "إغلاق وردية بعجز"
+                  : "إغلاق وردية بزيادة",
               detail: join(
                 `المتوقع ${sdg(s.expectedCashSdg ?? 0)}`,
                 `المعدود ${sdg(s.countedCashSdg ?? 0)}`,
                 !diff.isZero() && `${short ? "عجز" : "زيادة"} ${sdg(diff.abs())}`,
                 s.closeNote && `«${s.closeNote}»`,
               ),
-              actors: who(s.user.name),
-              actorIds: [s.userId],
+              actors: who(s.closedBy?.name ?? s.user.name),
+              actorIds: [s.closedById ?? s.userId],
               href: "/admin/sales",
               sensitive: short && diff.abs().gte(pos.shortageAlertSdg),
             });
