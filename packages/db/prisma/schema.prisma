@@ -51,6 +51,7 @@ model User {
   stockMovements     StockMovement[]         @relation("stockMovementBy")
   priceHistories     PriceHistory[]
   shifts             Shift[]
+  closedShiftsBy     Shift[]                 @relation("ShiftClosedBy")
   sales              Sale[]                  @relation("saleCashier")
   salesApproved      Sale[]                  @relation("saleApprovedBy")
   returns            SaleReturn[]            @relation("returnCashier")
@@ -841,6 +842,10 @@ model Shift {
   expectedCashSdg  Decimal?  @db.Decimal(18, 2)
   countedCashSdg   Decimal?  @db.Decimal(18, 2)
   closeNote        String?
+  // D-147: من أغلقها، وهل أُغلقت بإقرار «عددتُ الدرج — المبلغ مطابق» (بلا كتابة المعدود)
+  closedBy         User?     @relation("ShiftClosedBy", fields: [closedById], references: [id])
+  closedById       String?
+  closedAsMatch    Boolean   @default(false)
   // محفظة الخزنة (منذ الفتح — D-146): فرق العدّ عند الفتح أو الإغلاق يُسوّى في رصيدها (D-86)
   cashWallet       Wallet?   @relation(fields: [cashWalletId], references: [id])
   cashWalletId     String?

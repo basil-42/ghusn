@@ -74,6 +74,8 @@ export function CloseShiftForm({
 }) {
   const [state, action, pending] = useActionState<FormState, FormData>(closeShiftAction, {});
   const confirm = useConfirmForm(action, state, pending);
+  // D-147: الافتراضي إقرار «عددتُ الدرج — المبلغ مطابق» بضغطة؛ الكتابة عند وجود فرق فقط
+  const [counting, setCounting] = useState(false);
   // حقول محكومة: React يفرّغ النموذج بعد كل إرسال، ولا نريد إعادة العدّ بعد رسالة خطأ
   const [counted, setCounted] = useState("");
   const [note, setNote] = useState("");
@@ -81,7 +83,7 @@ export function CloseShiftForm({
   const countedValue = /^\d+$/.test(toLatinDigits(counted).replace(/[,\s٬]/g, ""))
     ? toLatinDigits(counted).replace(/[,\s٬]/g, "")
     : "";
-  const difference = countedValue ? dec(countedValue).minus(expectedCash).toFixed(0) : "";
+  const difference = !counting ? "" : countedValue ? dec(countedValue).minus(expectedCash).toFixed(0) : "";
   // فواتير دون اتصال لم تُرسل بعد: إغلاق الوردية قبلها يُفسد مطابقة النقد (D-82)
   const [unsent, setUnsent] = useState(0);
   useEffect(() => {
@@ -98,36 +100,76 @@ export function CloseShiftForm({
         </Alert>
       ) : null}
       <input type="hidden" name="shiftId" value={shiftId} />
-      <label className="flex flex-col gap-1">
-        <span className="font-semibold">النقد المعدود في الدرج (ج.س)</span>
-        <Input
-          name="countedCash"
-          value={counted}
-          onChange={(e) => setCounted(e.target.value)}
-          inputMode="numeric"
-          dir="ltr"
-          required
-        />
-      </label>
-      <label className="flex flex-col gap-1">
-        <span className="font-semibold">ملاحظة (مطلوبة إن وُجد فرق)</span>
-        <Input name="note" value={note} onChange={(e) => setNote(e.target.value)} maxLength={300} />
-      </label>
-      <Button type="submit" variant="outline" disabled={pending || unsent > 0}>
-        {pending ? "جارٍ الإغلاق…" : "إغلاق الوردية"}
-      </Button>
+      <div className="rounded-xl border border-border bg-muted/40 p-4">
+        <p className="text-sm text-muted-foreground">النقد المتوقع في الدرج</p>
+        <p className="text-2xl font-bold tabular-nums">
+          <bdi dir="ltr">{formatAmount(expectedCash, 0)}</bdi> ج.س
+        </p>
+      </div>
+      {counting ? (
+        <>
+          <label className="flex flex-col gap-1">
+            <span className="font-semibold">النقد المعدود في الدرج (ج.س)</span>
+            <Input
+              name="countedCash"
+              value={counted}
+              onChange={(e) => setCounted(e.target.value)}
+              inputMode="numeric"
+              dir="ltr"
+              required
+              autoFocus
+            />
+          </label>
+          <label className="flex flex-col gap-1">
+            <span className="font-semibold">سبب الفرق</span>
+            <Input name="note" value={note} onChange={(e) => setNote(e.target.value)} maxLength={300} />
+          </label>
+          <Button type="submit" variant="outline" disabled={pending || unsent > 0}>
+            {pending ? "جارٍ الإغلاق…" : "إغلاق الوردية"}
+          </Button>
+          <button
+            type="button"
+            className="self-start text-sm text-muted-foreground underline"
+            onClick={() => setCounting(false)}
+          >
+            المبلغ مطابق — رجوع
+          </button>
+        </>
+      ) : (
+        <>
+          <input type="hidden" name="matched" value="1" />
+          <input type="hidden" name="expectedSeen" value={expectedCash} />
+          <Button type="submit" disabled={pending || unsent > 0}>
+            {pending ? "جارٍ الإغلاق…" : "✓ عددتُ الدرج — المبلغ مطابق"}
+          </Button>
+          <button
+            type="button"
+            className="self-start text-sm font-semibold underline"
+            onClick={() => setCounting(true)}
+          >
+            عددتُ ووجدت غير ذلك
+          </button>
+        </>
+      )}
       <ConfirmDialog
         {...confirm.dialog}
         icon={Clock}
         title="إغلاق الوردية؟"
-        description="لا يمكن البيع عليها بعد الإغلاق."
+        description={
+          counting
+            ? "لا يمكن البيع عليها بعد الإغلاق."
+            : `تُقرّين أنك عددتِ الدرج ووجدتِ فيه ${formatAmount(expectedCash, 0)} ج.س بالضبط. لا يمكن البيع عليها بعد الإغلاق.`
+        }
         summary={[
           { label: "بداية الوردية", value: sdg(breakdown.opening) },
           { label: "المقبوض نقداً", value: sdg(breakdown.cashIn) },
           ...(breakdown.otherIn !== "0" ? [{ label: "دخل الخزنة غير البيع", value: sdg(breakdown.otherIn) }] : []),
           { label: "خرج من الخزنة", value: sdg(breakdown.out) },
           { label: "النقد المتوقع", value: sdg(expectedCash), total: true },
-          { label: "المعدود", value: countedValue ? sdg(countedValue) : "—" },
+          {
+            label: "المعدود",
+            value: !counting ? `${sdg(expectedCash)} (مطابق)` : countedValue ? sdg(countedValue) : "—",
+          },
           ...(difference
             ? [
                 {
@@ -149,7 +191,7 @@ export function CloseShiftForm({
               : "يوجد فرق — ارجعي واكتبي ملاحظة تشرح سببه."
             : undefined
         }
-        confirmLabel="إغلاق الوردية"
+        confirmLabel={counting ? "إغلاق الوردية" : "نعم، عددتُ — إغلاق"}
         pendingLabel="جارٍ الإغلاق…"
       />
     </form>

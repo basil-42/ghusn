@@ -85,6 +85,13 @@ export default async function ShiftPage({ searchParams }: { searchParams: Promis
         </dl>
         {summary.openingNote ? <p className="text-sm">سبب فرق عدّ الفتح: {summary.openingNote}</p> : null}
         {summary.closeNote ? <p className="text-sm">ملاحظة: {summary.closeNote}</p> : null}
+        {summary.closedAt && summary.closedByName ? (
+          <p className="text-sm text-muted-foreground">
+            {summary.closedAsMatch
+              ? `أُغلقت بإقرار «عددتُ الدرج — المبلغ مطابق» من ${summary.closedByName}.`
+              : `أغلقتها ${summary.closedByName} بعدّ المبلغ.`}
+          </p>
+        ) : null}
       </Card>
 
       {summary.moves.length ? (

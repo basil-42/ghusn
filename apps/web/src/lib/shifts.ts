@@ -313,6 +313,7 @@ export async function shiftSummary(shiftId: string) {
     where: { id: shiftId },
     include: {
       user: { select: { name: true } },
+      closedBy: { select: { name: true } },
       sales: {
         orderBy: { createdAt: "desc" },
         include: { payments: true, customer: { select: { phone: true } } },
@@ -366,6 +367,8 @@ export async function shiftSummary(shiftId: string) {
     countedCashSdg: shift.countedCashSdg?.toString() ?? null,
     differenceSdg: shift.countedCashSdg ? dec(shift.countedCashSdg.toString()).minus(expected).toString() : null,
     closeNote: shift.closeNote,
+    closedByName: shift.closedBy?.name ?? null,
+    closedAsMatch: shift.closedAsMatch,
     moves: moves.map((m) => ({ ...m, at: m.at })),
     sales: shift.sales.map((s) => ({
       id: s.id,
@@ -380,14 +383,15 @@ export async function shiftSummary(shiftId: string) {
 }
 
 /**
- * إغلاق الوردية: النقد المعدود مقابل المتوقع (الافتتاحي + المقبوض نقداً). الفرق يُحفظ
+ * إغلاق الوردية: النقد المعدود مقابل المتوقع (بداية الوردية + ما دخل − ما خرج). الفرق يُحفظ
  * ويظهر في التقرير؛ الفرق غير الصفري يحتاج ملاحظة.
+ * D-147: `count.matchedExpected` = إقرار «عددتُ الدرج — المبلغ مطابق» بضغطة: المعدود = المتوقع الذي رأته
+ * الموظفة، ويُرفض إن تغيّر المتوقع منذ فتحت الصفحة (حركة جديدة) — تُحدَّث الصفحة وتعدّ من جديد.
  */
 export async function closeShift(
   shiftId: string,
   user: { id: string; role: unknown },
-  countedCashSdg: string,
-  note: string | null,
+  count: { countedSdg: string; note: string | null } | { matchedExpected: string },
 ) {
   // فرق العدّ يُسوّى في رصيد محفظة النقد (D-86)
   const { cash: cashWalletId } = await posWallets();
@@ -403,6 +407,14 @@ export async function closeShift(
     }
     if (shift.closedAt) throw new ShiftError("الوردية مغلقة بالفعل.");
     const { expected } = await shiftCash(tx, shiftId, shift.openingCashSdg.toString());
+    const matched = "matchedExpected" in count;
+    if (matched && !expected.eq(count.matchedExpected)) {
+      throw new ShiftError(
+        `تغيّر النقد المتوقع إلى ${expected.toFixed(0)} منذ فتحتِ الصفحة (سُجّلت حركة جديدة) — حدّثي الصفحة وعدّي الدرج من جديد.`,
+      );
+    }
+    const countedCashSdg = matched ? expected.toFixed(2) : count.countedSdg;
+    const note = matched ? null : count.note;
     if (!expected.eq(countedCashSdg) && !note) {
       throw new ShiftError(
         `النقد المعدود يختلف عن المتوقع (${expected.toFixed(0)}) — اكتبي ملاحظة توضح الفرق، أو أعيدي العدّ.`,
@@ -418,6 +430,8 @@ export async function closeShift(
         expectedCashSdg: expected.toFixed(2),
         countedCashSdg,
         closeNote: note,
+        closedById: user.id,
+        closedAsMatch: matched,
         cashWalletId,
         closeSdgPerUsd: sdgPerUsd,
         differenceUsd: difference?.differenceUsd.toFixed(2) ?? null,

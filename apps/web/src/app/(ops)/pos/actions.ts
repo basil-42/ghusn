@@ -51,19 +51,23 @@ export async function openShiftAction(_prev: FormState, formData: FormData): Pro
 
 export async function closeShiftAction(_prev: FormState, formData: FormData): Promise<FormState> {
   const session = await requirePermission({ pos: ["sell"] });
-  const counted = whole("النقد المعدود").safeParse(String(formData.get("countedCash") ?? ""));
-  if (!counted.success) return { error: counted.error.issues[0]?.message };
-  const note =
-    String(formData.get("note") ?? "")
-      .trim()
-      .slice(0, 300) || null;
+  // D-147: «عددتُ الدرج — المبلغ مطابق» يرسل المتوقع الذي رأته؛ وإلا المعدود والملاحظة
+  let count: { countedSdg: string; note: string | null } | { matchedExpected: string };
+  if (formData.get("matched") === "1") {
+    const seen = whole("النقد المتوقع").safeParse(String(formData.get("expectedSeen") ?? ""));
+    if (!seen.success) return { error: "حدّثي الصفحة ثم أعيدي المحاولة." };
+    count = { matchedExpected: dec(seen.data).toFixed(2) };
+  } else {
+    const counted = whole("النقد المعدود").safeParse(String(formData.get("countedCash") ?? ""));
+    if (!counted.success) return { error: counted.error.issues[0]?.message };
+    const note =
+      String(formData.get("note") ?? "")
+        .trim()
+        .slice(0, 300) || null;
+    count = { countedSdg: dec(counted.data).toFixed(2), note };
+  }
   try {
-    await closeShift(
-      String(formData.get("shiftId") ?? ""),
-      { id: session.user.id, role: session.user.role },
-      dec(counted.data).toFixed(2),
-      note,
-    );
+    await closeShift(String(formData.get("shiftId") ?? ""), { id: session.user.id, role: session.user.role }, count);
   } catch (e) {
     if (e instanceof ShiftError) return { error: e.message };
     throw e;
