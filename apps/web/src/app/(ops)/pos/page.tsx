@@ -5,7 +5,7 @@ import { customerForPos } from "@/lib/customers";
 import { currentSellingRate } from "@/lib/pricing";
 import { getReturn } from "@/lib/returns";
 import { getPosSettings } from "@/lib/settings";
-import { getOpenShift } from "@/lib/shifts";
+import { getOpenShift, safeBalanceNow } from "@/lib/shifts";
 import { OpenShiftForm } from "./shift-forms";
 import { PosTerminal } from "./terminal";
 
@@ -19,13 +19,20 @@ export default async function PosPage({
   // وردية واحدة للخزنة (D-143): البيع على المفتوحة أياً كانت صاحبتها
   const shift = await getOpenShift();
   if (!shift) {
+    const systemSdg = await safeBalanceNow();
     return (
       <Card className="mx-auto max-w-md">
         <CardHeader>
           <CardTitle>فتح وردية</CardTitle>
-          <CardDescription>عدّي النقد في الدرج قبل البيع. عند الإغلاق يُطابَق مع المقبوض نقداً.</CardDescription>
+          <CardDescription>
+            الوردية تبدأ من رصيد الخزنة في النظام، وعند الإغلاق تعدّين الدرج ويُطابَق مع المتوقع.
+          </CardDescription>
         </CardHeader>
-        <OpenShiftForm />
+        {systemSdg === null ? (
+          <p className="text-sm text-danger">لم تُضبط محفظة الخزنة بعد — اطلبي من المالك ضبطها من الإعدادات.</p>
+        ) : (
+          <OpenShiftForm systemSdg={systemSdg} />
+        )}
       </Card>
     );
   }

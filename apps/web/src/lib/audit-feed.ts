@@ -324,6 +324,35 @@ export async function auditFeed(f: FeedFilter): Promise<FeedItem[]> {
             });
           }
         }),
+      // فرق عدّ عند فتح الوردية (D-146)
+      prisma.shift
+        .findMany({
+          where: { openedAt: range, openingNote: { not: null } },
+          take: TAKE,
+          include: { user: { select: { name: true } } },
+        })
+        .then((rows) => {
+          for (const s of rows) {
+            const diff = dec(s.openingCashSdg.toString()).minus(s.openingSystemSdg?.toString() ?? "0");
+            const short = diff.lt(0);
+            push({
+              id: `shift-open:${s.id}`,
+              at: s.openedAt,
+              category: "money",
+              kind: "SHIFT_OPEN",
+              title: short ? "فتح وردية بعجز عن رصيد الخزنة" : "فتح وردية بزيادة عن رصيد الخزنة",
+              detail: join(
+                `في النظام ${sdg(s.openingSystemSdg ?? 0)}`,
+                `المعدود ${sdg(s.openingCashSdg)}`,
+                `«${s.openingNote}»`,
+              ),
+              actors: who(s.user.name),
+              actorIds: [s.userId],
+              href: "/admin/sales",
+              sensitive: short && diff.abs().gte(pos.shortageAlertSdg),
+            });
+          }
+        }),
     );
   }
 

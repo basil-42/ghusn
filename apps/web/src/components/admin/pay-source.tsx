@@ -90,14 +90,11 @@ export function PaySource({
             ) : null}
           </p>
         ) : (
-          <p role="alert" className="rounded-xl bg-destructive/10 px-3 py-2 text-sm text-destructive">
-            لا توجد وردية مفتوحة، والمبلغ يخرج من الخزنة. افتحي الوردية من نقطة البيع أولاً، أو اختاري محفظة أخرى.
+          <p className="rounded-xl bg-muted px-3 py-2 text-sm">
+            لا توجد وردية مفتوحة — ينقص رصيد الخزنة باسمك، والوردية التالية تبدأ من الرصيد الجديد.
           </p>
         )
       ) : null}
     </fieldset>
   );
 }
-
-/** يُمنع الإرسال من الخزنة بلا وردية مفتوحة (الخادم يرفض في كل الأحوال). */
-export const safeBlocked = (value: string, safe: SafeStatus) => value === safe.cashWalletId && !safe.shift;

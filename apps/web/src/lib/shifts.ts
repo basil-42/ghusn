@@ -1,9 +1,10 @@
-import { dec, expectedCash, shiftDifference, shopDay, sum } from "@ghusn/core";
+import { CoreError, dec, expectedCash, shiftDifference, shiftOpening, shopDay, sum } from "@ghusn/core";
 import { Prisma, prisma } from "@ghusn/db";
 import { getRateAt } from "./exchange-rates";
 import { getPosSettings, posWallets } from "./settings";
 import { roleCan } from "./auth/permissions";
 import { formatTime } from "./format";
+import { walletBalance } from "./wallets";
 
 export class ShiftError extends Error {}
 
@@ -18,11 +19,26 @@ export async function getOpenShift() {
 
 const OPEN_LOCK = "shift:open";
 
+/** رصيد الخزنة في النظام الآن — ما تبدأ منه الوردية التالية (D-146). null إن لم تُضبط الخزنة. */
+export async function safeBalanceNow(): Promise<string | null> {
+  const cash = await cashWalletId();
+  if (!cash) return null;
+  return (await walletBalance(prisma, cash)).toFixed(0);
+}
+
 /**
- * فتح وردية بعهدة نقدية (D-80): وردية واحدة للخزنة (D-143) — لا تُفتح ثانية حتى تُغلق الأولى بعدّ النقد.
- * القفل يمنع فتح ورديتين في نفس اللحظة من جهازين.
+ * فتح وردية (D-80، D-143، D-146): وردية واحدة للخزنة، والعهدة **رصيد الخزنة في النظام** — لا رقم يُكتب.
+ * إن عدّت الموظفة الدرج ووجدت غير ذلك تكتب المعدود وسبباً: العهدة المعدود، والفرق يُسوّى في رصيد الخزنة
+ * ويدخل فروقات الصندوق بسعر لحظة الفتح (D-87). القفل يمنع فتح ورديتين في نفس اللحظة من جهازين.
  */
-export async function openShift(userId: string, openingCashSdg: string): Promise<string> {
+export async function openShift(
+  userId: string,
+  count: { countedSdg: string; note: string | null } | null = null,
+): Promise<string> {
+  const cash = await cashWalletId();
+  if (!cash) throw new ShiftError("لم تُضبط محفظة الخزنة بعد — اطلبي من المالك ضبطها من الإعدادات.");
+  const openedAt = new Date();
+  const sdgPerUsd = count ? await getRateAt("SDG", openedAt) : null;
   try {
     return await prisma.$transaction(async (tx) => {
       await tx.$executeRaw`SELECT pg_advisory_xact_lock(hashtext(${OPEN_LOCK}))`;
@@ -37,7 +53,43 @@ export async function openShift(userId: string, openingCashSdg: string): Promise
             : `الخزنة مع ${open.user.name} منذ ${formatTime(open.openedAt)}. اطلبي منها إغلاق ورديتها بعدّ النقد، ثم افتحي ورديتك.`,
         );
       }
-      const shift = await tx.shift.create({ data: { userId, openingCashSdg } });
+      // يُقفل على الخزنة: لا تمر حركة عليها بين قراءة الرصيد وفتح الوردية
+      const systemSdg = await walletBalance(tx, cash, true);
+      let opening;
+      try {
+        opening = shiftOpening({ systemSdg, countedSdg: count?.countedSdg ?? null });
+      } catch (e) {
+        if (e instanceof CoreError && e.code === "COUNT_REQUIRED") {
+          throw new ShiftError(
+            `رصيد الخزنة في النظام سالب (${systemSdg.toFixed(0)}) — عدّي الدرج واكتبي المعدود وسبب الفرق.`,
+          );
+        }
+        throw e;
+      }
+      const differs = !opening.differenceSdg.isZero();
+      if (differs && !count?.note) {
+        throw new ShiftError(
+          `المعدود يختلف عن رصيد الخزنة في النظام (${systemSdg.toFixed(0)}) — اكتبي السبب، أو أعيدي العدّ.`,
+        );
+      }
+      const shift = await tx.shift.create({
+        data: {
+          userId,
+          openedAt,
+          openingCashSdg: opening.openingSdg.toFixed(2),
+          openingSystemSdg: systemSdg.toFixed(2),
+          openingNote: differs ? count?.note : null,
+          openingDiffUsd:
+            differs && sdgPerUsd
+              ? shiftDifference({
+                  expectedSdg: systemSdg,
+                  countedSdg: opening.openingSdg,
+                  sdgPerUsd,
+                }).differenceUsd.toFixed(2)
+              : null,
+          cashWalletId: cash,
+        },
+      });
       return shift.id;
     });
   } catch (e) {
@@ -57,8 +109,7 @@ async function cashWalletId(): Promise<string | null> {
   }
 }
 
-export const NO_OPEN_SHIFT =
-  "لا توجد وردية مفتوحة، والمبلغ يخرج من الخزنة أو يدخلها. افتحي الوردية من نقطة البيع أولاً، أو اختاري محفظة أخرى.";
+export const NO_OPEN_SHIFT = "لا توجد وردية مفتوحة — افتحي الوردية من نقطة البيع أولاً.";
 
 /** الوردية المفتوحة مقفلة داخل المعاملة: لا تُغلق أثناء تسجيل حركة عليها. */
 export async function lockOpenShift(tx: Prisma.TransactionClient): Promise<string | null> {
@@ -68,27 +119,39 @@ export async function lockOpenShift(tx: Prisma.TransactionClient): Promise<strin
 }
 
 /**
- * حركة على محفظة (D-143): إن كانت الخزنة فهي على الوردية المفتوحة — إلزامية، وبتاريخ اليوم (المال يخرج
- * من الدرج الآن؛ ما خرج في يوم سابق حُسب في عدّ ورديته). غير الخزنة ← null. `fail` يبني خطأ المستدعي.
+ * حركة على محفظة (D-143): إن كانت الخزنة فهي على الوردية المفتوحة، وبتاريخ اليوم (المال يخرج من الدرج
+ * الآن؛ ما خرج في يوم سابق حُسب في عدّ ورديته). **بلا وردية مفتوحة تُسجَّل** (D-146): تغيّر رصيد الخزنة،
+ * والوردية التالية تبدأ منه — إلا إن طُلبت الوردية (`requireShift`: مصروف الموظفة من درجها).
+ * غير الخزنة ← null. `fail` يبني خطأ المستدعي.
  */
 export async function safeShiftFor(
   tx: Prisma.TransactionClient,
   walletId: string | null,
   at: Date,
   fail: (message: string) => Error,
+  requireShift = false,
 ): Promise<string | null> {
   if (!walletId || walletId !== (await cashWalletId())) return null;
   if (shopDay(at) !== shopDay(new Date())) {
     throw fail("ما يخرج من الخزنة أو يدخلها يُسجَّل بتاريخ اليوم — لحركة سابقة اختاري محفظة أخرى.");
   }
   const shiftId = await lockOpenShift(tx);
-  if (!shiftId) throw fail(NO_OPEN_SHIFT);
+  if (!shiftId && requireShift) throw fail(NO_OPEN_SHIFT);
   return shiftId;
+}
+
+/** هل تُغيَّر الخزنة بتسوية أو رصيد افتتاحي؟ لا أثناء وردية مفتوحة — تُعدّ عند إغلاقها (D-146). */
+export async function safeCountBlocked(tx: Prisma.TransactionClient, walletId: string): Promise<string | null> {
+  if (walletId !== (await cashWalletId())) return null;
+  return (await lockOpenShift(tx))
+    ? "الخزنة تُعدّ عند إغلاق الوردية — لا تسوية عليها والوردية مفتوحة. أغلقي الوردية بالعدّ، أو سجّلي الحركة."
+    : null;
 }
 
 /**
  * إلغاء حركة خزنة (D-143، قرار باسل أ): إن كانت ورديتها مفتوحة يكفي الإلغاء (لا تُحسب)، وإن أُغلقت
- * فالمبلغ يعود للوردية المفتوحة الآن ويظهر فيها. بلا وردية مفتوحة يدخل عهدة الوردية التالية بعدّها.
+ * فالمبلغ يعود للوردية المفتوحة الآن ويظهر فيها. بلا وردية مفتوحة يغيّر رصيد الخزنة، والوردية التالية
+ * تبدأ منه (D-146).
  */
 export async function voidShiftFor(tx: Prisma.TransactionClient, shiftId: string | null): Promise<string | null> {
   if (!shiftId) return null;
@@ -278,6 +341,12 @@ export async function shiftSummary(shiftId: string) {
     openedAt: shift.openedAt,
     closedAt: shift.closedAt,
     openingCashSdg: shift.openingCashSdg.toString(),
+    // عدّ الفتح (D-146): الفرق بين المعدود ورصيد الخزنة في النظام
+    openingDiffSdg:
+      shift.openingSystemSdg && !shift.openingSystemSdg.equals(shift.openingCashSdg)
+        ? dec(shift.openingCashSdg.toString()).minus(shift.openingSystemSdg.toString()).toString()
+        : null,
+    openingNote: shift.openingNote,
     salesCount: shift.sales.length,
     totalSdg: total.toString(),
     cashSdg: c.salesCashSdg.plus(c.orderCashSdg).toString(),
@@ -385,14 +454,27 @@ export async function listLargeShortages(days = 7) {
     orderBy: { closedAt: "desc" },
     include: { user: { select: { name: true } } },
   });
-  return shifts
-    .map((s) => ({
+  // عجز عدّ الفتح (D-146): الدرج أقل من رصيد الخزنة في النظام عند الاستلام
+  const openings = await prisma.shift.findMany({
+    where: { openedAt: { gte: since }, openingSystemSdg: { not: null } },
+    include: { user: { select: { name: true } } },
+  });
+  return [
+    ...shifts.map((s) => ({
       id: s.id,
       userName: s.user.name,
       closedAt: s.closedAt,
       shortSdg: dec(s.expectedCashSdg?.toString() ?? "0").minus(s.countedCashSdg?.toString() ?? "0"),
       note: s.closeNote,
-    }))
+    })),
+    ...openings.map((s) => ({
+      id: s.id,
+      userName: `${s.user.name} (عند الفتح)`,
+      closedAt: s.openedAt,
+      shortSdg: dec(s.openingSystemSdg?.toString() ?? "0").minus(s.openingCashSdg.toString()),
+      note: s.openingNote,
+    })),
+  ]
     .filter((s) => s.shortSdg.gt(shortageAlertSdg))
     .map((s) => ({ ...s, shortSdg: s.shortSdg.toFixed(0) }));
 }

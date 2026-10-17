@@ -4,7 +4,7 @@ import { nextDocumentNumber } from "./documents";
 import { formatAmount } from "./format";
 import { getRateInfoAt } from "./exchange-rates";
 import { posWallets } from "./settings";
-import { safeShiftFor, voidShiftFor } from "./shifts";
+import { safeCountBlocked, safeShiftFor, voidShiftFor } from "./shifts";
 
 /**
  * المحافظ: الأرصدة والتحويلات والتسويات (D-86). الرصيد لا يُخزَّن — يُحسب من الحركات في
@@ -26,6 +26,7 @@ export type MovementKind =
   | "TRANSFER_OUT"
   | "TRANSFER_IN"
   | "SHIFT_DIFF"
+  | "SHIFT_OPEN_DIFF"
   | "ORDER"
   | "ORDER_REFUND";
 
@@ -41,6 +42,7 @@ export const MOVEMENT_LABELS: Record<MovementKind, string> = {
   TRANSFER_OUT: "تحويل صادر",
   TRANSFER_IN: "تحويل وارد",
   SHIFT_DIFF: "فرق عدّ وردية",
+  SHIFT_OPEN_DIFF: "فرق عدّ عند فتح وردية",
   ORDER: "طلب متجر",
   ORDER_REFUND: "رد مبلغ طلب",
 };
@@ -90,7 +92,12 @@ const MOVEMENTS = Prisma.sql`
   SELECT sh."cashWalletId", sh."closedAt", sh."countedCashSdg" - sh."expectedCashSdg", 'SHIFT_DIFF', u."name", sh."id", sh."closeNote", sh."id"
     FROM "Shift" sh JOIN "User" u ON u."id" = sh."userId"
    WHERE sh."cashWalletId" IS NOT NULL AND sh."closedAt" IS NOT NULL
-     AND sh."countedCashSdg" IS DISTINCT FROM sh."expectedCashSdg"`;
+     AND sh."countedCashSdg" IS DISTINCT FROM sh."expectedCashSdg"
+  UNION ALL
+  SELECT sh."cashWalletId", sh."openedAt", sh."openingCashSdg" - sh."openingSystemSdg", 'SHIFT_OPEN_DIFF', u."name", sh."id", sh."openingNote", sh."id" || ':open'
+    FROM "Shift" sh JOIN "User" u ON u."id" = sh."userId"
+   WHERE sh."cashWalletId" IS NOT NULL AND sh."openingSystemSdg" IS NOT NULL
+     AND sh."openingCashSdg" <> sh."openingSystemSdg"`;
 
 /** الحركات المحسوبة: الرصيد الافتتاحي نفسه وما بعده فقط (الجرد يلغي ما قبله). */
 const COUNTED = Prisma.sql`
@@ -449,15 +456,19 @@ export async function setOpeningBalance(
   if (amount.lt(0)) throw new WalletError("الرصيد الافتتاحي لا يكون سالباً.");
   const money = await adjustmentMoney(wallet.currencyCode, amount, input.at);
   try {
-    await prisma.walletAdjustment.create({
-      data: {
-        walletId: wallet.id,
-        kind: "OPENING",
-        ...money,
-        occurredAt: input.at,
-        reason: input.reason ?? "رصيد افتتاحي",
-        createdById: userId,
-      },
+    await prisma.$transaction(async (tx) => {
+      const blocked = await safeCountBlocked(tx, wallet.id);
+      if (blocked) throw new WalletError(blocked);
+      await tx.walletAdjustment.create({
+        data: {
+          walletId: wallet.id,
+          kind: "OPENING",
+          ...money,
+          occurredAt: input.at,
+          reason: input.reason ?? "رصيد افتتاحي",
+          createdById: userId,
+        },
+      });
     });
   } catch (e) {
     if (e instanceof Prisma.PrismaClientKnownRequestError && e.code === "P2002") {
@@ -477,15 +488,20 @@ export async function addAdjustment(
   const amount = dec(input.amount);
   if (amount.isZero()) throw new WalletError("مبلغ التسوية لا يكون صفراً.");
   const money = await adjustmentMoney(wallet.currencyCode, amount, input.at);
-  await prisma.walletAdjustment.create({
-    data: {
-      walletId: wallet.id,
-      kind: "MANUAL",
-      ...money,
-      occurredAt: input.at,
-      reason: input.reason,
-      createdById: userId,
-    },
+  await prisma.$transaction(async (tx) => {
+    // الخزنة أثناء وردية مفتوحة تُعدّ عند الإغلاق، لا بتسوية (D-146)
+    const blocked = await safeCountBlocked(tx, wallet.id);
+    if (blocked) throw new WalletError(blocked);
+    await tx.walletAdjustment.create({
+      data: {
+        walletId: wallet.id,
+        kind: "MANUAL",
+        ...money,
+        occurredAt: input.at,
+        reason: input.reason,
+        createdById: userId,
+      },
+    });
   });
 }
 

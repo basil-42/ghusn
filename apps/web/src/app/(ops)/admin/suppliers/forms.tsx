@@ -5,7 +5,7 @@ import { useActionState, useState } from "react";
 import { OVER_BALANCE, exceedsAvailable } from "@/lib/wallet-hint";
 import type { WalletPick } from "@/lib/wallets";
 import type { SafeStatus } from "@/lib/shifts";
-import { OUTSIDE, PaySource, safeBlocked } from "@/components/admin/pay-source";
+import { OUTSIDE, PaySource } from "@/components/admin/pay-source";
 import { Field, SelectField } from "@/components/form-field";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
@@ -123,7 +123,6 @@ export function PaymentForm({
   const [paidAmount, setPaidAmount] = useState("");
   const exceeds = exceedsAvailable(paidAmount, available);
   const crossCurrency = walletCurrency && walletCurrency !== supplierCurrency;
-  const blocked = safeBlocked(walletId, safe);
 
   return (
     <form action={action} key={state.success} className="grid grid-cols-1 gap-4 sm:grid-cols-2">
@@ -183,7 +182,7 @@ export function PaymentForm({
       <Field label="رقم التحويل أو الإيصال (اختياري)" name="reference" dir="ltr" />
       <Field label="ملاحظة (اختياري)" name="note" />
       <div className="sm:col-span-2">
-        <Button type="submit" disabled={pending || exceeds || blocked} className="w-full sm:w-auto">
+        <Button type="submit" disabled={pending || exceeds} className="w-full sm:w-auto">
           {pending ? "جارٍ التسجيل…" : "تسجيل الدفعة"}
         </Button>
       </div>
