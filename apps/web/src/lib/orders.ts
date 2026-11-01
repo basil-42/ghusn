@@ -136,6 +136,7 @@ export interface CartQuoteLine {
   name: string;
   option: string;
   imageKey: string | null;
+  imageFull: boolean;
   qty: number;
   unitPriceSdg: string;
   lineTotalSdg: string;
@@ -171,7 +172,7 @@ export async function quoteCart(
             id: true,
             nameAr: true,
             nameEn: true,
-            images: { orderBy: { sortOrder: "asc" }, take: 1, select: { key: true } },
+            images: { orderBy: { sortOrder: "asc" }, take: 1, select: { key: true, fullBleed: true } },
           },
         },
       },
@@ -192,6 +193,7 @@ export async function quoteCart(
       name: locale === "en" && v.product.nameEn ? v.product.nameEn : v.product.nameAr,
       option: variantLabel(v),
       imageKey: v.product.images[0]?.key ?? null,
+      imageFull: v.product.images[0]?.fullBleed ?? false,
       qty,
       unitPriceSdg: unit.toFixed(0),
       lineTotalSdg: unit.mul(qty).toFixed(0),

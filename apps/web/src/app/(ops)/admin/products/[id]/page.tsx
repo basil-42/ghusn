@@ -82,6 +82,7 @@ export default async function ProductPage({
           id: img.id,
           thumbUrl: imageUrl(img.key, "thumb"),
           fullUrl: imageUrl(img.key, "full"),
+          fullBleed: img.fullBleed,
         }))}
       />
 

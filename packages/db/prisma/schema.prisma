@@ -369,6 +369,8 @@ model ProductImage {
   width     Int
   height    Int
   sortOrder Int      @default(0)
+  // D-148: صورة بخلفية حقيقية تُعرض كاملة — بلا منصة رملية ولا هامش ولا دمج
+  fullBleed Boolean  @default(false)
   createdAt DateTime @default(now())
 
   @@index([productId, sortOrder])

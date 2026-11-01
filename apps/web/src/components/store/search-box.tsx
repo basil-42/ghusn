@@ -5,6 +5,7 @@ import Image from "next/image";
 import { useTranslations } from "next-intl";
 import { useEffect, useId, useRef, useState, type KeyboardEvent } from "react";
 import { Link, useRouter } from "@/i18n/navigation";
+import { stageBox, stageImg } from "@/lib/product-stage";
 import type { SearchSuggestions } from "@/lib/storefront";
 import { Price } from "./price";
 
@@ -171,9 +172,11 @@ export function SearchBox({
               onClick={close}
               className={optionClass(`p-${p.id}`)}
             >
-              <span className="relative size-10 shrink-0 overflow-hidden rounded-lg border border-line bg-muted">
+              <span
+                className={`relative size-10 shrink-0 overflow-hidden rounded-lg border border-line ${p.imageUrl ? stageBox(p.imageFull) : "bg-muted"}`}
+              >
                 {p.imageUrl ? (
-                  <Image src={p.imageUrl} alt="" fill sizes="40px" className="object-cover" unoptimized />
+                  <Image src={p.imageUrl} alt="" fill sizes="40px" className={stageImg(p.imageFull)} unoptimized />
                 ) : (
                   <Image
                     src="/brand/mark-sage.svg"
