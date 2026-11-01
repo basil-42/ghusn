@@ -2,7 +2,13 @@
 
 import { revalidatePath } from "next/cache";
 import { requirePermission } from "@/lib/auth/session";
-import { ImageError, addProductImage, deleteProductImage, makeMainImage } from "@/lib/product-images";
+import {
+  ImageError,
+  addProductImage,
+  deleteProductImage,
+  makeMainImage,
+  setImageFullBleed,
+} from "@/lib/product-images";
 
 export async function uploadProductImage(productId: string, formData: FormData): Promise<{ error?: string }> {
   await requirePermission({ product: ["update"] });
@@ -33,4 +39,12 @@ export async function makeMainImageAction(formData: FormData): Promise<void> {
   await makeMainImage(productId, String(formData.get("imageId") ?? ""));
   revalidatePath(`/admin/products/${productId}`);
   revalidatePath("/admin/products");
+}
+
+export async function setImageFullBleedAction(formData: FormData): Promise<void> {
+  await requirePermission({ product: ["update"] });
+  const productId = String(formData.get("productId") ?? "");
+  await setImageFullBleed(productId, String(formData.get("imageId") ?? ""), formData.get("fullBleed") === "1");
+  revalidatePath(`/admin/products/${productId}`);
+  revalidatePath("/", "layout");
 }

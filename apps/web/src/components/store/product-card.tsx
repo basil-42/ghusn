@@ -2,6 +2,7 @@ import { Plus } from "lucide-react";
 import Image from "next/image";
 import { getLocale, getTranslations } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
+import { stageBox, stageImg } from "@/lib/product-stage";
 import type { StoreProductCard } from "@/lib/storefront";
 import { Price } from "./price";
 import { QuickAdd } from "./quick-add";
@@ -15,14 +16,14 @@ export async function ProductCard({ product }: { product: StoreProductCard }) {
   const t = await getTranslations("product");
   return (
     <div className="group relative flex w-full flex-col overflow-hidden rounded-xl border border-line bg-card transition-shadow hover:shadow-md">
-      <div className="relative aspect-square bg-muted">
+      <div className={`relative aspect-square border-b border-line ${stageBox(product.imageFull)}`}>
         {product.imageUrl ? (
           <Image
             src={product.imageUrl}
             alt={product.name}
             fill
             sizes="(min-width: 1280px) 20vw, (min-width: 1024px) 25vw, (min-width: 640px) 33vw, 50vw"
-            className="object-cover transition-transform duration-500 group-hover:scale-105"
+            className={`${stageImg(product.imageFull)} transition-transform duration-500 group-hover:scale-105`}
             unoptimized
           />
         ) : (

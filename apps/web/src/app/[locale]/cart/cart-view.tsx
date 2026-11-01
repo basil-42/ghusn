@@ -7,6 +7,7 @@ import { MAX_QTY, removeFromCart, setCartQty, useCart, useHydrated } from "@/com
 import { Price } from "@/components/store/price";
 import { useQuote } from "@/components/store/use-quote";
 import { Link } from "@/i18n/navigation";
+import { stageBox, stageImg } from "@/lib/product-stage";
 
 export function CartView() {
   const t = useTranslations("cart");
@@ -33,9 +34,12 @@ export function CartView() {
       <ul className="flex flex-col gap-3">
         {quote.lines.map((l) => (
           <li key={l.variantId} className="flex gap-3 rounded-2xl border border-line bg-card p-3">
-            <Link href={`/p/${l.productId}`} className="relative size-20 shrink-0 overflow-hidden rounded-xl bg-muted">
+            <Link
+              href={`/p/${l.productId}`}
+              className={`relative size-20 shrink-0 overflow-hidden rounded-xl ${l.imageUrl ? stageBox(l.imageFull) : "bg-muted"}`}
+            >
               {l.imageUrl ? (
-                <Image src={l.imageUrl} alt="" fill sizes="80px" className="object-cover" unoptimized />
+                <Image src={l.imageUrl} alt="" fill sizes="80px" className={stageImg(l.imageFull)} unoptimized />
               ) : (
                 <Image src="/brand/mark-sage.svg" alt="" width={32} height={32} className="m-auto mt-6 opacity-40" />
               )}

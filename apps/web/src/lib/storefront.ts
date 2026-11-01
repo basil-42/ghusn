@@ -87,6 +87,8 @@ export interface StoreProductCard {
   /** المتغيّر الوحيد (أو الأرخص) — زر «+» في البطاقة يضيفه مباشرة إن لم تكن هناك خيارات. */
   defaultVariantId: string;
   imageUrl: string | null;
+  /** صورة كاملة بلا منصة (D-148). */
+  imageFull: boolean;
   createdAt: Date;
 }
 
@@ -98,7 +100,7 @@ function cardSelect(sellable: Prisma.ProductVariantWhereInput) {
     nameEn: true,
     createdAt: true,
     category: { select: { nameAr: true, nameEn: true } },
-    images: { orderBy: { sortOrder: "asc" }, take: 1, select: { key: true } },
+    images: { orderBy: { sortOrder: "asc" }, take: 1, select: { key: true, fullBleed: true } },
     variants: { where: sellable, select: { id: true, priceSdg: true } },
   } satisfies Prisma.ProductSelect;
 }
@@ -117,6 +119,7 @@ function toCard(locale: Locale, p: CardRow): StoreProductCard {
     hasOptions: p.variants.length > 1,
     defaultVariantId: cheapest.id,
     imageUrl: image ? imageUrl(image.key, "thumb") : null,
+    imageFull: image?.fullBleed ?? false,
     createdAt: p.createdAt,
   };
 }
@@ -175,7 +178,7 @@ export interface StoreProduct {
   description: string | null;
   category: { slug: string; name: string };
   occasions: { slug: string; name: string }[];
-  images: { full: string; medium: string; thumb: string; width: number; height: number }[];
+  images: { full: string; medium: string; thumb: string; width: number; height: number; fullBleed: boolean }[];
   variants: StoreVariant[];
 }
 
@@ -196,7 +199,7 @@ export async function getStoreProduct(locale: Locale, id: string): Promise<Store
         orderBy: { occasion: { sortOrder: "asc" } },
         select: { occasion: { select: { slug: true, nameAr: true, nameEn: true } } },
       },
-      images: { orderBy: { sortOrder: "asc" }, select: { key: true, width: true, height: true } },
+      images: { orderBy: { sortOrder: "asc" }, select: { key: true, width: true, height: true, fullBleed: true } },
       variants: {
         where: sellable,
         orderBy: { sortOrder: "asc" },
@@ -220,6 +223,7 @@ export async function getStoreProduct(locale: Locale, id: string): Promise<Store
       thumb: imageUrl(i.key, "thumb"),
       width: i.width,
       height: i.height,
+      fullBleed: i.fullBleed,
     })),
     variants: p.variants.map((v) => ({
       id: v.id,
@@ -389,7 +393,14 @@ export async function getSeasonTile(locale: Locale, now = new Date()): Promise<S
 }
 
 export interface SearchSuggestions {
-  products: { id: string; name: string; category: string; priceSdg: string; imageUrl: string | null }[];
+  products: {
+    id: string;
+    name: string;
+    category: string;
+    priceSdg: string;
+    imageUrl: string | null;
+    imageFull: boolean;
+  }[];
   categories: { slug: string; name: string }[];
   occasions: { slug: string; name: string }[];
 }
@@ -417,12 +428,13 @@ export async function searchSuggestions(locale: Locale, q: string): Promise<Sear
     listStoreOccasions(locale),
   ]);
   return {
-    products: products.map(({ id, name, category, priceSdg, imageUrl }) => ({
+    products: products.map(({ id, name, category, priceSdg, imageUrl, imageFull }) => ({
       id,
       name,
       category,
       priceSdg,
       imageUrl,
+      imageFull,
     })),
     categories: categories
       .filter((c) => matchesAll(terms, c.nameAr, c.nameEn))

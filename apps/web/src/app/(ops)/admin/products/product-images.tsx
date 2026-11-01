@@ -1,6 +1,6 @@
 "use client";
 
-import { ImagePlus, Star, Trash2 } from "lucide-react";
+import { Frame, ImagePlus, Square, Star, Trash2 } from "lucide-react";
 import Image from "next/image";
 import { useActionState, useRef, useState, useTransition } from "react";
 import { Alert } from "@/components/ui/alert";
@@ -9,12 +9,20 @@ import { Button } from "@/components/ui/button";
 import { ConfirmDialog, useConfirmForm } from "@/components/ui/confirm-dialog";
 import { toast } from "@/components/ui/toast";
 import { MAX_UPLOAD_BYTES, shrinkImage } from "@/lib/client-image";
-import { deleteProductImageAction, makeMainImageAction, uploadProductImage } from "./image-actions";
+import { stageBox, stageImg } from "@/lib/product-stage";
+import {
+  deleteProductImageAction,
+  makeMainImageAction,
+  setImageFullBleedAction,
+  uploadProductImage,
+} from "./image-actions";
 
 export interface ProductImageView {
   id: string;
   thumbUrl: string;
   fullUrl: string;
+  /** صورة كاملة بلا منصة (D-148) */
+  fullBleed: boolean;
 }
 
 export function ProductImages({
@@ -63,6 +71,10 @@ export function ProductImages({
           <p className="text-sm text-muted-foreground">
             الأولى هي الرئيسية (تظهر في القوائم والمتجر). {images.length} / {max}
           </p>
+          <p className="text-xs text-muted-foreground">
+            الصور بخلفية بيضاء تظهر على منصة رملية كما في المتجر. صورة بخلفية حقيقية (باقة على طاولة مثلاً)؟ اختاري
+            «صورة كاملة».
+          </p>
         </div>
         {canEdit && images.length < max ? (
           <>
@@ -105,7 +117,7 @@ export function ProductImages({
                 href={img.fullUrl}
                 target="_blank"
                 rel="noreferrer"
-                className="relative block overflow-hidden rounded-xl border border-border bg-muted"
+                className={`relative block overflow-hidden rounded-xl border border-border ${stageBox(img.fullBleed)}`}
               >
                 <Image
                   src={img.thumbUrl}
@@ -113,7 +125,7 @@ export function ProductImages({
                   width={400}
                   height={400}
                   unoptimized
-                  className="aspect-square w-full object-cover"
+                  className={`aspect-square w-full ${stageImg(img.fullBleed)}`}
                 />
                 {i === 0 ? (
                   <Badge variant="success" className="absolute start-2 top-2 bg-card">
@@ -121,6 +133,23 @@ export function ProductImages({
                   </Badge>
                 ) : null}
               </a>
+              {canEdit ? (
+                <form action={setImageFullBleedAction}>
+                  <input type="hidden" name="productId" value={productId} />
+                  <input type="hidden" name="imageId" value={img.id} />
+                  <input type="hidden" name="fullBleed" value={img.fullBleed ? "0" : "1"} />
+                  <Button
+                    type="submit"
+                    variant="ghost"
+                    size="sm"
+                    className="w-full"
+                    title={img.fullBleed ? "اعرضيها على المنصة الرملية" : "اعرضيها كاملة بخلفيتها"}
+                  >
+                    {img.fullBleed ? <Square aria-hidden /> : <Frame aria-hidden />}
+                    {img.fullBleed ? "على المنصة" : "صورة كاملة"}
+                  </Button>
+                </form>
+              ) : null}
               {canEdit ? (
                 <div className="flex gap-1">
                   {i > 0 ? (

@@ -4,8 +4,17 @@ import { ChevronLeft, ChevronRight, Expand, X } from "lucide-react";
 import Image from "next/image";
 import { useLocale } from "next-intl";
 import { useEffect, useRef, useState, type TouchEvent } from "react";
+import { stageBox, stageImg } from "@/lib/product-stage";
 
-export type GalleryImage = { full: string; medium: string; thumb: string; width: number; height: number };
+export type GalleryImage = {
+  full: string;
+  medium: string;
+  thumb: string;
+  width: number;
+  height: number;
+  /** صورة كاملة بلا منصة (D-148) */
+  fullBleed?: boolean;
+};
 
 export interface GalleryLabels {
   empty: string;
@@ -89,11 +98,11 @@ export function Gallery({ images, alt, labels }: { images: GalleryImage[]; alt: 
                 onClick={() => setActive(i)}
                 aria-label={counter(i)}
                 aria-current={i === active}
-                className={`relative block size-[72px] overflow-hidden rounded-[10px] border-2 bg-muted ${
+                className={`relative block size-[72px] overflow-hidden rounded-[10px] border-2 ${stageBox(img.fullBleed)} ${
                   i === active ? "border-forest" : "border-transparent opacity-80 hover:opacity-100"
                 }`}
               >
-                <Image src={img.thumb} alt="" fill sizes="72px" className="object-cover" unoptimized />
+                <Image src={img.thumb} alt="" fill sizes="72px" className={stageImg(img.fullBleed)} unoptimized />
               </button>
             </li>
           ))}
@@ -106,7 +115,7 @@ export function Gallery({ images, alt, labels }: { images: GalleryImage[]; alt: 
           onClick={() => setOpen(true)}
           aria-label={`${labels.zoom}: ${alt}`}
           {...(many ? swipe : {})}
-          className="group relative block aspect-square w-full cursor-zoom-in overflow-hidden rounded-2xl bg-muted"
+          className={`group relative block aspect-square w-full cursor-zoom-in overflow-hidden rounded-2xl ${stageBox(current.fullBleed)}`}
         >
           {/* الجوال يأخذ 800px أياً كانت كثافة الشاشة (نصف حجم 1200 تقريباً) — العارض بملء الشاشة يبقى بالكبيرة (D-105) */}
           <picture>
@@ -118,7 +127,7 @@ export function Gallery({ images, alt, labels }: { images: GalleryImage[]; alt: 
               height={current.height}
               fetchPriority="high"
               decoding="async"
-              className="absolute inset-0 size-full object-cover"
+              className={`absolute inset-0 size-full ${stageImg(current.fullBleed)}`}
             />
           </picture>
           <span className="absolute end-3 bottom-3 flex items-center gap-1.5 rounded-full bg-card/90 px-3 py-1.5 text-xs font-semibold text-forest shadow-sm">
