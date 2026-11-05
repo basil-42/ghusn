@@ -79,11 +79,13 @@ export function VariantPicker({ variants }: { variants: StoreVariant[] }) {
     </button>
   );
 
+  // مسافات بالهامش لا بـ gap: Safari كان يحسب للعنصرين المخفيين على الشاشات الكبيرة (شريط الجوال
+  // ومساحته) فراغين عند أول تحميل، فتكبر المسافة تحت زر الإضافة ~32px حتى أول إعادة رسم
   return (
-    <div className="flex flex-col gap-4">
+    <div className="flex flex-col">
       <p className="text-[26px] font-bold">{price}</p>
       {variants.length > 1 ? (
-        <fieldset className="flex flex-col gap-2">
+        <fieldset className="mt-4 flex flex-col gap-2">
           <legend className="mb-2 font-semibold">
             {kind}: <span className="font-normal">{selected.label}</span>
           </legend>
@@ -111,7 +113,7 @@ export function VariantPicker({ variants }: { variants: StoreVariant[] }) {
         </fieldset>
       ) : null}
       {/* ارتفاع ثابت: شارة «كمية محدودة» تظهر لمقاس دون آخر فلا يتحرك ما تحتها */}
-      <p className="flex min-h-6 flex-wrap items-center gap-2 text-sm font-semibold">
+      <p className="mt-4 flex min-h-6 flex-wrap items-center gap-2 text-sm font-semibold">
         <span className="flex items-center gap-1.5">
           <span aria-hidden className="size-2 rounded-full bg-sage" />
           {t("available")}
@@ -124,7 +126,7 @@ export function VariantPicker({ variants }: { variants: StoreVariant[] }) {
       </p>
       {/* الكمية والزر: صف عادي على الشاشات المتوسطة فما فوق، وشريط مثبّت أسفل الشاشة على الجوال فقط.
           عنصران منفصلان بدل عنصر واحد يتبدّل بين fixed وstatic — Safari لم يُعِده للتدفّق العادي (D-95) */}
-      <div className="hidden items-stretch gap-3 md:flex">
+      <div className="mt-4 hidden items-stretch gap-3 md:flex">
         {stepper}
         {addButton(false)}
       </div>
@@ -132,9 +134,9 @@ export function VariantPicker({ variants }: { variants: StoreVariant[] }) {
         {stepper}
         {addButton(true)}
       </div>
-      <div aria-hidden className="h-16 md:hidden" />
+      <div aria-hidden className="h-20 md:hidden" />
       {added ? (
-        <p role="status" className="flex flex-wrap items-center gap-2 rounded-xl bg-muted p-3 text-sm">
+        <p role="status" className="mt-4 flex flex-wrap items-center gap-2 rounded-xl bg-muted p-3 text-sm">
           {t("added")}
           <Link href="/cart" className="font-semibold underline">
             {t("viewCart")}
