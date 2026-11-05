@@ -100,10 +100,8 @@ export function VariantPicker({ variants }: { variants: StoreVariant[] }) {
                   name="variant"
                   value={v.id}
                   checked={v.id === selected.id}
-                  onChange={() => {
-                    setSelectedId(v.id);
-                    setAdded(false);
-                  }}
+                  // رسالة «أُضيف للسلة» تبقى عند تغيير المقاس — إخفاؤها كان يرفع ما تحتها فجأة
+                  onChange={() => setSelectedId(v.id)}
                   className="sr-only"
                 />
                 {v.label}
@@ -112,13 +110,16 @@ export function VariantPicker({ variants }: { variants: StoreVariant[] }) {
           </div>
         </fieldset>
       ) : null}
-      <p className="flex flex-wrap items-center gap-2 text-sm font-semibold">
+      {/* ارتفاع ثابت: شارة «كمية محدودة» تظهر لمقاس دون آخر فلا يتحرك ما تحتها */}
+      <p className="flex min-h-6 flex-wrap items-center gap-2 text-sm font-semibold">
         <span className="flex items-center gap-1.5">
           <span aria-hidden className="size-2 rounded-full bg-sage" />
           {t("available")}
         </span>
         {selected.limited ? (
-          <span className="rounded-full bg-sand/35 px-2.5 py-0.5 text-xs font-bold text-forest">{t("limited")}</span>
+          <span className="rounded-full bg-sand/35 px-2.5 py-0.5 text-xs leading-4 font-bold text-forest">
+            {t("limited")}
+          </span>
         ) : null}
       </p>
       {/* الكمية والزر: صف عادي على الشاشات المتوسطة فما فوق، وشريط مثبّت أسفل الشاشة على الجوال فقط.
