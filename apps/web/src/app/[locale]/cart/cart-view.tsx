@@ -36,7 +36,7 @@ export function CartView() {
           <li key={l.variantId} className="flex gap-3 rounded-2xl border border-line bg-card p-3">
             <Link
               href={`/p/${l.productId}`}
-              className={`relative size-20 shrink-0 overflow-hidden rounded-xl ${l.imageUrl ? stageBox(l.imageFull) : "bg-muted"}`}
+              className={`relative size-20 shrink-0 overflow-hidden rounded-xl border border-line ${l.imageUrl ? stageBox(l.imageFull) : "bg-muted"}`}
             >
               {l.imageUrl ? (
                 <Image src={l.imageUrl} alt="" fill sizes="80px" className={stageImg(l.imageFull)} unoptimized />

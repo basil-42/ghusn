@@ -115,7 +115,7 @@ export function Gallery({ images, alt, labels }: { images: GalleryImage[]; alt: 
           onClick={() => setOpen(true)}
           aria-label={`${labels.zoom}: ${alt}`}
           {...(many ? swipe : {})}
-          className={`group relative block aspect-square w-full cursor-zoom-in overflow-hidden rounded-2xl ${stageBox(current.fullBleed)}`}
+          className={`group relative block aspect-square w-full cursor-zoom-in overflow-hidden rounded-2xl border border-line ${stageBox(current.fullBleed)}`}
         >
           {/* الجوال يأخذ 800px أياً كانت كثافة الشاشة (نصف حجم 1200 تقريباً) — العارض بملء الشاشة يبقى بالكبيرة (D-105) */}
           <picture>
