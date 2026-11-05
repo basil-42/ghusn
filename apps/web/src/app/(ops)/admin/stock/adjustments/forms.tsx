@@ -180,9 +180,7 @@ export function AdjustmentForm({
           {pending ? "جارٍ الحفظ…" : approver ? "حفظ التسوية" : "إرسال للاعتماد"}
         </Button>
         <span className="text-center text-xs text-muted-foreground">
-          {approver
-            ? "تُعتمد فوراً إن كانت ضمن حد اعتمادك، وإلا تذهب للمالك."
-            : "لا يتغير الرصيد حتى تعتمدها المديرة — ويصلها إشعار الآن."}
+          {approver ? "تُعتمد فوراً." : "لا يتغير الرصيد حتى يعتمدها المالك — ويصله إشعار الآن."}
         </span>
       </div>
     </form>

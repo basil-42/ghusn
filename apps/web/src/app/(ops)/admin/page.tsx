@@ -28,6 +28,7 @@ import { isSellingRateStale, rateTicker } from "@/lib/exchange-rates";
 import { formatAmount, formatDateTime, formatDay, formatPercent, formatRate, formatTime } from "@/lib/format";
 import { countNewOrders, orderTabCounts } from "@/lib/orders";
 import { countPriceReview } from "@/lib/pricing";
+import { countPendingReturnRequests } from "@/lib/returns";
 import { countSalesToReview } from "@/lib/sales";
 import { getOpenShift, listLargeShortages, shiftSummary } from "@/lib/shifts";
 import { listDueSoon } from "@/lib/shipments";
@@ -158,13 +159,14 @@ async function OwnerHome({ user, can, period }: { user: User; can: Can; period: 
     // المنصرفات لمن يرى التقارير (D-137)
     can({ report: ["read"] }) ? periodSpending(range, now) : null,
   ]);
-  const [due, priceReview, salesReview, shortages, adjustments, rateStale] = await Promise.all([
+  const [due, priceReview, salesReview, shortages, adjustments, rateStale, returnRequests] = await Promise.all([
     can({ supplier: ["read"] }) ? listDueSoon(7) : [],
     can({ price: ["approve"] }) ? countPriceReview() : 0,
     countSalesToReview(),
     can({ report: ["read"] }) ? listLargeShortages() : [],
     can({ stock: ["approve"] }) ? countPendingFor({ id: user.id, role: user.role }) : 0,
     can({ exchangeRate: ["update"] }) ? isSellingRateStale(now) : false,
+    can({ saleReturn: ["approveLate"] }) ? countPendingReturnRequests() : 0,
   ]);
   const paymentReview = can({ order: ["payment"] }) ? (orders?.paymentReview ?? 0) : 0;
   const seeProfit = can({ report: ["read"] });
@@ -178,6 +180,11 @@ async function OwnerHome({ user, can, period }: { user: User; can: Can; period: 
     shortages.length && { href: "/admin/sales", text: `عجز كبير في ${shortages.length} وردية`, urgent: true },
     priceReview && { href: "/admin/pricing", text: `${priceReview} صنف يحتاج مراجعة سعر`, urgent: false },
     adjustments && { href: "/admin/stock/adjustments", text: `${adjustments} تسوية مخزون للاعتماد`, urgent: false },
+    returnRequests && {
+      href: "/admin/return-requests",
+      text: `${returnRequests} مرتجع بعد المدة للاعتماد`,
+      urgent: true,
+    },
     due.length && {
       href: "/admin/suppliers",
       text: `${due.length} دفعة لمورد خلال 7 أيام`,

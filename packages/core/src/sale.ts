@@ -158,6 +158,23 @@ export function checkDiscount(input: {
   return { discountRatio, overLimit, belowCost, needsApproval: overLimit || belowCost.length > 0 };
 }
 
+/**
+ * أقصى نسبة خصم لصنف قبل أن ينزل تحت تكلفته (D-150): تُعرض للموظفة رقماً صحيحاً مقرّباً للأسفل
+ * بدل التكلفة نفسها. صنف بلا تكلفة معروفة: لا حد (null).
+ */
+export function maxDiscountPercentAboveCost(input: {
+  grossSdg: DecimalInput;
+  qty: DecimalInput;
+  avgCostUsd: DecimalInput;
+  sdgPerUsd: DecimalInput;
+}): Decimal | null {
+  const gross = dec(input.grossSdg);
+  const cost = dec(input.avgCostUsd).mul(input.qty).mul(input.sdgPerUsd);
+  if (!cost.gt(0) || !gross.gt(0)) return null;
+  const pct = gross.minus(cost).div(gross).mul(100).floor();
+  return Decimal.max(pct, 0);
+}
+
 export type PaymentMethod = "CASH" | "BANKAK";
 
 export interface PaymentInput {

@@ -374,11 +374,10 @@ export async function submitCount(countId: string, user: Actor): Promise<void> {
       data: { status: "SUBMITTED", submittedById: user.id, submittedAt: new Date() },
     });
     const s = summaryOf(await reviewLines(countId));
-    const { managerAdjustLimitUsd } = await getStockSettings();
     await notify(tx, {
       type: "STOCK_COUNT",
       priority: "IMPORTANT",
-      title: `جرد بانتظار مراجعتك · ${countTitle(c)}`,
+      title: `جرد بانتظار اعتمادك · ${countTitle(c)}`,
       body: [
         c.number,
         `أرسلته ${user.name}`,
@@ -388,7 +387,8 @@ export async function submitCount(countId: string, user: Actor): Promise<void> {
       ].join(" · "),
       href: `/admin/stock/counts/${countId}`,
       dedupeKey: `COUNT_SUBMITTED:${countId}:${Date.now()}`,
-      audience: s.netUsd.abs().lte(managerAdjustLimitUsd) ? { stock: ["approve"] } : { stock: ["approveAll"] },
+      // الاعتماد للمالك وحده (D-150)
+      audience: { stock: ["approve"] },
     });
   });
   kickPushDelivery();
@@ -396,7 +396,7 @@ export async function submitCount(countId: string, user: Actor): Promise<void> {
 
 /** طلب إعادة عدّ صنف مشكوك فيه — يرجع لمن عدّته (إشعار) ويمنع الاعتماد حتى يُعاد. */
 export async function requestRecount(lineId: string, user: Actor): Promise<void> {
-  if (!roleCan(user.role, { stock: ["approve"] })) throw new CountError("ليست لديك صلاحية المراجعة.");
+  if (!roleCan(user.role, { stock: ["manage"] })) throw new CountError("ليست لديك صلاحية المراجعة.");
   await prisma.$transaction(async (tx) => {
     const line = await tx.stockCountLine.findUnique({
       where: { id: lineId },
@@ -507,7 +507,7 @@ export async function approveCount(countId: string, user: Actor, costs: Record<s
 }
 
 export async function cancelCount(countId: string, reason: string, user: Actor): Promise<void> {
-  if (!roleCan(user.role, { stock: ["approve"] })) throw new CountError("ليست لديك صلاحية الإلغاء.");
+  if (!roleCan(user.role, { stock: ["manage"] })) throw new CountError("ليست لديك صلاحية الإلغاء.");
   const updated = await prisma.stockCount.updateMany({
     where: { id: countId, status: { in: ACTIVE } },
     data: { status: "CANCELLED", cancelReason: reason, decidedById: user.id, decidedAt: new Date() },
@@ -596,7 +596,7 @@ export async function runCountReminders(now = new Date()): Promise<boolean> {
     body: parts.join(" · "),
     href: `/admin/stock/counts?suggest=${full ? "FULL" : section ? `CATEGORY:${section.id}` : "QUICK"}`,
     dedupeKey: `COUNT_DUE:${shopDay(now)}`,
-    audience: { stock: ["approve"] },
+    audience: { stock: ["manage"] },
   });
   return !!id;
 }

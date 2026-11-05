@@ -204,8 +204,8 @@ export interface AdjustmentInput {
 }
 
 /**
- * تسجيل تسوية. من تملك اعتماد قيمتها (المديرة حتى الحد، والمالك) تُنفَّذ فوراً؛ غيرها تنتظر
- * ويصل إشعار لمن يستطيع اعتمادها.
+ * تسجيل تسوية. المالك تُنفَّذ تسويته فوراً؛ غيره (الموظفة والمديرة) تنتظر اعتماد المالك ويصله
+ * إشعار (D-150).
  */
 export async function createAdjustment(
   input: AdjustmentInput,
@@ -279,8 +279,6 @@ export async function createAdjustment(
       await notifyApproved(tx, { ...a, label }, valueUsd, user);
       return { id: adj.id, number: adj.number, approved: true };
     }
-    // للمعتمِدات: المديرة إن كانت ضمن حدها، وإلا المالك فقط (صنف بلا تكلفة: تُفحص قيمته عند الاعتماد)
-    const withinLimit = dec(estimate).lte(rights.limitUsd);
     await notify(tx, {
       type: "STOCK_ADJUSTMENT",
       priority: "IMPORTANT",
@@ -294,7 +292,7 @@ export async function createAdjustment(
       ].join(" · "),
       href: `/admin/stock/adjustments?focus=${adj.id}`,
       dedupeKey: `STOCK_ADJUSTMENT:${adj.id}`,
-      audience: withinLimit ? { stock: ["approve"] } : { stock: ["approveAll"] },
+      audience: { stock: ["approve"] },
     });
     return { id: adj.id, number: adj.number, approved: false };
   });

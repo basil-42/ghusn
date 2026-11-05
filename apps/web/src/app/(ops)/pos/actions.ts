@@ -8,9 +8,16 @@ import { requirePermission } from "@/lib/auth/session";
 import { flash } from "@/lib/flash";
 import { customerCardByPhone } from "@/lib/customers";
 import { saleSchema } from "@/lib/sale-schema";
-import { ApprovalRequired, SaleError, createSale, findPosItems } from "@/lib/sales";
+import { SaleError, createSale, findPosItems } from "@/lib/sales";
 import { RETURN_REASONS } from "@/lib/return-reasons";
-import { ReturnError, cashOutCredit, createReturn, findSaleForReturn } from "@/lib/returns";
+import {
+  ReturnError,
+  cancelReturnRequest,
+  cashOutCredit,
+  createReturn,
+  findSaleForReturn,
+  requestLateReturn,
+} from "@/lib/returns";
 import { ShiftError, closeShift, openShift } from "@/lib/shifts";
 
 export type FormState = { error?: string; success?: string };
@@ -100,7 +107,7 @@ export async function findItemsAction(query: string) {
   return findPosItems(String(query).slice(0, 80));
 }
 
-export type SaleResult = { ok: true; id: string } | { error: string } | { approvalRequired: string[] };
+export type SaleResult = { ok: true; id: string } | { error: string };
 
 export async function createSaleAction(input: unknown): Promise<SaleResult> {
   const session = await requirePermission({ pos: ["sell"] });
@@ -108,13 +115,12 @@ export async function createSaleAction(input: unknown): Promise<SaleResult> {
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "بيانات غير صحيحة" };
   try {
     const sale = await createSale(
-      { ...parsed.data, approval: parsed.data.approval ?? null, creditReturnId: parsed.data.creditReturnId ?? null },
+      { ...parsed.data, creditReturnId: parsed.data.creditReturnId ?? null },
       session.user.id,
     );
     revalidatePath("/pos/shift");
     return { ok: true, id: sale.id };
   } catch (e) {
-    if (e instanceof ApprovalRequired) return { approvalRequired: e.reasons };
     if (e instanceof SaleError) return { error: e.message };
     throw e;
   }
@@ -162,7 +168,6 @@ const returnSchema = z
       .max(200)
       .nullish()
       .transform((v) => v || null),
-    approval: z.object({ phone: z.string().max(20), password: z.string().max(200) }).nullish(),
   })
   .refine((v) => v.reasonCode !== "OTHER" || v.reason, { message: "اكتبي السبب مع «أخرى»", path: ["reason"] });
 
@@ -171,14 +176,45 @@ export async function createReturnAction(input: unknown): Promise<SaleResult> {
   const parsed = returnSchema.safeParse(input);
   if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "بيانات غير صحيحة" };
   try {
-    const r = await createReturn({ ...parsed.data, approval: parsed.data.approval ?? null }, session.user.id);
+    const r = await createReturn(parsed.data, session.user.id);
     revalidatePath("/pos/shift");
     return { ok: true, id: r.id };
   } catch (e) {
-    if (e instanceof ApprovalRequired) return { approvalRequired: e.reasons };
     if (e instanceof ReturnError || e instanceof SaleError) return { error: e.message };
     throw e;
   }
+}
+
+/** مرتجع بعد المدة: طلب اعتماد يصل للمالك (D-150). */
+export async function requestLateReturnAction(input: unknown): Promise<{ ok: true } | { error: string }> {
+  const session = await requirePermission({ pos: ["sell"] });
+  const parsed = z
+    .object({
+      saleId: z.string().min(1).max(40),
+      reason: z.string().trim().min(3, "اكتبي سبب المرتجع للمالك").max(200),
+    })
+    .safeParse(input);
+  if (!parsed.success) return { error: parsed.error.issues[0]?.message ?? "بيانات غير صحيحة" };
+  try {
+    await requestLateReturn(parsed.data.saleId, parsed.data.reason, session.user);
+  } catch (e) {
+    if (e instanceof ReturnError) return { error: e.message };
+    throw e;
+  }
+  revalidatePath("/admin/return-requests");
+  return { ok: true };
+}
+
+export async function cancelReturnRequestAction(id: unknown): Promise<{ ok: true } | { error: string }> {
+  const session = await requirePermission({ pos: ["sell"] });
+  try {
+    await cancelReturnRequest(String(id ?? "").slice(0, 40), session.user);
+  } catch (e) {
+    if (e instanceof ReturnError) return { error: e.message };
+    throw e;
+  }
+  revalidatePath("/admin/return-requests");
+  return { ok: true };
 }
 
 export async function cashOutCreditAction(_prev: FormState, formData: FormData): Promise<FormState> {

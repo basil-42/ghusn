@@ -22,7 +22,7 @@ function parseSuggest(v: string | undefined) {
 export default async function CountsPage({ searchParams }: { searchParams: Promise<{ suggest?: string }> }) {
   const session = await requirePermission({ stock: ["adjust"] });
   const { suggest } = await searchParams;
-  const manager = roleCan(session.user.role, { stock: ["approve"] });
+  const manager = roleCan(session.user.role, { stock: ["manage"] });
   const [active, counts, categories] = await Promise.all([activeCount(), listCounts(), countCategories()]);
 
   return (

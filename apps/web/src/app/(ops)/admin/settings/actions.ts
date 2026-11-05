@@ -37,7 +37,7 @@ const numberOf = (f: FormData, k: string) => Number(toLatinDigits(text(f, k)).re
 /** أسماء الحقول كما تظهر في سجل التدقيق (D-114). */
 const FIELD_LABELS: Record<string, string> = {
   weekStartsOn: "بداية الأسبوع",
-  maxDiscountPercent: "حد خصم الموظفة %",
+  maxDiscountPercent: "حد الخصم % (للجميع)",
   returnDays: "مدة المرتجع (يوم)",
   cashWalletId: "محفظة النقد",
   bankakWalletId: "محفظة بنكك",
@@ -50,7 +50,7 @@ const FIELD_LABELS: Record<string, string> = {
   giftTileImageKey: "صورة «صمّم هديتك»",
   lowStockQty: "حد «قارب على النفاد»",
   expiryAlertDays: "تنبيه الصلاحية (يوم)",
-  managerAdjustLimitUsd: "حد اعتماد المديرة للتسويات $",
+  managerAdjustLimitUsd: "تسوية كبيرة في سجل التدقيق $",
   deadStockDays: "حد الراكد (يوم)",
   salesWindowDays: "نافذة معدل البيع (يوم)",
   leadTimeDays: "مدة وصول الشحنة (يوم)",

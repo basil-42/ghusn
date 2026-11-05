@@ -3,6 +3,7 @@ import {
   checkDiscount,
   computeSale,
   consumeBatches,
+  maxDiscountPercentAboveCost,
   dec,
   normalizePhone,
   resolveCustomerName,
@@ -17,7 +18,6 @@ import {
   type PaymentMethod,
 } from "@ghusn/core";
 import { Prisma, prisma } from "@ghusn/db";
-import { ApprovalError, verifyApprover } from "./approvals";
 import { recordAudit } from "./audit";
 import { nextDocumentNumber } from "./documents";
 import { reservedByVariant } from "./orders";
@@ -26,13 +26,6 @@ import { currentSellingRate } from "./pricing";
 import { getPosSettings, posWallets } from "./settings";
 
 export class SaleError extends Error {}
-
-/** البيع يحتاج موافقة: السبب يُعرض للموظفة، والواجهة تطلب رقم المديرة وكلمة سرها. */
-export class ApprovalRequired extends Error {
-  constructor(readonly reasons: string[]) {
-    super(reasons.join(" "));
-  }
-}
 
 const sellable = {
   deletedAt: null,
@@ -105,12 +98,11 @@ export interface SaleInput {
   customerName: string | null;
   /** الموظفة أكّدت استبدال الاسم المسجّل بالمكتوب (D-116)؛ بدونه يبقى المسجّل. */
   renameCustomer?: boolean;
-  approval: { phone: string; password: string } | null;
   /** استبدال: مرتجع رصيده يُستخدم في هذه الفاتورة (D-81). */
   creditReturnId: string | null;
   /**
    * بيع تم دون اتصال ويُزامَن الآن (D-63، D-82): يُقبل دائماً (البضاعة خرجت) بسعره ووقته على
-   * الجهاز، وما كان يحتاج موافقة يُسجَّل ملاحظة مراجعة للمديرة بدل الرفض.
+   * الجهاز، وما كان سيُمنع يُسجَّل ملاحظة مراجعة للمديرة بدل الرفض.
    */
   offline?: { createdAt: Date; localNumber: string; unitPrices: Record<string, string> } | null;
 }
@@ -118,7 +110,8 @@ export interface SaleInput {
 /**
  * البيع (D-80): الأسعار والإجماليات تُحسب على الخادم من قاعدة البيانات (لا يُوثق بأرقام الجهاز)،
  * والمخزون يُصرف من الدفعات (FEFO) بمتوسط التكلفة، والدفع المقسوم يدخل محفظتي النقد وبنكك —
- * كله في معاملة واحدة. الخصم فوق الحد أو تحت التكلفة أو البيع بلا رصيد يحتاج موافقة.
+ * كله في معاملة واحدة. قواعد ثابتة بلا موافقات (D-150): الخصم فوق حد الضبط، أو السعر تحت التكلفة،
+ * أو رصيد لا يكفي — كلها ممنوعة برسالة تشرح السبب والحل.
  */
 export async function createSale(input: SaleInput, cashierId: string): Promise<{ id: string; number: string }> {
   const existing = await prisma.sale.findUnique({ where: { id: input.id }, select: { number: true, cashierId: true } });
@@ -198,7 +191,7 @@ export async function createSale(input: SaleInput, cashierId: string): Promise<{
   const customerPhone = input.customerPhone ? normalizePhone(input.customerPhone, "SD") : null;
   if (input.customerPhone && !customerPhone) throw new SaleError("رقم هاتف العميل غير صحيح.");
 
-  // الموافقة: خصم فوق الحد، تحت التكلفة، أو رصيد لا يكفي
+  // القواعد (D-150): خصم فوق الحد، تحت التكلفة، أو رصيد لا يكفي — ممنوعة
   const settings = await getPosSettings();
   const avg = (id: string) => byId.get(id)?.stockLevel?.avgCostUsd.toString() ?? "0";
   const discount = checkDiscount({
@@ -215,11 +208,21 @@ export async function createSale(input: SaleInput, cashierId: string): Promise<{
   });
   const reasons: string[] = [];
   if (discount.overLimit) {
-    reasons.push(`الخصم ${discount.discountRatio.mul(100).toFixed(1)}% فوق الحد (${settings.maxDiscountPercent}%).`);
-  }
-  if (discount.belowCost.length) {
     reasons.push(
-      `السعر بعد الخصم تحت التكلفة: ${discount.belowCost.map((id) => byId.get(id)?.product.nameAr).join("، ")}.`,
+      `الخصم ${discount.discountRatio.mul(100).toFixed(1)}% — أقصى خصم ${settings.maxDiscountPercent}%. عدّلي الخصم.`,
+    );
+  }
+  for (const id of discount.belowCost) {
+    // أقصى خصم للصنف بدل تكلفته — التكلفة لا تصل للموظفة
+    const qty = input.lines.find((x) => x.variantId === id)?.qty ?? "0";
+    const max = maxDiscountPercentAboveCost({
+      grossSdg: dec(qty).mul(unitPrice(id)),
+      qty,
+      avgCostUsd: avg(id),
+      sdgPerUsd: rate,
+    });
+    reasons.push(
+      `«${byId.get(id)?.product.nameAr}»: هذا الخصم يجعل السعر تحت التكلفة — أقصى خصم لهذا الصنف ${max?.toFixed() ?? 0}%.`,
     );
   }
   // المتاح = الرصيد − المحجوز لطلبات المتجر التي لم يبدأ تجهيزها (D-88)
@@ -228,24 +231,20 @@ export async function createSale(input: SaleInput, cashierId: string): Promise<{
   const short = input.lines.filter((l) =>
     freeQty(l.variantId, byId.get(l.variantId)?.stockLevel?.qty.toString() ?? "0").lt(l.qty),
   );
-  if (short.length) {
-    const held = short.some((l) => reserved.get(l.variantId)?.gt(0));
+  for (const l of short) {
+    const v = byId.get(l.variantId);
+    const raw = freeQty(l.variantId, v?.stockLevel?.qty.toString() ?? "0");
+    const free = raw.lt(0) ? dec(0) : raw;
+    const held = reserved.get(l.variantId)?.gt(0);
     reasons.push(
-      `الرصيد في النظام لا يكفي${held ? " (جزء محجوز لطلبات المتجر)" : ""}: ${short.map((l) => byId.get(l.variantId)?.product.nameAr).join("، ")}.`,
+      `لا يمكن البيع: «${v?.product.nameAr}» المتاح في النظام ${free.toFixed()}${held ? " (والباقي محجوز لطلبات المتجر)" : ""}. إن كان موجوداً على الرف سجّلي «تسوية زيادة» ليعتمدها المالك.`,
     );
   }
-  let approvedById: string | null = null;
   if (offline) {
-    // دون اتصال لا تُطلب موافقة: تُسجَّل ملاحظة للمراجعة (D-63)
+    // دون اتصال البيع حدث فعلاً: يُقبل وتُسجَّل ملاحظة للمراجعة (D-63)
     review.push(...reasons);
   } else if (reasons.length) {
-    if (!input.approval) throw new ApprovalRequired(reasons);
-    try {
-      approvedById = await verifyApprover(input.approval.phone, input.approval.password);
-    } catch (e) {
-      if (e instanceof ApprovalError) throw new ApprovalRequired([e.message]);
-      throw e;
-    }
+    throw new SaleError(reasons.join(" "));
   }
 
   const wallets = await posWallets();
@@ -318,8 +317,8 @@ export async function createSale(input: SaleInput, cashierId: string): Promise<{
         const stockQty = dec(level?.qty.toString() ?? "0");
         const unitCost = dec(level?.avgCostUsd.toString() ?? "0");
         // فحص الرصيد تحت القفل: ربما باعت وردية أخرى آخر قطعة للتو
-        if (freeQty(l.key, stockQty).lt(qty) && !approvedById) {
-          if (!offline) throw new ApprovalRequired([`الرصيد في النظام لا يكفي: ${v.product.nameAr}.`]);
+        if (freeQty(l.key, stockQty).lt(qty)) {
+          if (!offline) throw new SaleError(`لا يمكن البيع: «${v.product.nameAr}» نفد للتو — حدّثي الصفحة.`);
           const note = `الرصيد في النظام لا يكفي: ${v.product.nameAr}.`;
           if (!review.includes(note)) review.push(note);
         }
@@ -398,7 +397,6 @@ export async function createSale(input: SaleInput, cashierId: string): Promise<{
           cogsUsd: roundMoney(sum(costs)).toFixed(2),
           cashTenderedSdg: input.cashTenderedSdg ? dec(input.cashTenderedSdg).toFixed(2) : null,
           changeSdg: paid.changeSdg.toFixed(2),
-          approvedById,
           createdAt: now,
           ...(offline
             ? {

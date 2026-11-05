@@ -18,11 +18,15 @@ export const statements = {
   supplierPayment: ["create", "void", "outside"],
   shipment: ["read", "create", "update", "receive"],
   shipmentCost: ["create", "void", "outside"],
-  // تسويات المخزون (D-111): التسجيل، الاعتماد حتى الحد، والاعتماد بلا حد
-  stock: ["read", "adjust", "approve", "approveAll"],
+  // المخزون (D-111، D-150): «adjust» تسجيل التسوية، «manage» إدارة الجرد (بدء، إعادة عدّ، إلغاء)،
+  // «approve»/«approveAll» اعتماد التسويات ونتيجة الجرد — للمالك وحده
+  stock: ["read", "adjust", "manage", "approve", "approveAll"],
   price: ["approve"],
+  // «approve»: الإشراف على نقطة البيع (مراجعة فواتير دون اتصال، ورديات الآخرين) — لا موافقات على البيع (D-150)
   pos: ["sell", "approve"],
   sale: ["read"],
+  // مرتجع بعد المدة: اعتماد الطلب — للمالك وحده (D-150)
+  saleReturn: ["approveLate"],
   settings: ["update"],
   expense: ["read", "create", "void"],
   report: ["read"],
@@ -51,10 +55,11 @@ export const roles = {
     supplierPayment: ["create", "void", "outside"],
     shipment: ["read", "create", "update", "receive"],
     shipmentCost: ["create", "void", "outside"],
-    stock: ["read", "adjust", "approve", "approveAll"],
+    stock: ["read", "adjust", "manage", "approve", "approveAll"],
     price: ["approve"],
     pos: ["sell", "approve"],
     sale: ["read"],
+    saleReturn: ["approveLate"],
     settings: ["update"],
     expense: ["read", "create", "void"],
     report: ["read"],
@@ -76,8 +81,8 @@ export const roles = {
     supplierPayment: ["create", "void"],
     shipment: ["read", "create", "update", "receive"],
     shipmentCost: ["create", "void"],
-    // تعتمد التسويات حتى حد الضبط؛ ما فوقه للمالك (D-111)
-    stock: ["read", "adjust", "approve"],
+    // تسجّل التسويات وتدير الجرد، والاعتماد للمالك وحده (D-150)
+    stock: ["read", "adjust", "manage"],
     price: ["approve"],
     pos: ["sell", "approve"],
     sale: ["read"],

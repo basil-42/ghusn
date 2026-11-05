@@ -28,8 +28,8 @@ export default async function ReturnsPage({ searchParams }: { searchParams: Prom
       <CardHeader>
         <CardTitle>مرتجع أو استبدال</CardTitle>
         <CardDescription>
-          بالإيصال خلال {settings.returnDays} أيام، بالسعر المدفوع فعلاً بعد الخصم. السليم يعود للمخزون، والتالف
-          يُسجَّل.
+          بالإيصال خلال {settings.returnDays} أيام (بعدها باعتماد المالك)، بالسعر المدفوع فعلاً بعد الخصم. السليم يعود
+          للمخزون، والتالف يُسجَّل.
         </CardDescription>
       </CardHeader>
       <ReturnForm

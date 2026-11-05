@@ -9,7 +9,7 @@ export async function GET(_request: Request, { params }: { params: Promise<{ id:
   if (!session) return new Response("Unauthorized", { status: 401 });
   const adj = await getAdjustmentPhoto((await params).id);
   const allowed =
-    !!adj?.photoKey && (roleCan(session.user.role, { stock: ["approve"] }) || adj.requestedById === session.user.id);
+    !!adj?.photoKey && (roleCan(session.user.role, { stock: ["manage"] }) || adj.requestedById === session.user.id);
   if (!allowed || !adj.photoKey) return new Response("Not found", { status: 404 });
   return privateImageResponse(adj.photoKey);
 }
