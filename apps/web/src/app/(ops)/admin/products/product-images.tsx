@@ -72,8 +72,8 @@ export function ProductImages({
             الأولى هي الرئيسية (تظهر في القوائم والمتجر). {images.length} / {max}
           </p>
           <p className="text-xs text-muted-foreground">
-            الصور بخلفية بيضاء تظهر على منصة رملية كما في المتجر. صورة بخلفية حقيقية (باقة على طاولة مثلاً)؟ اختاري
-            «صورة كاملة».
+            الصور بخلفية بيضاء تُعرض على أبيض بهامش ثابت كما في المتجر. صورة بخلفية حقيقية (باقة على طاولة مثلاً)؟
+            اختاري «صورة كاملة».
           </p>
         </div>
         {canEdit && images.length < max ? (
@@ -143,10 +143,10 @@ export function ProductImages({
                     variant="ghost"
                     size="sm"
                     className="w-full"
-                    title={img.fullBleed ? "اعرضيها على المنصة الرملية" : "اعرضيها كاملة بخلفيتها"}
+                    title={img.fullBleed ? "اعرضيها بهامش على أبيض" : "اعرضيها كاملة بخلفيتها"}
                   >
                     {img.fullBleed ? <Square aria-hidden /> : <Frame aria-hidden />}
-                    {img.fullBleed ? "على المنصة" : "صورة كاملة"}
+                    {img.fullBleed ? "بهامش" : "صورة كاملة"}
                   </Button>
                 </form>
               ) : null}

@@ -32,7 +32,7 @@ export async function ProductCard({ product }: { product: StoreProductCard }) {
           </div>
         )}
       </div>
-      <div className="flex flex-1 flex-col gap-1 p-3">
+      <div className="flex flex-1 flex-col gap-1 bg-stage p-3">
         <span className="text-[11px] text-muted-foreground">{product.category}</span>
         {/* الرابط يغطي البطاقة كلها؛ زر «+» فوقه */}
         <Link

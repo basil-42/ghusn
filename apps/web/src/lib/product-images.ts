@@ -112,7 +112,7 @@ export async function deleteProductImage(productId: string, imageId: string): Pr
   await normalizeOrder(productId);
 }
 
-/** صورة بخلفية حقيقية تُعرض كاملة، أو على المنصة الرملية (D-148). */
+/** صورة بخلفية حقيقية تُعرض كاملة، أو بهامش على أبيض (D-149). */
 export async function setImageFullBleed(productId: string, imageId: string, fullBleed: boolean): Promise<void> {
   await prisma.productImage.updateMany({ where: { id: imageId, productId }, data: { fullBleed } });
 }
