@@ -25,7 +25,6 @@ export async function POST(request: Request) {
     const result = await createSale(
       {
         ...sale,
-        approval: null,
         creditReturnId: null,
         offline: { createdAt: at, localNumber, unitPrices },
       },

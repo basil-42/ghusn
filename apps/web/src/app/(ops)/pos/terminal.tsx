@@ -25,7 +25,6 @@ import { getMeta, nextLocalNumber, pendingCount, posDb, searchCatalog } from "@/
 import { usePosSync } from "@/lib/pos-offline/use-pos-sync";
 import type { ReceiptSettings } from "@/lib/settings";
 import { createSaleAction, findItemsAction, lookupCustomerAction, type CustomerCard } from "./actions";
-import { ApprovalDialog } from "./approval-dialog";
 
 type Mode = "amount" | "percent";
 type CartLine = PosItem & { qty: string; discountMode: Mode; discount: string };
@@ -81,7 +80,6 @@ export function PosTerminal({
   const [bankak, setBankak] = useState("");
   const [bankakRef, setBankakRef] = useState("");
   const [tendered, setTendered] = useState("");
-  const [approval, setApproval] = useState<{ reasons: string[] } | null>(null);
   const [pending, startTransition] = useTransition();
   const sync = usePosSync();
   // إيصال فاتورة حُفظت على الجهاز دون اتصال (D-82)
@@ -92,6 +90,16 @@ export function PosTerminal({
     setQuery("");
     if (!item.priceSdg) {
       setMessage({ kind: "error", text: `${item.label}: لا سعر له بعد — اطلبي من المديرة اعتماد سعره.` });
+      return;
+    }
+    // رصيد لا يكفي = لا بيع حتى يُضاف للمخزون (D-150)
+    const inCart = cart.find((l) => l.variantId === item.variantId);
+    if (
+      dec(num(inCart?.qty ?? "0"))
+        .plus(1)
+        .gt(item.stockQty)
+    ) {
+      setMessage({ kind: "error", text: outOfStockText(item) });
       return;
     }
     setMessage(null);
@@ -152,6 +160,9 @@ export function PosTerminal({
   const paidSum = dec(num(cashDue)).plus(num(bankak));
   const change = tendered ? dec(num(tendered)).minus(num(cashDue)) : dec(0);
   const discountPct = totals && totals.subtotalSdg.gt(0) ? totals.discountSdg.div(totals.subtotalSdg).mul(100) : dec(0);
+  // القواعد (D-150): خصم فوق حد الضبط، أو كمية أكثر من الرصيد — ممنوعان، والزر معطّل
+  const overDiscount = discountPct.gt(maxDiscountPercent);
+  const shortLines = cart.filter((l) => dec(num(l.qty)).gt(l.stockQty));
 
   function changePhone(value: string) {
     setCustomerPhone(value);
@@ -182,7 +193,6 @@ export function PosTerminal({
     setBankak("");
     setBankakRef("");
     setTendered("");
-    setApproval(null);
     setSaleId(createId());
   }
 
@@ -192,13 +202,7 @@ export function PosTerminal({
       setMessage({ kind: "error", text: "الاستبدال يحتاج اتصالاً بالإنترنت." });
       return;
     }
-    if (discountPct.gt(maxDiscountPercent)) {
-      setMessage({
-        kind: "error",
-        text: `الخصم فوق حدّك (${maxDiscountPercent}%) يحتاج موافقة، والموافقة تحتاج اتصالاً.`,
-      });
-      return;
-    }
+    if (overDiscount || shortLines.length) return;
     const cashier = await getMeta<{ id: string; name: string }>("cashier");
     const settings = await getMeta<ReceiptSettings>("receipt");
     if (!cashier || !settings) {
@@ -261,8 +265,8 @@ export function PosTerminal({
     setLocalReceipt({ data, settings });
   }
 
-  function submit(withApproval?: { phone: string; password: string }) {
-    if (!totals) return;
+  function submit() {
+    if (!totals || overDiscount || shortLines.length) return;
     const t = totals;
     startTransition(async () => {
       const input = {
@@ -281,7 +285,6 @@ export function PosTerminal({
         customerPhone,
         customerName,
         renameCustomer: nameDiffers && renameCustomer,
-        approval: withApproval ?? null,
         creditReturnId: credit?.returnId ?? null,
       };
       if (!navigator.onLine) return saveOffline(input, t);
@@ -295,8 +298,6 @@ export function PosTerminal({
       if ("ok" in result) {
         reset();
         router.push(`/pos/receipt/${result.id}`);
-      } else if ("approvalRequired" in result) {
-        setApproval({ reasons: result.approvalRequired });
       } else {
         setMessage({ kind: "error", text: result.error });
       }
@@ -307,7 +308,15 @@ export function PosTerminal({
   const nameDiffers =
     !!found?.name && !!customerName.trim() && normalizeArabic(customerName) !== normalizeArabic(found.name);
 
-  const canPay = !!totals && cart.length > 0 && paidSum.eq(due) && !change.lt(0) && !pending && hasRate;
+  const canPay =
+    !!totals &&
+    cart.length > 0 &&
+    paidSum.eq(due) &&
+    !change.lt(0) &&
+    !pending &&
+    hasRate &&
+    !overDiscount &&
+    shortLines.length === 0;
 
   if (localReceipt) {
     return (
@@ -365,10 +374,17 @@ export function PosTerminal({
                   <button
                     type="button"
                     onClick={() => add(c)}
-                    className="flex min-h-12 w-full items-center justify-between gap-2 px-4 text-start hover:bg-muted"
+                    disabled={!dec(c.stockQty).gt(0)}
+                    className="flex min-h-12 w-full items-center justify-between gap-2 px-4 text-start hover:bg-muted disabled:cursor-not-allowed disabled:opacity-60"
                   >
                     <span>{c.label}</span>
-                    <span className="text-sm tabular-nums">{c.priceSdg ? sdg(c.priceSdg) : "بلا سعر"}</span>
+                    {dec(c.stockQty).gt(0) ? (
+                      <span className="text-sm tabular-nums">{c.priceSdg ? sdg(c.priceSdg) : "بلا سعر"}</span>
+                    ) : (
+                      <span className="rounded-full bg-destructive/10 px-2.5 py-0.5 text-xs font-bold text-destructive">
+                        نفد في النظام
+                      </span>
+                    )}
                   </button>
                 </li>
               ))}
@@ -392,6 +408,9 @@ export function PosTerminal({
                       <p className="text-xs text-muted-foreground tabular-nums">
                         {sdg(l.priceSdg ?? "0")} · الرصيد {plainNumber(l.stockQty)}
                       </p>
+                      {dec(num(l.qty)).gt(l.stockQty) ? (
+                        <p className="text-xs font-bold text-destructive">يكفي {plainNumber(l.stockQty)} فقط</p>
+                      ) : null}
                     </div>
                     <p className="font-bold tabular-nums">
                       {line ? sdg(line.grossSdg.minus(line.lineDiscountSdg)) : ""}
@@ -455,18 +474,26 @@ export function PosTerminal({
 
       <aside className="flex flex-col gap-3 rounded-2xl border border-border bg-card p-4 lg:sticky lg:top-4 lg:self-start">
         <div className="flex flex-col gap-1">
-          <DiscountInput
-            label="خصم الفاتورة"
-            mode={invoiceMode}
-            value={invoiceDiscount}
-            onMode={setInvoiceMode}
-            onValue={setInvoiceDiscount}
-          />
-          {discountPct.gt(maxDiscountPercent) ? (
-            <p className="text-sm text-warning">
-              الخصم {discountPct.toFixed(1)}% فوق حدّك ({maxDiscountPercent}%) — سيحتاج موافقة.
+          <div className="flex items-center justify-between gap-2">
+            <DiscountInput
+              label="خصم الفاتورة"
+              mode={invoiceMode}
+              value={invoiceDiscount}
+              onMode={setInvoiceMode}
+              onValue={setInvoiceDiscount}
+            />
+            <span className="text-xs text-muted-foreground">الخصم كله حتى {maxDiscountPercent}%</span>
+          </div>
+          {overDiscount ? (
+            <p className="text-sm font-semibold text-destructive">
+              الخصم {discountPct.toFixed(1)}% — أقصى خصم {maxDiscountPercent}%. عدّلي الخصم.
             </p>
           ) : null}
+          {shortLines.map((l) => (
+            <p key={l.variantId} className="text-sm font-semibold text-destructive">
+              {outOfStockText(l)}
+            </p>
+          ))}
         </div>
 
         <dl className="flex flex-col gap-1 border-y border-border py-3 tabular-nums">
@@ -618,17 +645,14 @@ export function PosTerminal({
           confirmLabel="إلغاء الفاتورة"
         />
       </aside>
-
-      {approval ? (
-        <ApprovalDialog
-          reasons={approval.reasons}
-          pending={pending}
-          onApprove={(credentials) => submit(credentials)}
-          onCancel={() => setApproval(null)}
-        />
-      ) : null}
     </div>
   );
+}
+
+/** رصيد لا يكفي: السبب والحل (D-150). */
+function outOfStockText(item: { label: string; stockQty: string }): string {
+  const qty = dec(item.stockQty);
+  return `لا يمكن البيع: «${item.label}» رصيده في النظام ${plainNumber(qty.gt(0) ? qty.toFixed() : "0")}. إن كان موجوداً على الرف سجّلي «تسوية زيادة» ليعتمدها المالك.`;
 }
 
 function DiscountInput({

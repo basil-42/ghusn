@@ -60,7 +60,11 @@ const GROUPS: Group[] = [
         key: "sales",
         label: "المبيعات والمرتجعات",
         icon: "sales",
-        pages: [{ href: "/admin/sales", label: "المبيعات", permission: { sale: ["read"] } }],
+        pages: [
+          { href: "/admin/sales", label: "المبيعات", permission: { sale: ["read"] } },
+          // مرتجع بعد المدة: اعتماد المالك (D-150)
+          { href: "/admin/return-requests", label: "طلبات المرتجع", permission: { saleReturn: ["approveLate"] } },
+        ],
       },
       {
         key: "customers",

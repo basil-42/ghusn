@@ -62,7 +62,6 @@ export const saleSchema = z.object({
     .transform((v) => v || null),
   // تأكيد استبدال الاسم المسجّل بالمكتوب (D-116)
   renameCustomer: z.boolean().optional(),
-  approval: z.object({ phone: z.string().max(20), password: z.string().max(200) }).nullish(),
   creditReturnId: z
     .string()
     .regex(/^[a-z0-9]{20,32}$/)

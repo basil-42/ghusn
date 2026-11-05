@@ -16,6 +16,7 @@ import {
   TrendingUp,
   TriangleAlert,
   Volume2,
+  Undo2,
   VolumeX,
   X,
   type LucideIcon,
@@ -44,6 +45,7 @@ const ICONS: Partial<Record<NotificationItem["type"], LucideIcon>> = {
   STOCK_ADJUSTED: ClipboardCheck,
   STOCK_COUNT: ScanBarcode,
   SECURITY_ALERT: ShieldAlert,
+  RETURN_REQUEST: Undo2,
 };
 const ACTIONS: Partial<Record<NotificationItem["type"], string>> = {
   ORDER_NEW: "فتح الطلب",

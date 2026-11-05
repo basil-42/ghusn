@@ -67,6 +67,8 @@ model User {
   orderPaymentsBy    OrderPayment[]          @relation("orderPaymentBy")
   proofsReviewed     PaymentProof[]          @relation("proofReviewedBy")
   returnsApproved    SaleReturn[]            @relation("returnApprovedBy")
+  returnRequests     ReturnRequest[]         @relation("returnRequestBy")
+  returnDecisions    ReturnRequest[]         @relation("returnRequestDecidedBy")
   giftPhotos         GiftPhoto[]             @relation("giftPhotoBy")
   notifications      NotificationRecipient[]
   ordersOpened       Order[]                 @relation("orderOpenedBy")
@@ -901,6 +903,7 @@ model Sale {
   createdAt          DateTime  @default(now())
 
   lines          SaleLine[]
+  returnRequests ReturnRequest[]
   returns        SaleReturn[]
   payments       SalePayment[]
   stockMovements StockMovement[]
@@ -996,10 +999,43 @@ model SaleReturn {
   lines          SaleReturnLine[]
   refunds        ReturnRefund[]
   creditPayments SalePayment[]
+  request        ReturnRequest?
   stockMovements StockMovement[]
 
   @@index([saleId])
   @@index([shiftId])
+}
+
+enum ReturnRequestStatus {
+  PENDING
+  APPROVED
+  REJECTED
+  USED // استُخدم في مرتجع
+  CANCELLED
+}
+
+/// طلب مرتجع بعد المدة (D-150): الموظفة تطلب، والمالك يعتمد من هاتفه، ثم تُكمل الموظفة المرتجع.
+/// اعتماد واحد لمرتجع واحد.
+model ReturnRequest {
+  id            String              @id @default(cuid())
+  sale          Sale                @relation(fields: [saleId], references: [id])
+  saleId        String
+  requestedBy   User                @relation("returnRequestBy", fields: [requestedById], references: [id])
+  requestedById String
+  // سبب الطلب كما كتبته الموظفة
+  reason        String
+  status        ReturnRequestStatus @default(PENDING)
+  decidedBy     User?               @relation("returnRequestDecidedBy", fields: [decidedById], references: [id])
+  decidedById   String?
+  decidedAt     DateTime?
+  // سبب الرفض (اختياري) يصل للموظفة
+  decisionNote  String?
+  saleReturn    SaleReturn?         @relation(fields: [returnId], references: [id])
+  returnId      String?             @unique
+  createdAt     DateTime            @default(now())
+
+  @@index([saleId, status])
+  @@index([status, createdAt])
 }
 
 model SaleReturnLine {
@@ -1444,6 +1480,7 @@ enum NotificationType {
   STOCK_ADJUSTED // اعتُمدت تسوية (للمالك) أو رُفضت (لمن سجّلتها)
   STOCK_COUNT // جرد أُرسل للمراجعة، أو موعد جرد (D-112)
   SECURITY_ALERT // محاولات دخول فاشلة متكررة (D-114)
+  RETURN_REQUEST // مرتجع بعد المدة بانتظار اعتماد المالك، أو نتيجته للموظفة (D-150)
 }
 
 enum NotificationPriority {

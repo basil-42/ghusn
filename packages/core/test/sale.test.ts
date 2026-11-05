@@ -6,6 +6,7 @@ import {
   computeSale,
   daysBetweenShopDays,
   expectedCash,
+  maxDiscountPercentAboveCost,
   percentOf,
   refundForLine,
   settlePayments,
@@ -159,5 +160,25 @@ describe("returns (D-81)", () => {
     expect([s(more.usedSdg), s(more.dueSdg), s(more.cashBackSdg)]).toEqual(["100000", "50000", "0"]);
     const less = applyExchangeCredit(100_000, 60_000);
     expect([s(less.usedSdg), s(less.dueSdg), s(less.cashBackSdg)]).toEqual(["60000", "0", "40000"]);
+  });
+});
+
+describe("maxDiscountPercentAboveCost (D-150)", () => {
+  it("floors the largest discount that keeps the line at or above cost", () => {
+    // 60,000 SDG; cost 20 $ × 2,790 = 55,800 → 7% max (7.0 exactly)
+    expect(
+      maxDiscountPercentAboveCost({ grossSdg: "60000", qty: "1", avgCostUsd: "20", sdgPerUsd: "2790" })?.toString(),
+    ).toBe("7");
+    // 100,000 for 2 pieces at 30 $ × 1,000 → 40%
+    expect(
+      maxDiscountPercentAboveCost({ grossSdg: "100000", qty: "2", avgCostUsd: "30", sdgPerUsd: "1000" })?.toString(),
+    ).toBe("40");
+  });
+
+  it("never goes below zero and is null without a known cost", () => {
+    expect(
+      maxDiscountPercentAboveCost({ grossSdg: "10000", qty: "1", avgCostUsd: "20", sdgPerUsd: "1000" })?.toString(),
+    ).toBe("0");
+    expect(maxDiscountPercentAboveCost({ grossSdg: "10000", qty: "1", avgCostUsd: "0", sdgPerUsd: "1000" })).toBeNull();
   });
 });

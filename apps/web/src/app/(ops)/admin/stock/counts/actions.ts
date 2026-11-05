@@ -39,7 +39,7 @@ function refresh(countId?: string) {
 }
 
 export async function startCountAction(_prev: FormState, formData: FormData): Promise<FormState> {
-  const session = await requirePermission({ stock: ["approve"] });
+  const session = await requirePermission({ stock: ["manage"] });
   const parsed = z
     .object({ scope: z.enum(["FULL", "CATEGORY", "QUICK"]), categoryId: z.string().optional() })
     .safeParse({ scope: formData.get("scope"), categoryId: formData.get("categoryId") || undefined });
@@ -108,7 +108,7 @@ export async function submitCountAction(_prev: FormState, formData: FormData): P
 }
 
 export async function recountAction(_prev: FormState, formData: FormData): Promise<FormState> {
-  const session = await requirePermission({ stock: ["approve"] });
+  const session = await requirePermission({ stock: ["manage"] });
   try {
     await requestRecount(String(formData.get("lineId") ?? ""), actor(session));
   } catch (e) {
@@ -142,7 +142,7 @@ export async function approveCountAction(_prev: FormState, formData: FormData): 
 }
 
 export async function cancelCountAction(_prev: FormState, formData: FormData): Promise<FormState> {
-  const session = await requirePermission({ stock: ["approve"] });
+  const session = await requirePermission({ stock: ["manage"] });
   const id = String(formData.get("id") ?? "");
   const reason = String(formData.get("reason") ?? "").trim();
   if (reason.length < 3) return { error: "اكتبي سبب الإلغاء." };

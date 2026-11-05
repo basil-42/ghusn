@@ -122,7 +122,7 @@ export const NOTIFICATION_EVENTS: {
   {
     type: "STOCK_ADJUSTMENT",
     label: "تسوية مخزون بانتظار اعتمادك",
-    hint: "تالف، مفقود، زيادة — للمديرة حتى حد الاعتماد، وما فوقه للمالك",
+    hint: "تالف، مفقود، زيادة، ونتيجة الجرد — الاعتماد للمالك وحده",
     priority: "IMPORTANT",
     audience: { stock: ["approve"] },
   },
@@ -139,6 +139,13 @@ export const NOTIFICATION_EVENTS: {
     hint: "جرد بانتظار مراجعتك، طلب إعادة عدّ، وتذكير الجرد الأسبوعي (السبت 10 ص)",
     priority: "IMPORTANT",
     audience: { stock: ["adjust"] },
+  },
+  {
+    type: "RETURN_REQUEST",
+    label: "مرتجع بعد المدة",
+    hint: "طلب الاعتماد للمالك، والنتيجة لمن طلبته",
+    priority: "IMPORTANT",
+    audience: { pos: ["sell"] },
   },
   {
     type: "PRICE_SUGGESTIONS",

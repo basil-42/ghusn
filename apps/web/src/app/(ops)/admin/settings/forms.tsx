@@ -74,14 +74,16 @@ export function PosSettingsForm({
       <Messages state={state} />
       <div className="grid grid-cols-1 gap-3 sm:grid-cols-2">
         <label className={field}>
-          <span className="font-semibold">حد خصم الموظفة %</span>
+          <span className="font-semibold">حد الخصم % (للجميع)</span>
           <Input
             name="maxDiscountPercent"
             defaultValue={String(initial.maxDiscountPercent)}
             inputMode="decimal"
             dir="ltr"
           />
-          <span className="text-xs text-muted-foreground">فوقه، أو البيع تحت التكلفة، يحتاج موافقة المديرة.</span>
+          <span className="text-xs text-muted-foreground">
+            أقصى خصم على الفاتورة لكل الحسابات. فوقه ممنوع، والبيع تحت التكلفة ممنوع دائماً.
+          </span>
         </label>
         <label className={field}>
           <span className="font-semibold">حد مصروف الموظفة (ج.س)</span>
@@ -106,8 +108,9 @@ export function PosSettingsForm({
           </span>
         </label>
         <label className={field}>
-          <span className="font-semibold">مدة المرتجع (أيام)</span>
+          <span className="font-semibold">مدة المرتجع بلا اعتماد (أيام)</span>
           <Input name="returnDays" defaultValue={String(initial.returnDays)} inputMode="numeric" dir="ltr" />
+          <span className="text-xs text-muted-foreground">بعدها تطلب الموظفة اعتمادك من نقطة البيع.</span>
         </label>
         <label className={field}>
           <span className="font-semibold">محفظة النقد</span>
@@ -344,7 +347,7 @@ export function StockSettingsForm({ initial }: { initial: StockSettings }) {
           </span>
         </label>
         <label className={field}>
-          <span className="font-semibold">حد اعتماد المديرة للتسويات ($)</span>
+          <span className="font-semibold">تسوية كبيرة ($)</span>
           <Input
             name="managerAdjustLimitUsd"
             defaultValue={String(initial.managerAdjustLimitUsd)}
@@ -352,7 +355,7 @@ export function StockSettingsForm({ initial }: { initial: StockSettings }) {
             dir="ltr"
           />
           <span className="text-xs text-muted-foreground">
-            تسوية مخزون (تالف، مفقود، فرق جرد) قيمتها فوق هذا الحد يعتمدها المالك.
+            تسوية أو جرد قيمته فوق هذا الحد يُعلَّم «حساساً» في سجل التدقيق. اعتماد كل التسويات للمالك.
           </span>
         </label>
       </div>

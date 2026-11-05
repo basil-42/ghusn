@@ -9,9 +9,12 @@ import {
   type Decimal,
 } from "@ghusn/core";
 import { Prisma, prisma } from "@ghusn/db";
-import { ApprovalError, verifyApprover } from "./approvals";
+import { roleCan } from "./auth/permissions";
 import { nextDocumentNumber } from "./documents";
-import { ApprovalRequired, availableCredit } from "./sales";
+import { formatAmount } from "./format";
+import { notify } from "./notifications";
+import { kickPushDelivery } from "./push";
+import { availableCredit } from "./sales";
 import { getPosSettings, posWallets } from "./settings";
 import type { ReturnReasonCode } from "./return-reasons";
 
@@ -33,11 +36,19 @@ export async function findSaleForReturn(input: string) {
       lines: { orderBy: { sortOrder: "asc" }, include: { returnLines: true } },
       returns: { select: { id: true, number: true, createdAt: true, refundSdg: true } },
       customer: { select: { phone: true } },
+      // آخر طلب مرتجع بعد المدة لم يُستخدم بعد (D-150)
+      returnRequests: {
+        where: { status: { in: ["PENDING", "APPROVED", "REJECTED"] } },
+        orderBy: { createdAt: "desc" },
+        take: 1,
+        include: { decidedBy: { select: { name: true } } },
+      },
     },
   });
   if (!sale) return null;
   const settings = await getPosSettings();
   const days = daysBetweenShopDays(shopDay(sale.createdAt), shopDay(new Date()));
+  const req = sale.returnRequests[0];
   return {
     id: sale.id,
     number: sale.number,
@@ -46,6 +57,15 @@ export async function findSaleForReturn(input: string) {
     days,
     returnDays: settings.returnDays,
     lateNeedsApproval: days > settings.returnDays,
+    request: req
+      ? {
+          id: req.id,
+          status: req.status as "PENDING" | "APPROVED" | "REJECTED",
+          reason: req.reason,
+          decidedBy: req.decidedBy?.name ?? null,
+          decisionNote: req.decisionNote,
+        }
+      : null,
     previousReturns: sale.returns.map((r) => ({ ...r, refundSdg: r.refundSdg.toString() })),
     lines: sale.lines.map((l) => {
       const returnedQty = sum(l.returnLines.map((r) => r.qty.toString()));
@@ -71,11 +91,10 @@ export interface ReturnInput {
   reference: string | null;
   reasonCode: ReturnReasonCode;
   reason: string | null;
-  approval: { phone: string; password: string } | null;
 }
 
 /**
- * المرتجع (D-81): بالسعر الفعلي بعد الخصم، خلال مدة المرتجع (بعدها بموافقة). السليم يعود
+ * المرتجع (D-81): بالسعر الفعلي بعد الخصم، خلال مدة المرتجع (بعدها باعتماد المالك لطلب مسبق — D-150). السليم يعود
  * للمخزون بتكلفته يوم البيع (ويُعاد حساب المتوسط)، والتالف يُسجَّل خسارة. الاسترداد نقداً
  * من الدرج أو بنكك، والاستبدال يحفظ المبلغ رصيداً لفاتورة جديدة.
  */
@@ -87,17 +106,7 @@ export async function createReturn(input: ReturnInput, cashierId: string): Promi
   if (!sale) throw new ReturnError("الفاتورة غير موجودة.");
   const settings = await getPosSettings();
   const days = daysBetweenShopDays(shopDay(sale.createdAt), shopDay(new Date()));
-  let approvedById: string | null = null;
-  if (days > settings.returnDays) {
-    const reason = `مرّ ${days} يوماً على الفاتورة (المدة ${settings.returnDays} أيام).`;
-    if (!input.approval) throw new ApprovalRequired([reason]);
-    try {
-      approvedById = await verifyApprover(input.approval.phone, input.approval.password);
-    } catch (e) {
-      if (e instanceof ApprovalError) throw new ApprovalRequired([e.message]);
-      throw e;
-    }
-  }
+  const late = days > settings.returnDays;
   const wallets = await posWallets();
   const now = new Date();
 
@@ -108,6 +117,22 @@ export async function createReturn(input: ReturnInput, cashierId: string): Promi
       if (!shift) throw new ReturnError("افتحي الوردية أولاً.");
       // قفل الفاتورة: مرتجعان متزامنان لا يُرجعان نفس القطعة مرتين
       await tx.$queryRaw`SELECT "id" FROM "Sale" WHERE "id" = ${input.saleId} FOR UPDATE`;
+      // بعد المدة: اعتماد المالك لطلب مسبق، يُستهلك مرة واحدة (D-150)
+      let approvedById: string | null = null;
+      let requestId: string | null = null;
+      if (late) {
+        const [req] = await tx.$queryRaw<{ id: string; decidedById: string | null }[]>`
+          SELECT "id", "decidedById" FROM "ReturnRequest"
+          WHERE "saleId" = ${input.saleId} AND "status" = 'APPROVED' AND "returnId" IS NULL
+          ORDER BY "decidedAt" DESC LIMIT 1 FOR UPDATE`;
+        if (!req) {
+          throw new ReturnError(
+            `مرّ ${days} يوماً على الفاتورة والمدة ${settings.returnDays} أيام — المرتجع يحتاج اعتماد المالك. أرسلي طلباً أولاً.`,
+          );
+        }
+        approvedById = req.decidedById;
+        requestId = req.id;
+      }
       const lines = await tx.saleLine.findMany({
         where: { saleId: input.saleId },
         include: { returnLines: true, variant: { select: { product: { select: { unit: true } } } } },
@@ -224,6 +249,9 @@ export async function createReturn(input: ReturnInput, cashierId: string): Promi
         },
       });
       await tx.saleReturnLine.createMany({ data: rows });
+      if (requestId) {
+        await tx.returnRequest.update({ where: { id: requestId }, data: { status: "USED", returnId: input.id } });
+      }
       if (movements.length) await tx.stockMovement.createMany({ data: movements });
       if (input.mode === "REFUND" && refundSdg.gt(0)) {
         await tx.returnRefund.create({
@@ -329,4 +357,141 @@ export async function listReturns(take = 50) {
     isExchange: r.isExchange,
     damagedCostUsd: r.damagedCostUsd.toString(),
   }));
+}
+
+// ---------- مرتجع بعد المدة: طلب ← اعتماد المالك ← تُكمله الموظفة (D-150) ----------
+
+type Actor = { id: string; name: string; role?: string | null };
+const sdgText = (v: { toString(): string }) => `${formatAmount(v.toString(), 0)} ج.س`;
+
+/** طلب اعتماد مرتجع بعد المدة. طلب منتظر لنفس الفاتورة لا يتكرر. */
+export async function requestLateReturn(saleId: string, reason: string, user: Actor): Promise<void> {
+  const sale = await prisma.sale.findUnique({
+    where: { id: saleId },
+    select: { id: true, number: true, createdAt: true, totalSdg: true },
+  });
+  if (!sale) throw new ReturnError("الفاتورة غير موجودة.");
+  const settings = await getPosSettings();
+  const days = daysBetweenShopDays(shopDay(sale.createdAt), shopDay(new Date()));
+  if (days <= settings.returnDays) throw new ReturnError("الفاتورة داخل مدة المرتجع — لا تحتاج اعتماداً.");
+  await prisma.$transaction(async (tx) => {
+    await tx.$queryRaw`SELECT "id" FROM "Sale" WHERE "id" = ${saleId} FOR UPDATE`;
+    const open = await tx.returnRequest.findFirst({
+      where: { saleId, status: { in: ["PENDING", "APPROVED"] } },
+      select: { status: true },
+    });
+    if (open) {
+      throw new ReturnError(
+        open.status === "PENDING" ? "الطلب مُرسل وينتظر الاعتماد." : "الطلب معتمد — أكملي المرتجع.",
+      );
+    }
+    const req = await tx.returnRequest.create({ data: { saleId, requestedById: user.id, reason } });
+    await notify(tx, {
+      type: "RETURN_REQUEST",
+      priority: "IMPORTANT",
+      title: `مرتجع بعد المدة بانتظار اعتمادك · ${sale.number}`,
+      body: [
+        `${user.name}`,
+        `بعد ${days} يوماً (المدة ${settings.returnDays})`,
+        sdgText(sale.totalSdg),
+        `«${reason}»`,
+      ].join(" · "),
+      href: `/admin/return-requests?focus=${req.id}`,
+      dedupeKey: `RETURN_REQUEST:${req.id}`,
+      audience: { saleReturn: ["approveLate"] },
+    });
+  });
+  kickPushDelivery();
+}
+
+/** إلغاء طلب لم يُستخدم: من طلبته أو المالك. */
+export async function cancelReturnRequest(id: string, user: Actor): Promise<void> {
+  const req = await prisma.returnRequest.findUnique({ where: { id }, select: { requestedById: true } });
+  if (!req) throw new ReturnError("الطلب غير موجود.");
+  if (req.requestedById !== user.id && !roleCan(user.role, { saleReturn: ["approveLate"] })) {
+    throw new ReturnError("لا يمكنك إلغاء هذا الطلب.");
+  }
+  const updated = await prisma.returnRequest.updateMany({
+    where: { id, status: { in: ["PENDING", "APPROVED"] }, returnId: null },
+    data: { status: "CANCELLED" },
+  });
+  if (!updated.count) throw new ReturnError("الطلب حُسم أو استُخدم — حدّثي الصفحة.");
+}
+
+/** قرار المالك: اعتماد أو رفض بسبب اختياري يصل لمن طلبت. أول قرار يحسم. */
+export async function decideReturnRequest(
+  id: string,
+  decision: { approve: boolean; note: string | null },
+  user: Actor,
+): Promise<void> {
+  if (!roleCan(user.role, { saleReturn: ["approveLate"] })) throw new ReturnError("الاعتماد للمالك.");
+  await prisma.$transaction(async (tx) => {
+    const updated = await tx.returnRequest.updateMany({
+      where: { id, status: "PENDING" },
+      data: {
+        status: decision.approve ? "APPROVED" : "REJECTED",
+        decidedById: user.id,
+        decidedAt: new Date(),
+        decisionNote: decision.approve ? null : decision.note,
+      },
+    });
+    if (!updated.count) throw new ReturnError("الطلب حُسم أو أُلغي — حدّثي الصفحة.");
+    const req = await tx.returnRequest.findUniqueOrThrow({
+      where: { id },
+      select: { requestedById: true, sale: { select: { number: true } } },
+    });
+    if (req.requestedById !== user.id) {
+      await notify(tx, {
+        type: "RETURN_REQUEST",
+        priority: "IMPORTANT",
+        title: decision.approve ? `اعتُمد المرتجع · ${req.sale.number}` : `رُفض المرتجع · ${req.sale.number}`,
+        body: decision.approve
+          ? `اعتمده ${user.name} — أكملي المرتجع الآن.`
+          : `رفضه ${user.name}${decision.note ? ` · «${decision.note}»` : ""}`,
+        href: `/pos/returns?invoice=${encodeURIComponent(req.sale.number)}`,
+        dedupeKey: `RETURN_DECIDED:${id}`,
+        to: [req.requestedById],
+      });
+    }
+  });
+  kickPushDelivery();
+}
+
+/** طلبات المرتجع للمالك: المنتظرة أولاً، ثم آخر ما حُسم. */
+export async function listReturnRequests() {
+  const include = {
+    sale: { select: { id: true, number: true, createdAt: true, totalSdg: true } },
+    requestedBy: { select: { name: true } },
+    decidedBy: { select: { name: true } },
+    saleReturn: { select: { id: true, number: true } },
+  } satisfies Prisma.ReturnRequestInclude;
+  const [pending, decided] = await Promise.all([
+    prisma.returnRequest.findMany({ where: { status: "PENDING" }, orderBy: { createdAt: "asc" }, include }),
+    prisma.returnRequest.findMany({
+      where: { status: { not: "PENDING" } },
+      orderBy: { createdAt: "desc" },
+      take: 30,
+      include,
+    }),
+  ]);
+  const map = (r: (typeof pending)[number]) => ({
+    id: r.id,
+    status: r.status,
+    reason: r.reason,
+    createdAt: r.createdAt,
+    requestedBy: r.requestedBy.name,
+    decidedBy: r.decidedBy?.name ?? null,
+    decidedAt: r.decidedAt,
+    decisionNote: r.decisionNote,
+    saleNumber: r.sale.number,
+    saleTotalSdg: r.sale.totalSdg.toString(),
+    days: daysBetweenShopDays(shopDay(r.sale.createdAt), shopDay(r.createdAt)),
+    returnNumber: r.saleReturn?.number ?? null,
+    returnId: r.saleReturn?.id ?? null,
+  });
+  return { pending: pending.map(map), decided: decided.map(map) };
+}
+
+export async function countPendingReturnRequests(): Promise<number> {
+  return prisma.returnRequest.count({ where: { status: "PENDING" } });
 }

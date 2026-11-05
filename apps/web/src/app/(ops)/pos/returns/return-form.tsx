@@ -4,15 +4,19 @@ import { dec, plainNumber, refundForLine, toLatinDigits } from "@ghusn/core";
 import { createId } from "@paralleldrive/cuid2";
 import { Search } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useState, useTransition } from "react";
+import { useEffect, useState, useTransition } from "react";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { Input } from "@/components/ui/input";
 import { formatAmount, formatDateTime } from "@/lib/format";
 import { RETURN_REASONS, RETURN_REASON_LABELS, type ReturnReasonCode } from "@/lib/return-reasons";
 import { cn } from "@/lib/utils";
-import { createReturnAction, findSaleForReturnAction } from "../actions";
-import { ApprovalDialog } from "../approval-dialog";
+import {
+  cancelReturnRequestAction,
+  createReturnAction,
+  findSaleForReturnAction,
+  requestLateReturnAction,
+} from "../actions";
 
 type Found = NonNullable<Awaited<ReturnType<typeof findSaleForReturnAction>>>;
 type Pick = { qty: string; damaged: string };
@@ -40,8 +44,47 @@ export function ReturnForm({ initialNumber, initialSale }: { initialNumber: stri
   const [reasonCode, setReasonCode] = useState<ReturnReasonCode | null>(null);
   const [reason, setReason] = useState("");
   const [error, setError] = useState<string | null>(null);
-  const [approval, setApproval] = useState<string[] | null>(null);
+  const [requestReason, setRequestReason] = useState("");
   const [pending, startTransition] = useTransition();
+
+  // مرتجع بعد المدة (D-150): الطلب ينتظر المالك — نحدّث حالته كل 15 ثانية حتى يُحسم
+  const waiting = sale?.lateNeedsApproval && sale.request?.status === "PENDING";
+  const saleNumber = sale?.number;
+  useEffect(() => {
+    if (!waiting || !saleNumber) return;
+    const t = setInterval(async () => {
+      const fresh = await findSaleForReturnAction(saleNumber);
+      if (fresh) setSale(fresh);
+    }, 15_000);
+    return () => clearInterval(t);
+  }, [waiting, saleNumber]);
+  const blockedLate = !!sale?.lateNeedsApproval && sale.request?.status !== "APPROVED";
+
+  function reload() {
+    if (!sale) return;
+    return findSaleForReturnAction(sale.number).then((fresh) => fresh && setSale(fresh));
+  }
+
+  function sendRequest() {
+    if (!sale) return;
+    setError(null);
+    startTransition(async () => {
+      const r = await requestLateReturnAction({ saleId: sale.id, reason: requestReason });
+      if ("error" in r) setError(r.error);
+      await reload();
+    });
+  }
+
+  function cancelRequest() {
+    if (!sale?.request) return;
+    const id = sale.request.id;
+    setError(null);
+    startTransition(async () => {
+      const r = await cancelReturnRequestAction(id);
+      if ("error" in r) setError(r.error);
+      await reload();
+    });
+  }
 
   function find() {
     setError(null);
@@ -82,7 +125,7 @@ export function ReturnForm({ initialNumber, initialSale }: { initialNumber: stri
     : [];
   const total = sale ? sale.lines.reduce((acc, l) => acc.plus(lineRefund(l) ?? 0), dec(0)) : dec(0);
 
-  function submit(credentials?: { phone: string; password: string }) {
+  function submit() {
     if (!sale) return;
     startTransition(async () => {
       const result = await createReturnAction({
@@ -96,15 +139,12 @@ export function ReturnForm({ initialNumber, initialSale }: { initialNumber: stri
         reference,
         reasonCode,
         reason,
-        approval: credentials ?? null,
       });
       if ("ok" in result) {
         router.push(mode === "EXCHANGE" ? `/pos?credit=${result.id}` : `/pos/returns/${result.id}`);
-      } else if ("approvalRequired" in result) {
-        setApproval(result.approvalRequired);
       } else {
-        setApproval(null);
         setError(result.error);
+        await reload();
       }
     });
   }
@@ -144,9 +184,16 @@ export function ReturnForm({ initialNumber, initialSale }: { initialNumber: stri
               : ""}
           </p>
           {sale.lateNeedsApproval ? (
-            <Alert variant="destructive">
-              تجاوزت الفاتورة مدة المرتجع ({sale.returnDays} أيام) — يحتاج الإرجاع موافقة المديرة.
-            </Alert>
+            <LateReturnRequest
+              days={sale.days}
+              returnDays={sale.returnDays}
+              request={sale.request}
+              reason={requestReason}
+              onReason={setRequestReason}
+              pending={pending}
+              onSend={sendRequest}
+              onCancel={cancelRequest}
+            />
           ) : null}
 
           <ul className="flex flex-col gap-2">
@@ -289,6 +336,7 @@ export function ReturnForm({ initialNumber, initialSale }: { initialNumber: stri
               className="min-h-14 text-lg"
               disabled={
                 pending ||
+                blockedLate ||
                 total.lte(0) ||
                 issues.length > 0 ||
                 !reasonCode ||
@@ -301,10 +349,72 @@ export function ReturnForm({ initialNumber, initialSale }: { initialNumber: stri
           </div>
         </>
       ) : null}
+    </div>
+  );
+}
 
-      {approval ? (
-        <ApprovalDialog reasons={approval} pending={pending} onApprove={submit} onCancel={() => setApproval(null)} />
+/** حالة طلب المرتجع بعد المدة: إرسال ← انتظار ← معتمد (أو مرفوض بسبب). */
+function LateReturnRequest({
+  days,
+  returnDays,
+  request,
+  reason,
+  onReason,
+  pending,
+  onSend,
+  onCancel,
+}: {
+  days: number;
+  returnDays: number;
+  request: Found["request"];
+  reason: string;
+  onReason: (v: string) => void;
+  pending: boolean;
+  onSend: () => void;
+  onCancel: () => void;
+}) {
+  if (request?.status === "APPROVED") {
+    return (
+      <p className="rounded-2xl border border-sage/50 bg-sage/10 p-4 font-semibold">
+        ✓ اعتمد {request.decidedBy ?? "المالك"} المرتجع بعد المدة — اختاري الأصناف وأكملي.
+      </p>
+    );
+  }
+  if (request?.status === "PENDING") {
+    return (
+      <div className="flex flex-col gap-3 rounded-2xl border border-gold/40 bg-gold/10 p-4">
+        <p className="font-semibold">
+          مرّ {days} يوماً والمدة {returnDays} — أُرسل طلب للمالك. حين يعتمده يظهر هنا لإكماله.
+        </p>
+        <p className="text-sm text-muted-foreground">«{request.reason}» · يمكن للزبون المغادرة والعودة لاحقاً.</p>
+        <Button type="button" variant="outline" className="self-start" disabled={pending} onClick={onCancel}>
+          إلغاء الطلب
+        </Button>
+      </div>
+    );
+  }
+  return (
+    <div className="flex flex-col gap-3 rounded-2xl border border-destructive/40 bg-destructive/5 p-4">
+      <p className="font-semibold text-destructive">
+        مرّ {days} يوماً على الفاتورة والمدة {returnDays} أيام — المرتجع يحتاج اعتماد المالك.
+      </p>
+      {request?.status === "REJECTED" ? (
+        <p className="text-sm">
+          رفض {request.decidedBy ?? "المالك"} الطلب السابق{request.decisionNote ? `: «${request.decisionNote}»` : "."}
+        </p>
       ) : null}
+      <div className="grid gap-2 sm:grid-cols-[1fr_auto]">
+        <Input
+          value={reason}
+          onChange={(e) => onReason(e.target.value)}
+          placeholder="سبب المرتجع للمالك (مثلاً: مقاس غير مناسب)"
+          aria-label="سبب طلب المرتجع"
+          maxLength={200}
+        />
+        <Button type="button" disabled={pending || reason.trim().length < 3} onClick={onSend}>
+          إرسال طلب للمالك
+        </Button>
+      </div>
     </div>
   );
 }

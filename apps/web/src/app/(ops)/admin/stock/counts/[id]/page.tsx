@@ -1,4 +1,4 @@
-import { canApproveAdjustment, dec, roundMoney } from "@ghusn/core";
+import { dec, roundMoney } from "@ghusn/core";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound, redirect } from "next/navigation";
@@ -8,7 +8,6 @@ import { Card } from "@/components/ui/card";
 import { roleCan } from "@/lib/auth/permissions";
 import { requirePermission } from "@/lib/auth/session";
 import { formatAmount, formatDateTime, formatTime } from "@/lib/format";
-import { getStockSettings } from "@/lib/settings";
 import { COUNT_STATUS_LABELS, UNIT_LABELS, countReview } from "@/lib/stock-counts";
 import { cn } from "@/lib/utils";
 import { ApproveCountForm, CancelCountForm, RecountButton } from "../forms";
@@ -27,7 +26,7 @@ function Usd({ value, signed = true }: { value: ReturnType<typeof dec>; signed?:
 
 /**
  * مراجعة الجرد (D-112) للمديرة والمالك: رصيد النظام لحظة العد، المعدود، الفرق وقيمته بمتوسط التكلفة؛
- * إعادة عدّ ما يُشك فيه، ثم الاعتماد (الصافي فوق حد المديرة للمالك).
+ * إعادة عدّ ما يُشك فيه، ثم الاعتماد — للمالك وحده (D-150).
  */
 export default async function CountReviewPage({
   params,
@@ -39,20 +38,15 @@ export default async function CountReviewPage({
   const session = await requirePermission({ stock: ["adjust"] });
   const { id } = await params;
   const role = session.user.role;
-  if (!roleCan(role, { stock: ["approve"] })) redirect(`/admin/stock/counts/${id}/count`);
+  if (!roleCan(role, { stock: ["manage"] })) redirect(`/admin/stock/counts/${id}/count`);
   const { all } = await searchParams;
-  const [r, { managerAdjustLimitUsd }] = await Promise.all([countReview(id), getStockSettings()]);
+  const r = await countReview(id);
   if (!r) notFound();
   const showAll = all === "1" || r.status === "OPEN";
   const counted = r.lines.filter((l) => l.status !== "PENDING");
   const rows = showAll ? r.lines : r.lines.filter((l) => !l.difference.isZero() || l.status === "RECOUNT");
   const s = r.summary;
-  const mayApprove = canApproveAdjustment({
-    valueUsd: s.netUsd,
-    limitUsd: managerAdjustLimitUsd,
-    canApprove: true,
-    unlimited: roleCan(role, { stock: ["approveAll"] }),
-  });
+  const mayApprove = roleCan(role, { stock: ["approve"] });
   const costLines = r.lines.filter((l) => l.needsCost).map((l) => ({ lineId: l.lineId, label: l.label }));
 
   return (
@@ -232,21 +226,18 @@ export default async function CountReviewPage({
         <Card className="gap-4 p-5">
           <div className="flex flex-col gap-1 text-sm leading-7 text-muted-foreground">
             <span>الفرق = المعدود − رصيد النظام لحظة عدّ الصنف؛ ما بِيع بعد عدّه لا يُفسد النتيجة.</span>
-            <span>
-              كل فرق يصبح تسوية «فرق جرد» بمتوسط التكلفة لحظة الاعتماد. الصافي فوق{" "}
-              {formatAmount(String(managerAdjustLimitUsd))} $ يعتمده المالك.
-            </span>
+            <span>كل فرق يصبح تسوية «فرق جرد» بمتوسط التكلفة لحظة الاعتماد. اعتماد الجرد للمالك وحده.</span>
           </div>
           {r.status === "SUBMITTED" ? (
             r.recountCount ? (
               <Alert variant="warning">بانتظار إعادة عدّ {r.recountCount} صنف قبل الاعتماد.</Alert>
             ) : !mayApprove ? (
-              <Alert variant="warning">الصافي فوق حد اعتمادك — يعتمده المالك، وقد وصله إشعار.</Alert>
+              <Alert variant="warning">بانتظار اعتماد المالك — وصله إشعار.</Alert>
             ) : null
           ) : null}
           <div className="flex flex-wrap items-start justify-between gap-4">
-            {r.status === "SUBMITTED" ? (
-              <ApproveCountForm countId={r.id} costLines={costLines} disabled={!!r.recountCount || !mayApprove} />
+            {r.status === "SUBMITTED" && mayApprove ? (
+              <ApproveCountForm countId={r.id} costLines={costLines} disabled={!!r.recountCount} />
             ) : (
               <span />
             )}

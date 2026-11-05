@@ -1,4 +1,4 @@
-import { ADJUSTMENT_REASONS, canApproveAdjustment, dec, shopMonthRange, type AdjustmentReason } from "@ghusn/core";
+import { ADJUSTMENT_REASONS, dec, shopMonthRange, type AdjustmentReason } from "@ghusn/core";
 import { Plus } from "lucide-react";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -9,7 +9,6 @@ import { roleCan } from "@/lib/auth/permissions";
 import { requirePermission } from "@/lib/auth/session";
 import { formatAmount, formatDateTime } from "@/lib/format";
 import { currentShopMonth } from "@/lib/reports";
-import { getStockSettings } from "@/lib/settings";
 import { REASON_LABELS, STATUS_LABELS, listAdjustments } from "@/lib/stock-adjustments";
 import { cn } from "@/lib/utils";
 import { ApproveAdjustmentForm, RejectAdjustmentForm } from "./forms";
@@ -44,15 +43,14 @@ export default async function AdjustmentsPage({
   const { month: m, reason: r, focus } = await searchParams;
   const role = session.user.role;
   const withCost = roleCan(role, { cost: ["read"] });
+  // الاعتماد للمالك وحده بأي قيمة؛ المديرة ترى كل التسويات (D-150)
   const canApprove = roleCan(role, { stock: ["approve"] });
-  const unlimited = roleCan(role, { stock: ["approveAll"] });
-  const seesAll = canApprove || unlimited;
+  const seesAll = canApprove || roleCan(role, { stock: ["manage"] });
   const month = m && /^\d{4}-\d{2}$/.test(m) ? m : currentShopMonth();
   const reason = ADJUSTMENT_REASONS.includes(r as AdjustmentReason) ? (r as AdjustmentReason) : undefined;
   const onlyUserId = seesAll ? undefined : session.user.id;
 
-  const [{ managerAdjustLimitUsd }, pending, history] = await Promise.all([
-    getStockSettings(),
+  const [pending, history] = await Promise.all([
     listAdjustments({ status: "PENDING", onlyUserId }, withCost),
     listAdjustments({ range: shopMonthRange(month), reason, onlyUserId }, withCost),
   ]);
@@ -66,9 +64,7 @@ export default async function AdjustmentsPage({
       <PageHeader
         title="تسويات المخزون"
         back={{ href: "/admin/stock", label: "المخزون" }}
-        description={`لكل تسوية سبب ومن سجّلها ومن اعتمدها، ولا تُحذف — الخطأ يُصحَّح بتسوية عكسية.${
-          canApprove && !unlimited ? ` حد اعتمادك ${formatAmount(String(managerAdjustLimitUsd))} $.` : ""
-        }`}
+        description="لكل تسوية سبب ومن سجّلها ومن اعتمدها، ولا تُحذف — الخطأ يُصحَّح بتسوية عكسية. الاعتماد للمالك."
         actions={
           <Button asChild>
             <Link href="/admin/stock/adjustments/new">
@@ -88,14 +84,7 @@ export default async function AdjustmentsPage({
         ) : (
           <ul className="divide-y divide-border">
             {pending.map((a) => {
-              const mayDecide =
-                seesAll &&
-                canApproveAdjustment({
-                  valueUsd: a.valueUsd ?? "0",
-                  limitUsd: managerAdjustLimitUsd,
-                  canApprove,
-                  unlimited,
-                });
+              const mayDecide = canApprove;
               return (
                 <li
                   key={a.id}
@@ -131,9 +120,7 @@ export default async function AdjustmentsPage({
                       ) : null}
                     </p>
                     {seesAll && !mayDecide ? (
-                      <p className="text-sm font-semibold text-warning">
-                        فوق حد المديرة ({formatAmount(String(managerAdjustLimitUsd))} $) ← يعتمدها المالك
-                      </p>
+                      <p className="text-sm font-semibold text-warning">بانتظار اعتماد المالك</p>
                     ) : null}
                     {a.needsCost ? (
                       <p className="text-sm font-semibold text-warning">
