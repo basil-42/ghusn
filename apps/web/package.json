@@ -9,7 +9,9 @@
     "lint": "eslint .",
     "typecheck": "tsc --noEmit",
     "owner:setup": "dotenv -e ../../.env -- tsx scripts/setup-owner.ts",
-    "push:keys": "tsx scripts/push-keys.ts"
+    "push:keys": "tsx scripts/push-keys.ts",
+    "demo": "dotenv -e ../../.env -- tsx scripts/demo-data.ts",
+    "demo:clear": "dotenv -e ../../.env -- tsx scripts/demo-data.ts --clear"
   },
   "dependencies": {
     "@ghusn/core": "workspace:*",

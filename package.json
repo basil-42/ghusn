@@ -20,6 +20,8 @@
     "db:seed": "pnpm --filter @ghusn/db seed",
     "db:studio": "pnpm --filter @ghusn/db studio",
     "db:fresh": "node scripts/db-fresh.mjs",
+    "db:demo": "pnpm --filter @ghusn/web demo",
+    "db:demo:clear": "pnpm --filter @ghusn/web demo:clear",
     "owner:setup": "pnpm --filter @ghusn/web owner:setup",
     "push:keys": "pnpm --filter @ghusn/web push:keys"
   },
