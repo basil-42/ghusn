@@ -73,6 +73,8 @@ pnpm db:migrate     # prisma migrate dev (root .env loaded via dotenv-cli)
 pnpm db:seed        # currencies, fixed USD/QAR rates (no sample SDG rate), wallets, 9 categories, owner user
 pnpm db:fresh       # wipe everything for a trial run: backup → migrate reset → seed → delete uploads → owner:setup (local DB only, asks to type «صفر»)
 pnpm owner:setup    # set the owner's name, phone and password (first login / recovery)
+pnpm db:demo        # demo data for trials: 60 products, drawn images, 2 shipments, 30 days of sales (local DB only, D-151)
+pnpm db:demo:clear  # archive the demo products and suppliers (full wipe: db:fresh)
 pnpm db:studio
 pnpm dev            # http://localhost:3000
 pnpm build
