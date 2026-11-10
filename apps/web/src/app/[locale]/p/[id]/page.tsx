@@ -86,11 +86,12 @@ export default async function ProductPage({ params }: Props) {
   const distinct = (pick: (v: StoreVariant) => string | null) =>
     [...new Set(product.variants.map(pick).filter((x): x is string => !!x))].join(" · ");
   const specs = [
-    { label: t("volume"), value: distinct((v) => v.volume) },
-    { label: t("size"), value: distinct((v) => v.size) },
-    { label: t("color"), value: distinct((v) => v.color) },
-    { label: t("category"), value: product.category.name },
-    { label: t("occasions"), value: product.occasions.map((o) => o.name).join(" · ") },
+    // مفتاح ثابت لكل صف — التسميات قد تتشابه بين اللغات
+    { key: "volume", label: t("volume"), value: distinct((v) => v.volume) },
+    { key: "size", label: t("size"), value: distinct((v) => v.size) },
+    { key: "color", label: t("color"), value: distinct((v) => v.color) },
+    { key: "category", label: t("category"), value: product.category.name },
+    { key: "occasions", label: t("occasions"), value: product.occasions.map((o) => o.name).join(" · ") },
   ].filter((row) => row.value);
   const jsonLd = {
     "@context": "https://schema.org",
@@ -214,7 +215,7 @@ export default async function ProductPage({ params }: Props) {
           <h2 className="font-display text-xl font-bold">{t("specs")}</h2>
           <dl className="divide-y divide-line text-sm">
             {specs.map((row) => (
-              <div key={row.label} className="grid grid-cols-[minmax(6rem,40%)_1fr] gap-3 py-2.5">
+              <div key={row.key} className="grid grid-cols-[minmax(6rem,40%)_1fr] gap-3 py-2.5">
                 <dt className="text-muted-foreground">{row.label}</dt>
                 <dd className="font-semibold">{row.value}</dd>
               </div>
