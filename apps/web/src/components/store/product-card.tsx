@@ -51,9 +51,9 @@ export async function ProductCard({ product }: { product: StoreProductCard }) {
           {product.hasOptions ? (
             <span
               aria-hidden
-              className="pointer-events-none flex size-11 shrink-0 items-center justify-center rounded-[9px] border border-line text-forest"
+              className="pointer-events-none flex size-11 shrink-0 items-center justify-center rounded-[9px] bg-primary text-primary-foreground"
             >
-              <Plus className="size-[18px]" strokeWidth={2} />
+              <Plus aria-hidden className="size-[18px]" strokeWidth={2} />
             </span>
           ) : (
             <QuickAdd variantId={product.defaultVariantId} name={product.name} />
