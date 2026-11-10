@@ -42,8 +42,6 @@ export interface DemoProduct {
   colors: [string, string];
   variants: DemoVariant[];
   trackExpiry?: boolean;
-  /** صورة «كاملة» بخلفية حقيقية (D-148) */
-  fullBleed?: boolean;
   /** يبقى بلا سعر معتمد (يظهر في «مراجعة الأسعار» ولا يظهر في المتجر) */
   noPrice?: boolean;
   /** منتج معطّل */
@@ -134,7 +132,6 @@ export const DEMO_PRODUCTS: DemoProduct[] = [
     shape: "bouquet",
     colors: ["#E58FA8", "#D1B790"],
     variants: [v(180, 3)],
-    fullBleed: true,
   },
   {
     category: "flowers",

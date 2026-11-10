@@ -16,7 +16,7 @@ export async function ProductCard({ product }: { product: StoreProductCard }) {
   const t = await getTranslations("product");
   return (
     <div className="group relative flex w-full flex-col overflow-hidden rounded-xl border border-line bg-card transition-shadow hover:shadow-md">
-      <div className={`relative aspect-square border-b border-line ${stageBox(product.imageFull)}`}>
+      <div className={`relative aspect-square ${stageBox(product.imageFull)}`}>
         {product.imageUrl ? (
           <Image
             src={product.imageUrl}
@@ -32,7 +32,7 @@ export async function ProductCard({ product }: { product: StoreProductCard }) {
           </div>
         )}
       </div>
-      <div className="flex flex-1 flex-col gap-1 bg-stage p-3">
+      <div className="flex flex-1 flex-col gap-1 p-3">
         <span className="text-xs text-muted-foreground">{product.category}</span>
         {/* الرابط يغطي البطاقة كلها؛ زر «+» فوقه */}
         <Link

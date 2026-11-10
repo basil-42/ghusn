@@ -15,7 +15,7 @@ import { createProduct } from "../src/lib/catalog";
 import { getRateAt } from "../src/lib/exchange-rates";
 import { createWebOrder, quoteCart, transitionOrder } from "../src/lib/orders";
 import { approvePrices, currentSellingRate, listPriceReview } from "../src/lib/pricing";
-import { addProductImage, setImageFullBleed } from "../src/lib/product-images";
+import { addProductImage } from "../src/lib/product-images";
 import { createSale } from "../src/lib/sales";
 import { posWallets } from "../src/lib/settings";
 import {
@@ -109,19 +109,16 @@ async function ensureRates(at: Date) {
 }
 
 async function addImages(productId: string, p: DemoProduct, withSecond: boolean) {
-  const render = async (colors: [string, string], fullBleed: boolean) => {
-    const png = await sharp(Buffer.from(productSvg(p.shape, colors, fullBleed)))
+  // صور بخلفية حقيقية (منتج على طاولة) — مثل صور المحل المصوّرة؛ تُحفظ «صورة كاملة» افتراضياً (D-154)
+  const render = async (colors: [string, string]) => {
+    const png = await sharp(Buffer.from(productSvg(p.shape, colors, true)))
       .png()
       .toBuffer();
     await addProductImage(productId, new File([new Uint8Array(png)], "demo.png", { type: "image/png" }));
   };
-  await render(p.colors, !!p.fullBleed);
-  if (p.fullBleed) {
-    const img = await prisma.productImage.findFirstOrThrow({ where: { productId }, orderBy: { sortOrder: "asc" } });
-    await setImageFullBleed(productId, img.id, true);
-  }
+  await render(p.colors);
   // صورة ثانية لبعض المنتجات (المعرض والمصغّرات)
-  if (withSecond) await render([p.colors[1], p.colors[0]], false);
+  if (withSecond) await render([p.colors[1], p.colors[0]]);
 }
 
 async function add(ownerId: string) {
