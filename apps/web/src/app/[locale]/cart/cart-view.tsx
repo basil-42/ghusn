@@ -50,6 +50,8 @@ export function CartView() {
               </Link>
               {l.option ? <span className="text-sm text-muted-foreground">{l.option}</span> : null}
               <Price value={l.unitPriceSdg} locale={locale} className="text-sm" />
+              {/* الجوال: إجمالي السطر هنا لا في عمود جانبي — يترك مكاناً لأزرار 44px */}
+              {l.qty > 1 ? <Price value={l.lineTotalSdg} locale={locale} className="font-bold sm:hidden" /> : null}
               {!l.available ? <p className="text-sm font-semibold text-destructive">{t("unavailable")}</p> : null}
               <div className="mt-1 flex items-center gap-2">
                 <button
@@ -57,7 +59,7 @@ export function CartView() {
                   aria-label={t("decrease")}
                   disabled={l.qty <= 1}
                   onClick={() => setCartQty(l.variantId, l.qty - 1)}
-                  className="flex size-11 items-center justify-center rounded-full border border-line disabled:opacity-40"
+                  className="flex size-11 shrink-0 items-center justify-center rounded-full border border-line disabled:opacity-40"
                 >
                   <Minus aria-hidden className="size-4" />
                 </button>
@@ -67,7 +69,7 @@ export function CartView() {
                   aria-label={t("increase")}
                   disabled={l.qty >= MAX_QTY}
                   onClick={() => setCartQty(l.variantId, l.qty + 1)}
-                  className="flex size-11 items-center justify-center rounded-full border border-line disabled:opacity-40"
+                  className="flex size-11 shrink-0 items-center justify-center rounded-full border border-line disabled:opacity-40"
                 >
                   <Plus aria-hidden className="size-4" />
                 </button>
@@ -75,13 +77,13 @@ export function CartView() {
                   type="button"
                   aria-label={t("remove")}
                   onClick={() => removeFromCart(l.variantId)}
-                  className="ms-auto flex size-11 items-center justify-center rounded-full text-destructive hover:bg-muted"
+                  className="ms-auto flex size-11 shrink-0 items-center justify-center rounded-full text-destructive hover:bg-muted"
                 >
                   <Trash2 aria-hidden className="size-4" />
                 </button>
               </div>
             </div>
-            <Price value={l.lineTotalSdg} locale={locale} className="shrink-0 font-bold" />
+            <Price value={l.lineTotalSdg} locale={locale} className="hidden shrink-0 font-bold sm:inline" />
           </li>
         ))}
       </ul>

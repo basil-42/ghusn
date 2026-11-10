@@ -21,7 +21,7 @@ export function QuickAdd({ variantId, name }: { variantId: string; name: string 
         setDone(true);
         setTimeout(() => setDone(false), 1500);
       }}
-      className="relative z-10 flex size-9 shrink-0 items-center justify-center rounded-[9px] bg-primary text-primary-foreground hover:bg-primary/90"
+      className="relative z-10 flex size-11 shrink-0 items-center justify-center rounded-[9px] bg-primary text-primary-foreground hover:bg-primary/90"
     >
       {done ? (
         <Check aria-hidden className="size-[18px]" />

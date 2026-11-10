@@ -33,7 +33,7 @@ export async function ProductCard({ product }: { product: StoreProductCard }) {
         )}
       </div>
       <div className="flex flex-1 flex-col gap-1 bg-stage p-3">
-        <span className="text-[11px] text-muted-foreground">{product.category}</span>
+        <span className="text-xs text-muted-foreground">{product.category}</span>
         {/* الرابط يغطي البطاقة كلها؛ زر «+» فوقه */}
         <Link
           href={`/p/${product.id}`}
@@ -51,7 +51,7 @@ export async function ProductCard({ product }: { product: StoreProductCard }) {
           {product.hasOptions ? (
             <span
               aria-hidden
-              className="pointer-events-none flex size-9 shrink-0 items-center justify-center rounded-[9px] border border-line text-forest"
+              className="pointer-events-none flex size-11 shrink-0 items-center justify-center rounded-[9px] border border-line text-forest"
             >
               <Plus className="size-[18px]" strokeWidth={2} />
             </span>
