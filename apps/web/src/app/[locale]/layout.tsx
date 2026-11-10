@@ -23,6 +23,8 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
     description: t("description"),
     metadataBase: new URL(siteUrl()),
     alternates: alternates(locale, "/"),
+    // «إضافة للشاشة الرئيسية» من المتجر تفتح المتجر لا نقطة البيع (D-153)
+    manifest: "/store.webmanifest",
     openGraph: {
       siteName: locale === "ar" ? "غصن" : "GHUSN",
       locale: locale === "ar" ? "ar_SD" : "en_US",

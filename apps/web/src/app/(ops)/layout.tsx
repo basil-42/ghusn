@@ -9,6 +9,8 @@ export const metadata: Metadata = {
   title: "غصن | GHUSN",
   description: "هدايا تُصنع لتُذكر",
   robots: { index: false, follow: false },
+  // تطبيق التشغيل (نقطة البيع والإدارة) — المتجر له أيقونته الخاصة (D-153)
+  manifest: "/pos.webmanifest",
 };
 
 /** قالب التشغيل (الإدارة، نقطة البيع، الدخول، الطباعة): عربي دائماً. المتجر له قالبه في [locale]. */
