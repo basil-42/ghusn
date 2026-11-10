@@ -40,6 +40,10 @@ export interface StoreBanner {
   href: string;
   desktopSrc: string;
   mobileSrc: string;
+  /** صورة جوال مستقلة مرفوعة (4:5) */
+  hasMobileImage: boolean;
+  /** الصورة فيها كلامها: بلا عنوان ولا تظليل فوقها (D-152) */
+  imageHasText: boolean;
 }
 
 /** البانرات الظاهرة اليوم بلغة الزائر. */
@@ -63,6 +67,8 @@ export async function listStoreBanners(locale: string, now = new Date()): Promis
       href: hrefOf(b.linkType, b.linkTarget),
       desktopSrc: imageUrl(b.imageKey, "full"),
       mobileSrc: imageUrl(b.mobileImageKey ?? b.imageKey, "medium"),
+      hasMobileImage: !!b.mobileImageKey,
+      imageHasText: b.imageHasText,
     }));
 }
 
@@ -81,6 +87,7 @@ export interface AdminBanner {
   startsOn: string;
   endsOn: string;
   isActive: boolean;
+  imageHasText: boolean;
   imageUrl: string;
   mobileImageUrl: string | null;
   /** للمعاينة الحية في لوحة التحرير (أكبر من صورة القائمة) */
@@ -116,6 +123,7 @@ export async function listBannersForAdmin(now = new Date()): Promise<AdminBanner
       startsOn: dayOf(b.startsOn) ?? "",
       endsOn: dayOf(b.endsOn) ?? "",
       isActive: b.isActive,
+      imageHasText: b.imageHasText,
       imageUrl: imageUrl(b.imageKey, "thumb"),
       mobileImageUrl: b.mobileImageKey ? imageUrl(b.mobileImageKey, "thumb") : null,
       previewUrl: imageUrl(b.imageKey, "full"),
@@ -163,6 +171,7 @@ export interface BannerInput {
   startsOn: string | null;
   endsOn: string | null;
   isActive: boolean;
+  imageHasText: boolean;
   image: File | null;
   mobileImage: File | null;
   removeMobileImage: boolean;
@@ -222,6 +231,7 @@ export async function saveBanner(input: BannerInput): Promise<void> {
     startsOn: dateOf(start),
     endsOn: dateOf(end),
     isActive: input.isActive,
+    imageHasText: input.imageHasText,
     ...(mobileImageKey !== undefined ? { mobileImageKey } : {}),
   };
   if (input.id) {

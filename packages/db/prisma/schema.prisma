@@ -1454,6 +1454,8 @@ model Banner {
   linkTarget     String?
   imageKey       String
   mobileImageKey String?
+  /// الصورة مصمَّمة بكلامها (Canva…): لا يُكتب العنوان والزر فوقها، والبانر كله رابط (D-152)
+  imageHasText   Boolean    @default(false)
   /// أيام المحل (شاملة)؛ فارغ = بلا حد
   startsOn       DateTime?  @db.Date
   endsOn         DateTime?  @db.Date

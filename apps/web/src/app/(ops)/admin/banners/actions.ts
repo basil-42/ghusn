@@ -70,6 +70,7 @@ export async function saveBannerAction(_prev: FormState, formData: FormData): Pr
       startsOn: d.startsOn || null,
       endsOn: d.endsOn || null,
       isActive: formData.get("isActive") === "on",
+      imageHasText: formData.get("imageHasText") === "on",
       image: file("image"),
       mobileImage: file("mobileImage"),
       removeMobileImage: formData.get("removeMobileImage") === "on",
