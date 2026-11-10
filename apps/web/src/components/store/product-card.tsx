@@ -16,7 +16,7 @@ export async function ProductCard({ product }: { product: StoreProductCard }) {
   const t = await getTranslations("product");
   return (
     <div className="group relative flex w-full flex-col overflow-hidden rounded-xl border border-line bg-card transition-shadow hover:shadow-md">
-      <div className={`relative aspect-square border-b border-line ${stageBox(product.imageFull)}`}>
+      <div className={`relative aspect-square ${stageBox(product.imageFull)}`}>
         {product.imageUrl ? (
           <Image
             src={product.imageUrl}
