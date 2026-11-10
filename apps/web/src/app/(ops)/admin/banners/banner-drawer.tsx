@@ -90,6 +90,8 @@ export function BannerDrawer({
   const [desktopFile, setDesktopFile] = useState<File | null>(null);
   const [mobileFile, setMobileFile] = useState<File | null>(null);
   const [removeMobile, setRemoveMobile] = useState(false);
+  // D-152: تصميم بكلامه (Canva) — لا يُكتب العنوان والزر فوقه
+  const [hasText, setHasText] = useState(initial?.imageHasText ?? false);
   const desktopUrl = useObjectUrl(desktopFile);
   const mobileUrl = useObjectUrl(mobileFile);
   const smallDesktop = useSmallWarning(desktopUrl, 1600);
@@ -123,6 +125,7 @@ export function BannerDrawer({
   const desktopSrc = desktopUrl ?? initial?.previewUrl ?? null;
   const mobileSrc = mobileUrl ?? (removeMobile ? null : initial?.mobilePreviewUrl) ?? desktopSrc;
   const en = lang === "en";
+  const hasMobileImage = !!mobileUrl || (!removeMobile && !!initial?.mobilePreviewUrl);
 
   return (
     <div className="fixed inset-0 z-50" role="dialog" aria-modal="true" aria-labelledby="banner-drawer-title">
@@ -181,7 +184,14 @@ export function BannerDrawer({
               text={en ? text.textEn : text.textAr}
               cta={(en ? text.ctaEn : text.ctaAr) || (en ? "Shop now" : "تسوّق الآن")}
               badge={en ? text.badgeEn : text.badgeAr}
+              hasText={hasText}
+              fit={device === "mobile" && hasText && !hasMobileImage}
             />
+            {device === "mobile" && hasText && !hasMobileImage ? (
+              <p className="text-center text-xs font-semibold text-warning">
+                بلا صورة جوال: يظهر التصميم كاملاً لكن صغيراً بعرض الشاشة. لبانر كبير على الجوال ارفعي نسخة 1080×1350.
+              </p>
+            ) : null}
           </div>
 
           <nav aria-label="خطوات" className="flex gap-1 border-b border-border px-5 pt-3">
@@ -225,7 +235,7 @@ export function BannerDrawer({
                       صورة الجوال <span className="font-normal text-muted-foreground">(اختيارية)</span>
                     </>
                   }
-                  hint="طولية 4:5 — بدونها تُقص صورة الكمبيوتر من الوسط"
+                  hint="طولية 4:5 — 1080×1350. بدونها تُقص صورة الكمبيوتر من الوسط (أو تُعرض كاملة إن كان فيها الكلام)"
                   name="mobileImage"
                   pickedUrl={mobileUrl}
                   current={removeMobile ? null : initial?.mobileImageUrl}
@@ -251,6 +261,30 @@ export function BannerDrawer({
                 ) : null}
               </div>
             </div>
+
+            <label
+              data-step="0"
+              className={cn(
+                "flex min-h-11 cursor-pointer items-start gap-3 rounded-xl border p-3",
+                hasText ? "border-forest bg-muted" : "border-border",
+                step !== 0 && "hidden",
+              )}
+            >
+              <input
+                type="checkbox"
+                name="imageHasText"
+                checked={hasText}
+                onChange={(e) => setHasText(e.target.checked)}
+                className="mt-0.5 size-5 shrink-0 accent-forest"
+              />
+              <span className="flex flex-col gap-0.5">
+                <b className="text-sm">الصورة فيها الكلام</b>
+                <span className="text-xs text-muted-foreground">
+                  صمّمتِها في Canva بعنوانها: لا يُكتب العنوان والزر فوقها، والبانر كله رابط. العنوان يبقى مطلوباً لقارئ
+                  الشاشة ومحركات البحث.
+                </span>
+              </span>
+            </label>
 
             {/* ٢ · النص والرابط */}
             <div data-step="1" className={cn("grid gap-3 sm:grid-cols-2", step !== 1 && "hidden")}>
@@ -571,6 +605,8 @@ function BannerPreview({
   text,
   cta,
   badge,
+  hasText,
+  fit,
 }: {
   device: "desktop" | "mobile";
   lang: "ar" | "en";
@@ -579,6 +615,10 @@ function BannerPreview({
   text: string;
   cta: string;
   badge: string;
+  /** الصورة فيها الكلام: بلا تدرج ولا شارة ولا عنوان (D-152) */
+  hasText: boolean;
+  /** تُعرض كاملة بلا قص فوق نسخة مموّهة (تصميم بكلامه على الجوال بلا صورة جوال) */
+  fit: boolean;
 }) {
   const mobile = device === "mobile";
   return (
@@ -592,36 +632,55 @@ function BannerPreview({
         )}
       >
         {src ? (
-          // eslint-disable-next-line @next/next/no-img-element -- معاينة محلية أو صورة البانر الحالية
-          <img src={src} alt="" className="absolute inset-0 -z-20 size-full object-cover" />
+          <>
+            {fit ? (
+              // eslint-disable-next-line @next/next/no-img-element -- معاينة محلية
+              <img
+                src={src}
+                alt=""
+                aria-hidden
+                className="absolute inset-0 -z-30 size-full scale-110 object-cover opacity-60 blur-xl"
+              />
+            ) : null}
+            {/* eslint-disable-next-line @next/next/no-img-element -- معاينة محلية أو صورة البانر الحالية */}
+            <img
+              src={src}
+              alt=""
+              className={cn("absolute inset-0 -z-20 size-full", fit ? "object-contain" : "object-cover")}
+            />
+          </>
         ) : (
           <span className="absolute inset-0 -z-20 flex items-start justify-center pt-6 text-xs text-ivory/60">
             اختاري صورة لترى المعاينة
           </span>
         )}
-        <span
-          aria-hidden
-          className={cn(
-            "absolute inset-0 -z-10",
-            mobile
-              ? "bg-linear-to-t from-forest/95 via-forest/70 via-40% to-transparent to-75%"
-              : lang === "ar"
-                ? "bg-linear-to-l from-forest/90 via-forest/70 to-transparent to-70%"
-                : "bg-linear-to-r from-forest/90 via-forest/70 to-transparent to-70%",
-          )}
-        />
-        {badge ? (
-          <span className="absolute start-3 top-3 rounded-full border border-ivory/25 bg-forest/75 px-2.5 py-0.5 text-[10px] font-semibold">
-            {badge}
-          </span>
-        ) : null}
-        <div className={cn("flex flex-col items-start gap-1.5 px-4 pb-5", !mobile && "max-w-[56%] px-6")}>
-          <b className={cn("font-display leading-tight", mobile ? "text-lg" : "text-2xl")}>{title}</b>
-          {text ? <span className="text-[11px] leading-relaxed text-ivory/85">{text}</span> : null}
-          <span className="mt-0.5 inline-flex min-h-7 items-center rounded-md bg-ivory px-3 text-[11px] font-bold text-forest">
-            {cta}
-          </span>
-        </div>
+        {hasText ? null : (
+          <>
+            <span
+              aria-hidden
+              className={cn(
+                "absolute inset-0 -z-10",
+                mobile
+                  ? "bg-linear-to-t from-forest/95 via-forest/70 via-40% to-transparent to-75%"
+                  : lang === "ar"
+                    ? "bg-linear-to-l from-forest/90 via-forest/70 to-transparent to-70%"
+                    : "bg-linear-to-r from-forest/90 via-forest/70 to-transparent to-70%",
+              )}
+            />
+            {badge ? (
+              <span className="absolute start-3 top-3 rounded-full border border-ivory/25 bg-forest/75 px-2.5 py-0.5 text-[10px] font-semibold">
+                {badge}
+              </span>
+            ) : null}
+            <div className={cn("flex flex-col items-start gap-1.5 px-4 pb-5", !mobile && "max-w-[56%] px-6")}>
+              <b className={cn("font-display leading-tight", mobile ? "text-lg" : "text-2xl")}>{title}</b>
+              {text ? <span className="text-[11px] leading-relaxed text-ivory/85">{text}</span> : null}
+              <span className="mt-0.5 inline-flex min-h-7 items-center rounded-md bg-ivory px-3 text-[11px] font-bold text-forest">
+                {cta}
+              </span>
+            </div>
+          </>
+        )}
       </div>
     </div>
   );

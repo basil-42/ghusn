@@ -14,7 +14,10 @@ type Connection = { saveData?: boolean; effectiveType?: string };
  * - صورة البانر الأول فقط تُحمَّل مع الصفحة (أولوية عالية)؛ البقية بعد اكتمال تحميل الصفحة.
  * - وضع توفير البيانات أو اتصال 2G: لا تبديل تلقائي ولا تحميل مسبق (البانر يُحمَّل عند فتحه يدوياً).
  * - «تقليل الحركة» في الجهاز: بلا تبديل تلقائي. التبديل يتوقف في الخلفية وعند المرور أو التركيز.
- * - الجوال يأخذ صورة الجوال بمقاس 800px.
+ * - الجوال يأخذ صورة الجوال بمقاس 800px، في إطار 4:5 يطابق مقاسها المقترح (1080×1350).
+ *
+ * D-152: «الصورة فيها الكلام» (تصميم Canva بعنوانه) ← لا عنوان ولا تظليل ولا زر فوقها، والبانر كله رابط.
+ * ومثلها بلا صورة جوال ← تُعرض على الجوال كاملة بلا قص، فوق نسخة مموّهة منها تملأ الإطار.
  */
 export function HeroCarousel({
   banners,
@@ -88,11 +91,13 @@ export function HeroCarousel({
         // السحب باتجاه القراءة يعرض التالي
         if (Math.abs(dx) > 40) go(index + (dx > 0 === rtl ? 1 : -1));
       }}
-      className="relative isolate h-[440px] overflow-hidden rounded-[14px] bg-forest text-ivory md:h-[360px]"
+      className="relative isolate aspect-[4/5] max-h-[560px] w-full overflow-hidden rounded-[14px] bg-forest text-ivory md:aspect-auto md:h-[360px] md:max-h-none"
     >
       {banners.map((b, i) => {
         const active = i === index;
         const showImage = i === 0 || loadRest || active;
+        // تصميم بكلامه بلا نسخة جوال: لا يُقص على الجوال (D-152)
+        const fitMobile = b.imageHasText && !b.hasMobileImage;
         return (
           <div
             key={b.id}
@@ -112,32 +117,54 @@ export function HeroCarousel({
                   fetchPriority={i === 0 ? "high" : "low"}
                   loading={i === 0 ? "eager" : "lazy"}
                   decoding="async"
-                  className="absolute inset-0 -z-20 size-full object-cover"
+                  className={`absolute inset-0 -z-20 size-full ${fitMobile ? "object-contain md:object-cover" : "object-cover"}`}
                 />
               </picture>
             ) : null}
-            {/* تدرج من جهة النص: يجعل الكلام مقروءاً فوق أي صورة */}
-            <span
-              aria-hidden
-              className="absolute inset-0 -z-10 bg-linear-to-t from-forest/95 via-forest/70 via-40% to-transparent to-75% md:bg-linear-to-l md:from-forest/90 md:via-forest/70 md:to-70% ltr:md:bg-linear-to-r"
-            />
-            {/* الشارة في الزاوية العليا من جهة النص، بخلفية داكنة تُقرأ فوق أي صورة */}
-            {b.badge ? (
-              <span className="absolute start-4 top-4 rounded-full border border-ivory/25 bg-forest/75 px-3 py-1 text-xs font-semibold backdrop-blur-sm md:start-6 md:top-5">
-                {b.badge}
-              </span>
+            {showImage && fitMobile ? (
+              // eslint-disable-next-line @next/next/no-img-element -- خلفية مموّهة من نفس صورة الجوال (لا تحسين مطلوب)
+              <img
+                src={b.mobileSrc}
+                alt=""
+                aria-hidden
+                loading="lazy"
+                decoding="async"
+                className="absolute inset-0 -z-30 size-full scale-110 object-cover opacity-60 blur-2xl md:hidden"
+              />
             ) : null}
-            <div className="flex w-full flex-col items-start gap-2.5 px-5 pt-6 pb-12 md:max-w-[56%] md:px-9 md:pb-12">
-              <h2 className="font-display text-3xl leading-tight font-bold text-balance md:text-[40px]">{b.title}</h2>
-              {b.text ? <p className="text-[15px] leading-relaxed text-ivory/85">{b.text}</p> : null}
-              <Link
-                href={b.href}
-                tabIndex={active ? undefined : -1}
-                className="mt-1 inline-flex min-h-11 items-center rounded-[10px] bg-ivory px-6 text-sm font-bold text-forest after:absolute after:inset-0 hover:bg-sand"
-              >
-                {b.cta}
+            {b.imageHasText ? (
+              // التصميم يحمل كلامه وزره: البانر كله رابط، والعنوان لقارئ الشاشة فقط
+              <Link href={b.href} tabIndex={active ? undefined : -1} className="absolute inset-0">
+                <span className="sr-only">{b.title}</span>
               </Link>
-            </div>
+            ) : (
+              <>
+                {/* تدرج من جهة النص: يجعل الكلام مقروءاً فوق أي صورة */}
+                <span
+                  aria-hidden
+                  className="absolute inset-0 -z-10 bg-linear-to-t from-forest/95 via-forest/70 via-40% to-transparent to-75% md:bg-linear-to-l md:from-forest/90 md:via-forest/70 md:to-70% ltr:md:bg-linear-to-r"
+                />
+                {/* الشارة في الزاوية العليا من جهة النص، بخلفية داكنة تُقرأ فوق أي صورة */}
+                {b.badge ? (
+                  <span className="absolute start-4 top-4 rounded-full border border-ivory/25 bg-forest/75 px-3 py-1 text-xs font-semibold backdrop-blur-sm md:start-6 md:top-5">
+                    {b.badge}
+                  </span>
+                ) : null}
+                <div className="flex w-full flex-col items-start gap-2.5 px-5 pt-6 pb-12 md:max-w-[56%] md:px-9 md:pb-12">
+                  <h2 className="font-display text-3xl leading-tight font-bold text-balance md:text-[40px]">
+                    {b.title}
+                  </h2>
+                  {b.text ? <p className="text-[15px] leading-relaxed text-ivory/85">{b.text}</p> : null}
+                  <Link
+                    href={b.href}
+                    tabIndex={active ? undefined : -1}
+                    className="mt-1 inline-flex min-h-11 items-center rounded-[10px] bg-ivory px-6 text-sm font-bold text-forest after:absolute after:inset-0 hover:bg-sand"
+                  >
+                    {b.cta}
+                  </Link>
+                </div>
+              </>
+            )}
           </div>
         );
       })}
