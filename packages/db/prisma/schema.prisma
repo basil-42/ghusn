@@ -1441,8 +1441,14 @@ enum BannerLink {
 }
 
 /// بانرات الرئيسية (D-101): حتى 3 تظهر بالترتيب، بصورة للكمبيوتر وأخرى اختيارية للجوال ومدة اختيارية
+/// جهة الكلام في البانر (D-155): الجهة الفارغة من الصورة، مستقلة عن اتجاه اللغة
+enum BannerTextSide {
+  RIGHT
+  LEFT
+}
+
 model Banner {
-  id             String     @id @default(cuid())
+  id             String         @id @default(cuid())
   titleAr        String
   titleEn        String
   textAr         String?
@@ -1451,19 +1457,21 @@ model Banner {
   ctaEn          String
   badgeAr        String?
   badgeEn        String?
-  linkType       BannerLink @default(PRODUCTS)
+  linkType       BannerLink     @default(PRODUCTS)
   linkTarget     String?
   imageKey       String
   mobileImageKey String?
   /// الصورة مصمَّمة بكلامها (Canva…): لا يُكتب العنوان والزر فوقها، والبانر كله رابط (D-152)
-  imageHasText   Boolean    @default(false)
+  imageHasText   Boolean        @default(false)
+  /// جهة العنوان والتظليل على الكمبيوتر — ثابتة باللغتين لأن الصورة لا تنعكس (D-155)
+  textSide       BannerTextSide @default(RIGHT)
   /// أيام المحل (شاملة)؛ فارغ = بلا حد
-  startsOn       DateTime?  @db.Date
-  endsOn         DateTime?  @db.Date
-  isActive       Boolean    @default(true)
-  sortOrder      Int        @default(0)
-  createdAt      DateTime   @default(now())
-  updatedAt      DateTime   @updatedAt
+  startsOn       DateTime?      @db.Date
+  endsOn         DateTime?      @db.Date
+  isActive       Boolean        @default(true)
+  sortOrder      Int            @default(0)
+  createdAt      DateTime       @default(now())
+  updatedAt      DateTime       @updatedAt
   deletedAt      DateTime?
 
   @@index([isActive, deletedAt, sortOrder])

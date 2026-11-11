@@ -24,6 +24,7 @@ const schema = z.object({
   linkTarget: optional(60),
   startsOn: optional(10),
   endsOn: optional(10),
+  textSide: z.enum(["RIGHT", "LEFT"]),
 });
 
 function refresh() {
@@ -51,6 +52,8 @@ export async function saveBannerAction(_prev: FormState, formData: FormData): Pr
     linkTarget: text(`target_${linkType}`),
     startsOn: text("startsOn"),
     endsOn: text("endsOn"),
+    // D-155: يُرسل دائماً (حتى مخفياً)؛ الافتراضي يمين
+    textSide: text("textSide") || "RIGHT",
   });
   if (!parsed.success) return { error: "راجعي الحقول: العنوانان ونصّا الزر بحرفين على الأقل." };
   const file = (k: string) => {

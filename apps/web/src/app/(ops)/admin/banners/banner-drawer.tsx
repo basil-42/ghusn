@@ -3,13 +3,14 @@
 import { ImagePlus, Monitor, Smartphone, Trash2, X } from "lucide-react";
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useActionState, useEffect, useMemo, useRef, useState } from "react";
+import { useActionState, useEffect, useId, useMemo, useRef, useState } from "react";
 import { ImageInput } from "@/components/image-input";
 import { Alert } from "@/components/ui/alert";
 import { Button } from "@/components/ui/button";
 import { ConfirmDialog, useConfirmForm } from "@/components/ui/confirm-dialog";
 import { Input, NativeSelect } from "@/components/ui/input";
 import { useActionToast } from "@/components/ui/toast";
+import { textAtStart } from "@/lib/banner-side";
 import type { AdminBanner } from "@/lib/banners";
 import { cn } from "@/lib/utils";
 import { deleteBannerAction, saveBannerAction, type FormState } from "./actions";
@@ -20,6 +21,7 @@ const label = "text-sm font-semibold";
 const hint = "text-xs text-muted-foreground";
 
 type LinkType = AdminBanner["linkType"];
+type TextSide = AdminBanner["textSide"];
 type Option = { value: string; label: string };
 export interface LinkOptions {
   categories: Option[];
@@ -92,6 +94,9 @@ export function BannerDrawer({
   const [removeMobile, setRemoveMobile] = useState(false);
   // D-152: تصميم بكلامه (Canva) — لا يُكتب العنوان والزر فوقه
   const [hasText, setHasText] = useState(initial?.imageHasText ?? false);
+  // D-155: جهة الكلام ثابتة باللغتين (الجهة الفارغة من الصورة)
+  const [side, setSide] = useState<TextSide>(initial?.textSide ?? "RIGHT");
+  const sideLabel = useId();
   const desktopUrl = useObjectUrl(desktopFile);
   const mobileUrl = useObjectUrl(mobileFile);
   const smallDesktop = useSmallWarning(desktopUrl, 1600);
@@ -185,6 +190,7 @@ export function BannerDrawer({
               cta={(en ? text.ctaEn : text.ctaAr) || (en ? "Shop now" : "تسوّق الآن")}
               badge={en ? text.badgeEn : text.badgeAr}
               hasText={hasText}
+              side={side}
               fit={device === "mobile" && hasText && !hasMobileImage}
             />
             {device === "mobile" && hasText && !hasMobileImage ? (
@@ -288,6 +294,46 @@ export function BannerDrawer({
 
             {/* ٢ · النص والرابط */}
             <div data-step="1" className={cn("grid gap-3 sm:grid-cols-2", step !== 1 && "hidden")}>
+              {/* يبقى في النموذج وإن خُفي (الصورة فيها الكلام) حتى لا تضيع الجهة المحفوظة */}
+              <div
+                role="radiogroup"
+                aria-labelledby={sideLabel}
+                className={cn("flex flex-col gap-1.5 sm:col-span-2", hasText && "hidden")}
+              >
+                <p id={sideLabel} className={label}>
+                  جهة الكلام
+                </p>
+                <div className="flex flex-wrap items-center gap-3">
+                  <div className="inline-flex gap-1 rounded-xl bg-muted p-1">
+                    {(["RIGHT", "LEFT"] as const).map((v) => (
+                      <label
+                        key={v}
+                        className={cn(
+                          "flex min-h-11 cursor-pointer items-center gap-2 rounded-lg px-3 text-sm font-semibold has-focus-visible:ring-2 has-focus-visible:ring-sage",
+                          side === v ? "bg-card shadow-sm" : "text-muted-foreground hover:text-foreground",
+                        )}
+                      >
+                        <input
+                          type="radio"
+                          name="textSide"
+                          value={v}
+                          checked={side === v}
+                          onChange={() => {
+                            setSide(v);
+                            setDevice("desktop");
+                          }}
+                          className="sr-only"
+                        />
+                        <SideIcon side={v} />
+                        {v === "RIGHT" ? "يمين" : "يسار"}
+                      </label>
+                    ))}
+                  </div>
+                  <span className={hint}>
+                    اختاري الجهة الفارغة من الصورة. تبقى نفسها بالعربي والإنجليزي، والجوال لا يتأثر.
+                  </span>
+                </div>
+              </div>
               <label className={field}>
                 <span className={label}>العنوان بالعربي</span>
                 <Input
@@ -517,6 +563,15 @@ function Toggle({ on, onClick, children }: { on: boolean; onClick: () => void; c
   );
 }
 
+/** رسم صغير للبانر: الكلام في الجهة المظللة. */
+function SideIcon({ side }: { side: TextSide }) {
+  return (
+    <span aria-hidden className="relative block h-5 w-8 shrink-0 overflow-hidden rounded border-[1.5px] border-current">
+      <span className={cn("absolute inset-y-0 w-1/2 bg-current opacity-50", side === "RIGHT" ? "right-0" : "left-0")} />
+    </span>
+  );
+}
+
 /** صورة بالسحب والإفلات أو الاختيار — نفس حقل ImageInput (تصغير في المتصفح وحد الحجم). */
 function Dropzone({
   title,
@@ -606,6 +661,7 @@ function BannerPreview({
   cta,
   badge,
   hasText,
+  side,
   fit,
 }: {
   device: "desktop" | "mobile";
@@ -617,10 +673,13 @@ function BannerPreview({
   badge: string;
   /** الصورة فيها الكلام: بلا تدرج ولا شارة ولا عنوان (D-152) */
   hasText: boolean;
+  /** جهة الكلام على الكمبيوتر (D-155) */
+  side: TextSide;
   /** تُعرض كاملة بلا قص فوق نسخة مموّهة (تصميم بكلامه على الجوال بلا صورة جوال) */
   fit: boolean;
 }) {
   const mobile = device === "mobile";
+  const atStart = mobile || textAtStart(side, lang === "ar");
   return (
     <div className="flex justify-center">
       <div
@@ -629,6 +688,7 @@ function BannerPreview({
         className={cn(
           "relative isolate flex items-end overflow-hidden rounded-[14px] bg-forest text-ivory",
           mobile ? "aspect-[4/5] w-56" : "aspect-[2/1] w-full",
+          !atStart && "justify-end",
         )}
       >
         {src ? (
@@ -662,13 +722,18 @@ function BannerPreview({
                 "absolute inset-0 -z-10",
                 mobile
                   ? "bg-linear-to-t from-forest/95 via-forest/70 via-40% to-transparent to-75%"
-                  : lang === "ar"
+                  : side === "RIGHT"
                     ? "bg-linear-to-l from-forest/90 via-forest/70 to-transparent to-70%"
                     : "bg-linear-to-r from-forest/90 via-forest/70 to-transparent to-70%",
               )}
             />
             {badge ? (
-              <span className="absolute start-3 top-3 rounded-full border border-ivory/25 bg-forest/75 px-2.5 py-0.5 text-[10px] font-semibold">
+              <span
+                className={cn(
+                  "absolute top-3 rounded-full border border-ivory/25 bg-forest/75 px-2.5 py-0.5 text-[10px] font-semibold",
+                  atStart ? "start-3" : "end-3",
+                )}
+              >
                 {badge}
               </span>
             ) : null}

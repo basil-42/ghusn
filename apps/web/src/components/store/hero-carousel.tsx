@@ -3,6 +3,7 @@
 import { ChevronLeft, ChevronRight } from "lucide-react";
 import { useEffect, useRef, useState } from "react";
 import { Link } from "@/i18n/navigation";
+import { textAtStart } from "@/lib/banner-side";
 import type { StoreBanner } from "@/lib/banners";
 
 const INTERVAL_MS = 6000;
@@ -18,6 +19,9 @@ type Connection = { saveData?: boolean; effectiveType?: string };
  *
  * D-152: «الصورة فيها الكلام» (تصميم Canva بعنوانه) ← لا عنوان ولا تظليل ولا زر فوقها، والبانر كله رابط.
  * ومثلها بلا صورة جوال ← تُعرض على الجوال كاملة بلا قص، فوق نسخة مموّهة منها تملأ الإطار.
+ *
+ * D-155: على الكمبيوتر الكلام والتظليل والشارة في جهة البانر (`textSide`) باللغتين — الصورة لا تنعكس،
+ * فالجهة الفارغة منها ثابتة. النقاط تحت الكلام والأسهم في الجهة المقابلة. الجوال كما هو (الكلام أسفل).
  */
 export function HeroCarousel({
   banners,
@@ -69,6 +73,8 @@ export function HeroCarousel({
   const go = (n: number) => setIndex(((n % count) + count) % count);
   const Prev = rtl ? ChevronRight : ChevronLeft;
   const Next = rtl ? ChevronLeft : ChevronRight;
+  // النقاط والأسهم تتبع جهة كلام البانر الظاهر
+  const activeAtStart = textAtStart(banners[index]?.textSide ?? "RIGHT", rtl);
 
   return (
     <div
@@ -98,6 +104,7 @@ export function HeroCarousel({
         const showImage = i === 0 || loadRest || active;
         // تصميم بكلامه بلا نسخة جوال: لا يُقص على الجوال (D-152)
         const fitMobile = b.imageHasText && !b.hasMobileImage;
+        const atStart = textAtStart(b.textSide, rtl);
         return (
           <div
             key={b.id}
@@ -106,7 +113,7 @@ export function HeroCarousel({
             aria-label={labels.slide.replace("{n}", String(i + 1)).replace("{total}", String(count))}
             aria-hidden={!active}
             inert={!active}
-            className={`absolute inset-0 flex items-end transition-opacity duration-700 motion-reduce:transition-none ${active ? "opacity-100" : "opacity-0"}`}
+            className={`absolute inset-0 flex items-end ${atStart ? "" : "md:justify-end"} transition-opacity duration-700 motion-reduce:transition-none ${active ? "opacity-100" : "opacity-0"}`}
           >
             {showImage ? (
               <picture>
@@ -139,14 +146,16 @@ export function HeroCarousel({
               </Link>
             ) : (
               <>
-                {/* تدرج من جهة النص: يجعل الكلام مقروءاً فوق أي صورة */}
+                {/* تدرج من جهة النص: يجعل الكلام مقروءاً فوق أي صورة (جهة ثابتة على الكمبيوتر، D-155) */}
                 <span
                   aria-hidden
-                  className="absolute inset-0 -z-10 bg-linear-to-t from-forest/95 via-forest/70 via-40% to-transparent to-75% md:bg-linear-to-l md:from-forest/90 md:via-forest/70 md:to-70% ltr:md:bg-linear-to-r"
+                  className={`absolute inset-0 -z-10 bg-linear-to-t from-forest/95 via-forest/70 via-40% to-transparent to-75% md:from-forest/90 md:via-forest/70 md:to-70% ${b.textSide === "LEFT" ? "md:bg-linear-to-r" : "md:bg-linear-to-l"}`}
                 />
                 {/* الشارة في الزاوية العليا من جهة النص، بخلفية داكنة تُقرأ فوق أي صورة */}
                 {b.badge ? (
-                  <span className="absolute start-4 top-4 rounded-full border border-ivory/25 bg-forest/75 px-3 py-1 text-xs font-semibold backdrop-blur-sm md:start-6 md:top-5">
+                  <span
+                    className={`absolute start-4 top-4 rounded-full border border-ivory/25 bg-forest/75 px-3 py-1 text-xs font-semibold backdrop-blur-sm md:top-5 ${atStart ? "md:start-6" : "md:start-auto md:end-6"}`}
+                  >
                     {b.badge}
                   </span>
                 ) : null}
@@ -171,7 +180,9 @@ export function HeroCarousel({
 
       {count > 1 ? (
         <>
-          <div className="absolute start-5 bottom-4 z-10 flex gap-1.5 md:start-9">
+          <div
+            className={`absolute start-5 bottom-4 z-10 flex gap-1.5 ${activeAtStart ? "md:start-9" : "md:start-auto md:end-9"}`}
+          >
             {banners.map((b, i) => (
               <button
                 key={b.id}
@@ -187,7 +198,7 @@ export function HeroCarousel({
               </button>
             ))}
           </div>
-          <div className="absolute end-3.5 bottom-3 z-10 hidden gap-1.5 md:flex">
+          <div className={`absolute bottom-3 z-10 hidden gap-1.5 md:flex ${activeAtStart ? "end-3.5" : "start-3.5"}`}>
             <button
               type="button"
               aria-label={labels.prev}
