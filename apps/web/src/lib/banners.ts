@@ -1,5 +1,5 @@
 import { bannerWindow, isValidBannerWindow, MAX_HOME_BANNERS, shopDay, type BannerWindow } from "@ghusn/core";
-import { prisma, type BannerLink } from "@ghusn/db";
+import { prisma, type BannerLink, type BannerTextSide } from "@ghusn/db";
 import { ImageError, imageUrl, savePublicImage } from "./product-images";
 
 /**
@@ -44,6 +44,8 @@ export interface StoreBanner {
   hasMobileImage: boolean;
   /** الصورة فيها كلامها: بلا عنوان ولا تظليل فوقها (D-152) */
   imageHasText: boolean;
+  /** جهة الكلام على الكمبيوتر، ثابتة باللغتين (D-155) */
+  textSide: BannerTextSide;
 }
 
 /** البانرات الظاهرة اليوم بلغة الزائر. */
@@ -69,6 +71,7 @@ export async function listStoreBanners(locale: string, now = new Date()): Promis
       mobileSrc: imageUrl(b.mobileImageKey ?? b.imageKey, "medium"),
       hasMobileImage: !!b.mobileImageKey,
       imageHasText: b.imageHasText,
+      textSide: b.textSide,
     }));
 }
 
@@ -88,6 +91,7 @@ export interface AdminBanner {
   endsOn: string;
   isActive: boolean;
   imageHasText: boolean;
+  textSide: BannerTextSide;
   imageUrl: string;
   mobileImageUrl: string | null;
   /** للمعاينة الحية في لوحة التحرير (أكبر من صورة القائمة) */
@@ -124,6 +128,7 @@ export async function listBannersForAdmin(now = new Date()): Promise<AdminBanner
       endsOn: dayOf(b.endsOn) ?? "",
       isActive: b.isActive,
       imageHasText: b.imageHasText,
+      textSide: b.textSide,
       imageUrl: imageUrl(b.imageKey, "thumb"),
       mobileImageUrl: b.mobileImageKey ? imageUrl(b.mobileImageKey, "thumb") : null,
       previewUrl: imageUrl(b.imageKey, "full"),
@@ -172,6 +177,7 @@ export interface BannerInput {
   endsOn: string | null;
   isActive: boolean;
   imageHasText: boolean;
+  textSide: BannerTextSide;
   image: File | null;
   mobileImage: File | null;
   removeMobileImage: boolean;
@@ -232,6 +238,7 @@ export async function saveBanner(input: BannerInput): Promise<void> {
     endsOn: dateOf(end),
     isActive: input.isActive,
     imageHasText: input.imageHasText,
+    textSide: input.textSide,
     ...(mobileImageKey !== undefined ? { mobileImageKey } : {}),
   };
   if (input.id) {

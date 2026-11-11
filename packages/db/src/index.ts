@@ -38,6 +38,7 @@ export {
   OrderMessageChannel,
   GiftPhotoDecision,
   BannerLink,
+  BannerTextSide,
   NotificationType,
   NotificationPriority,
 } from "@prisma/client";
