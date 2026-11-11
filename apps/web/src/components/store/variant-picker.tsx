@@ -2,7 +2,8 @@
 
 import { Minus, Plus } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
-import { useState } from "react";
+import { useState, useSyncExternalStore } from "react";
+import { createPortal } from "react-dom";
 import { Link } from "@/i18n/navigation";
 import { formatAmount } from "@/lib/format";
 import { track } from "./analytics";
@@ -14,12 +15,21 @@ import { Price } from "./price";
  * اختيار المتغيّر (الحجم/المقاس/اللون) وسعره، والكمية، والإضافة للسلة.
  * المتغيّرات المعروضة متوفرة فقط (الخادم يصفّيها).
  */
+const noop = () => () => {};
+
 export function VariantPicker({ variants }: { variants: StoreVariant[] }) {
   const t = useTranslations("product");
   const locale = useLocale();
   const [selectedId, setSelectedId] = useState(variants[0]?.id);
   const [qty, setQty] = useState(1);
   const [added, setAdded] = useState(false);
+  // شريط الجوال يُركَّب في المتصفح فقط وخارج عمود الصفحة: عنصر مخفي على الكمبيوتر داخل العمود جعل Safari يضيف
+  // ~32px تحت زر الإضافة عند أول تحميل حتى أول إعادة رسم
+  const mounted = useSyncExternalStore(
+    noop,
+    () => true,
+    () => false,
+  );
   const selected = variants.find((v) => v.id === selectedId) ?? variants[0];
   if (!selected) return null;
   const kind = variants.every((v) => v.volume)
@@ -80,7 +90,8 @@ export function VariantPicker({ variants }: { variants: StoreVariant[] }) {
   );
 
   return (
-    <div className="flex flex-col gap-4">
+    // مساحة الشريط المثبّت على الجوال (بدل عنصر فارغ مخفي على الكمبيوتر)
+    <div className="flex flex-col gap-4 pb-20 md:pb-0">
       <p className="text-[26px] font-bold">{price}</p>
       {variants.length > 1 ? (
         <fieldset className="flex flex-col gap-2">
@@ -128,11 +139,15 @@ export function VariantPicker({ variants }: { variants: StoreVariant[] }) {
         {stepper}
         {addButton(false)}
       </div>
-      <div className="fixed inset-x-0 bottom-0 z-20 flex items-stretch gap-2.5 border-t border-line bg-card p-3 shadow-[0_-4px_12px_rgb(0_0_0/0.06)] md:hidden">
-        {stepper}
-        {addButton(true)}
-      </div>
-      <div aria-hidden className="h-16 md:hidden" />
+      {mounted
+        ? createPortal(
+            <div className="fixed inset-x-0 bottom-0 z-20 flex items-stretch gap-2.5 border-t border-line bg-card p-3 shadow-[0_-4px_12px_rgb(0_0_0/0.06)] md:hidden">
+              {stepper}
+              {addButton(true)}
+            </div>,
+            document.body,
+          )
+        : null}
       {added ? (
         <p role="status" className="flex flex-wrap items-center gap-2 rounded-xl bg-muted p-3 text-sm">
           {t("added")}
