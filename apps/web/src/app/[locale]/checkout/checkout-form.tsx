@@ -5,7 +5,7 @@ import { createId } from "@paralleldrive/cuid2";
 import { Check, ChevronDown, Plus } from "lucide-react";
 import Image from "next/image";
 import { useLocale, useTranslations } from "next-intl";
-import { useState, useTransition, type ReactNode } from "react";
+import { useId, useState, useTransition, type ReactNode } from "react";
 import { clearCart, useCart, useHydrated } from "@/components/store/cart-store";
 import { track } from "@/components/store/analytics";
 import { Price } from "@/components/store/price";
@@ -34,6 +34,7 @@ const dot =
  */
 export function CheckoutForm({ bankakEnabled, wrapStyles }: { bankakEnabled: boolean; wrapStyles: StoreWrapStyle[] }) {
   const t = useTranslations("checkout");
+  const cityLabel = useId();
   const te = useTranslations("errors");
   const tc = useTranslations("cart");
   const locale = useLocale();
@@ -194,8 +195,11 @@ export function CheckoutForm({ bankakEnabled, wrapStyles }: { bankakEnabled: boo
           </fieldset>
           {fulfillment === "DELIVERY" ? (
             <>
-              <fieldset className={field}>
-                <legend className={`${label} mb-1.5`}>{t("city")}</legend>
+              {/* مجموعة اختيار بعناصر عادية — <fieldset> بعنوان ظاهر داخل flex يُحسب خطأً في Safari */}
+              <div role="radiogroup" aria-labelledby={cityLabel} className={field}>
+                <p id={cityLabel} className={label}>
+                  {t("city")}
+                </p>
                 <div className="flex flex-wrap gap-2">
                   {CITIES.map((c, i) => (
                     <label
@@ -207,7 +211,7 @@ export function CheckoutForm({ bankakEnabled, wrapStyles }: { bankakEnabled: boo
                     </label>
                   ))}
                 </div>
-              </fieldset>
+              </div>
               <label className={field}>
                 <span className={label}>{t("address")}</span>
                 <textarea name="address" required minLength={5} maxLength={300} rows={2} className={area} />

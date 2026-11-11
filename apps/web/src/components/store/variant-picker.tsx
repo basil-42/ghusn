@@ -2,7 +2,7 @@
 
 import { Minus, Plus } from "lucide-react";
 import { useLocale, useTranslations } from "next-intl";
-import { useState, useSyncExternalStore } from "react";
+import { useId, useState, useSyncExternalStore } from "react";
 import { createPortal } from "react-dom";
 import { Link } from "@/i18n/navigation";
 import { formatAmount } from "@/lib/format";
@@ -23,6 +23,7 @@ export function VariantPicker({ variants }: { variants: StoreVariant[] }) {
   const [selectedId, setSelectedId] = useState(variants[0]?.id);
   const [qty, setQty] = useState(1);
   const [added, setAdded] = useState(false);
+  const groupLabel = useId();
   // شريط الجوال يُركَّب في المتصفح فقط وخارج عمود الصفحة: عنصر مخفي على الكمبيوتر داخل العمود جعل Safari يضيف
   // ~32px تحت زر الإضافة عند أول تحميل حتى أول إعادة رسم
   const mounted = useSyncExternalStore(
@@ -94,10 +95,12 @@ export function VariantPicker({ variants }: { variants: StoreVariant[] }) {
     <div className="flex flex-col gap-4 pb-20 md:pb-0">
       <p className="text-[26px] font-bold">{price}</p>
       {variants.length > 1 ? (
-        <fieldset className="flex flex-col gap-2">
-          <legend className="mb-2 font-semibold">
+        // مجموعة اختيار بعناصر عادية لا <fieldset>/<legend>: Safari يحسب سطر <legend> مرتين في ارتفاع الحاوية عند أول
+        // تحميل، فتظهر مسافة ~32px تحت زر الإضافة حتى أول إعادة رسم
+        <div role="radiogroup" aria-labelledby={groupLabel} className="flex flex-col gap-2">
+          <p id={groupLabel} className="font-semibold">
             {kind}: <span className="font-normal">{selected.label}</span>
-          </legend>
+          </p>
           <div className="flex flex-wrap gap-2">
             {variants.map((v) => (
               <label
@@ -119,7 +122,7 @@ export function VariantPicker({ variants }: { variants: StoreVariant[] }) {
               </label>
             ))}
           </div>
-        </fieldset>
+        </div>
       ) : null}
       {/* ارتفاع ثابت: شارة «كمية محدودة» تظهر لمقاس دون آخر فلا يتحرك ما تحتها */}
       <p className="flex min-h-6 flex-wrap items-center gap-2 text-sm font-semibold">
