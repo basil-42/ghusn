@@ -3,10 +3,12 @@ import { getLocale, getTranslations } from "next-intl/server";
 import { Link } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
 import { getReceiptSettings } from "@/lib/settings";
-import { whatsappLink } from "@/lib/site";
+import { socialLink, whatsappLink } from "@/lib/site";
 import { listStoreCategories, listStoreOccasions } from "@/lib/storefront";
+import { SocialLinks } from "./social-links";
 
-const linkClass = "inline-flex min-h-10 items-center text-ivory/85 hover:text-ivory hover:underline";
+// المرور: لون رملي بلا خط (D-160)
+const linkClass = "inline-flex min-h-10 items-center text-ivory/85 transition-colors hover:text-sand active:text-sand";
 
 /**
  * التذييل (D-95): أربعة أعمدة — الشعار الكامل (≥ 220px — brand-identity §1) والعبارة، الأقسام،
@@ -27,6 +29,16 @@ export async function StoreFooter() {
         <div className="col-span-2 flex flex-col gap-3 lg:col-span-1">
           <Image src="/brand/logo-horizontal-cream.svg" alt="غصن GHUSN" width={220} height={112} />
           <p className="font-display text-xl">{t("home.tagline")}</p>
+          <SocialLinks
+            hrefs={{
+              instagram: socialLink("instagram", receipt.instagram),
+              tiktok: socialLink("tiktok", receipt.tiktok),
+              whatsapp,
+            }}
+            labels={{ instagram: t("footer.instagram"), tiktok: t("footer.tiktok"), whatsapp: t("footer.whatsapp") }}
+            className="mt-1"
+            itemClassName="border border-ivory/30 text-ivory transition-colors hover:border-sand hover:text-sand"
+          />
         </div>
         {categories.length ? (
           <nav aria-label={t("footer.categories")}>
@@ -67,6 +79,16 @@ export async function StoreFooter() {
             <li>
               <Link href="/track" className={linkClass}>
                 {t("footer.track")}
+              </Link>
+            </li>
+            <li>
+              <Link href="/about" className={linkClass}>
+                {t("footer.about")}
+              </Link>
+            </li>
+            <li>
+              <Link href="/privacy" className={linkClass}>
+                {t("footer.privacy")}
               </Link>
             </li>
             {whatsapp ? (

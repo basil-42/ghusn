@@ -62,6 +62,8 @@ const FIELD_LABELS: Record<string, string> = {
   phone: "الهاتف",
   whatsapp: "واتساب",
   instagram: "إنستغرام",
+  tiktok: "تيك توك",
+  mapsUrl: "رابط الخرائط",
   footer: "نص الختام",
   showCashier: "اسم الكاشير",
   showCustomerPhone: "هاتف العميل",
@@ -136,15 +138,25 @@ export async function saveReceiptSettingsAction(_prev: FormState, formData: Form
     phone: text(formData, "phone"),
     whatsapp: text(formData, "whatsapp"),
     instagram: text(formData, "instagram"),
+    tiktok: text(formData, "tiktok"),
+    mapsUrl: text(formData, "mapsUrl"),
     footer: String(formData.get("footer") ?? "").trim(),
     showCashier: formData.get("showCashier") === "on",
     showCustomerPhone: formData.get("showCustomerPhone") === "on",
   });
-  if (!parsed.success) return { error: "نص أطول من المسموح." };
+  if (!parsed.success) {
+    return {
+      error: parsed.error.issues.some((i) => i.path[0] === "mapsUrl")
+        ? "رابط الخرائط يجب أن يبدأ بـ https://"
+        : "نص أطول من المسموح.",
+    };
+  }
   const before = await getReceiptSettings();
   await saveReceiptSettings(parsed.data);
   await auditSettings("الإيصال", session.user.id, before, parsed.data);
   revalidatePath("/admin/settings");
+  // الحسابات والعنوان تظهر في تذييل المتجر و«عن غصن» (D-160)
+  revalidatePath("/", "layout");
   return { success: "تم حفظ الإيصال." };
 }
 

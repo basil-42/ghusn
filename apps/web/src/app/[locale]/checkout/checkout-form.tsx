@@ -353,6 +353,15 @@ export function CheckoutForm({ bankakEnabled, wrapStyles }: { bankakEnabled: boo
             ))}
           </fieldset>
         </Section>
+        <p className="px-1 text-xs text-muted-foreground">
+          {t.rich("consent", {
+            link: (chunks) => (
+              <Link href="/privacy" className="font-semibold text-forest underline underline-offset-4 hover:text-gold">
+                {chunks}
+              </Link>
+            ),
+          })}
+        </p>
       </div>
 
       {/* الكمبيوتر: الملخص والتأكيد بجانب النموذج ويبقيان ظاهرين */}

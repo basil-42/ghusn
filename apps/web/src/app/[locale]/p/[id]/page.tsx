@@ -131,13 +131,13 @@ export default async function ProductPage({ params }: Props) {
       <nav aria-label={t("breadcrumb")} className="text-sm text-muted-foreground">
         <ol className="flex flex-wrap items-center gap-1.5">
           <li>
-            <Link href="/" className="hover:underline">
+            <Link href="/" className="transition-colors hover:text-gold">
               {t("home")}
             </Link>
           </li>
           <li aria-hidden>›</li>
           <li>
-            <Link href={`/c/${product.category.slug}`} className="hover:underline">
+            <Link href={`/c/${product.category.slug}`} className="transition-colors hover:text-gold">
               {product.category.name}
             </Link>
           </li>
@@ -162,7 +162,10 @@ export default async function ProductPage({ params }: Props) {
         />
         <div className="flex min-w-0 flex-col gap-5">
           <div className="flex flex-col gap-1">
-            <Link href={`/c/${product.category.slug}`} className="text-sm font-semibold text-gold hover:underline">
+            <Link
+              href={`/c/${product.category.slug}`}
+              className="text-sm font-semibold text-gold transition-colors hover:text-forest"
+            >
               {product.category.name}
             </Link>
             <div className="flex items-start justify-between gap-3">
@@ -262,7 +265,10 @@ async function Unavailable({ locale, product }: { locale: Locale; product: Produ
           />
         ) : null}
         <div className="flex flex-col items-start gap-3">
-          <Link href={`/c/${product.category.slug}`} className="text-sm font-semibold text-gold hover:underline">
+          <Link
+            href={`/c/${product.category.slug}`}
+            className="text-sm font-semibold text-gold transition-colors hover:text-forest"
+          >
             {product.category.name}
           </Link>
           <h1 className="font-display text-3xl leading-tight font-bold">{product.name}</h1>

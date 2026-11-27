@@ -207,7 +207,7 @@ function ProductRow({
         {href ? (
           <Link
             href={href}
-            className="flex min-h-11 items-center gap-1 text-[13px] font-semibold text-warning hover:underline"
+            className="flex min-h-11 items-center gap-1 text-[13px] font-semibold text-warning transition-colors hover:text-forest"
           >
             {more} <Arrow aria-hidden className="size-3.5" />
           </Link>

@@ -1,12 +1,13 @@
 "use client";
 
-import { Menu, MessageCircle, Truck, X } from "lucide-react";
+import { Menu, Truck, X } from "lucide-react";
 import Image from "next/image";
 import { useTranslations } from "next-intl";
 import { Suspense, useEffect, useRef, useSyncExternalStore, type TouchEvent } from "react";
 import { Link } from "@/i18n/navigation";
 import { LanguageSwitch } from "./language-switch";
 import { PRESS, PRESS_ROW } from "./press";
+import { SocialLinks } from "./social-links";
 
 /*
  * قائمة الجوال (D-158): زر ☰ في الرأس وفي الشريط المختصر يفتح لوحة جانبية واحدة (<dialog> — يحبس
@@ -62,6 +63,8 @@ export function MobileMenu({
   occasions,
   seasonSlug,
   whatsapp,
+  instagram,
+  tiktok,
 }: {
   logo: { src: string; width: number; alt: string };
   categories: Item[];
@@ -69,6 +72,8 @@ export function MobileMenu({
   /** مناسبة الموسم: تظهر بالذهبي أول المناسبات (كما في رأس الحاسوب) */
   seasonSlug: string | null;
   whatsapp: string | null;
+  instagram: string | null;
+  tiktok: string | null;
 }) {
   const t = useTranslations();
   const isOpen = useMenuOpen();
@@ -198,6 +203,11 @@ export function MobileMenu({
                 {t("nav.giftBuilder")}
               </Link>
             </li>
+            <li className={RISE} style={rise(categories.length + 2 + sorted.length)}>
+              <Link href="/about" className={link}>
+                {t("footer.about")}
+              </Link>
+            </li>
           </ul>
         </nav>
 
@@ -209,17 +219,12 @@ export function MobileMenu({
             <Truck aria-hidden className="size-[18px]" strokeWidth={1.8} />
             {t("nav.track")}
           </Link>
-          {whatsapp ? (
-            <a
-              href={whatsapp}
-              target="_blank"
-              rel="noreferrer"
-              aria-label={t("footer.whatsapp")}
-              className={`flex min-h-11 min-w-11 items-center justify-center rounded-lg hover:bg-muted ${PRESS}`}
-            >
-              <MessageCircle aria-hidden className="size-[18px]" strokeWidth={1.8} />
-            </a>
-          ) : null}
+          <SocialLinks
+            hrefs={{ instagram, tiktok, whatsapp }}
+            labels={{ instagram: t("footer.instagram"), tiktok: t("footer.tiktok"), whatsapp: t("footer.whatsapp") }}
+            className="gap-0"
+            itemClassName={`rounded-lg hover:bg-muted ${PRESS}`}
+          />
           <span className="ms-auto">
             <Suspense fallback={<span className="block size-11" />}>
               <LanguageSwitch />

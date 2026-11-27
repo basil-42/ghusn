@@ -18,7 +18,10 @@ export function SectionHeader({
     <div className="flex items-end justify-between gap-4">
       <h2 className="font-display text-3xl font-bold">{title}</h2>
       {href && linkLabel ? (
-        <Link href={href} className="flex min-h-11 shrink-0 items-center gap-1 text-sm font-semibold hover:underline">
+        <Link
+          href={href}
+          className="flex min-h-11 shrink-0 items-center gap-1 text-sm font-semibold transition-colors hover:text-gold"
+        >
           {linkLabel}
           <Arrow aria-hidden className="size-4" />
         </Link>

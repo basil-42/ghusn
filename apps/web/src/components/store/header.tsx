@@ -5,7 +5,7 @@ import { Suspense } from "react";
 import { Link } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
 import { getReceiptSettings } from "@/lib/settings";
-import { whatsappLink } from "@/lib/site";
+import { socialLink, whatsappLink } from "@/lib/site";
 import { getSeasonBanner, listStoreCategories, listStoreOccasions } from "@/lib/storefront";
 import { CartLink } from "./cart-link";
 import { CompactBar } from "./compact-bar";
@@ -119,6 +119,8 @@ export async function StoreHeader() {
         occasions={occasions}
         seasonSlug={season?.slug ?? null}
         whatsapp={whatsappLink(receipt.whatsapp, tf("whatsappText"))}
+        instagram={socialLink("instagram", receipt.instagram)}
+        tiktok={socialLink("tiktok", receipt.tiktok)}
       />
     </>
   );
