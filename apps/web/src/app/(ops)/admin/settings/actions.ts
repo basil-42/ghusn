@@ -4,6 +4,7 @@ import { WEEK_DAYS, toLatinDigits } from "@ghusn/core";
 import { revalidatePath } from "next/cache";
 import { changesLine, diffFields, recordAudit } from "@/lib/audit";
 import { requirePermission } from "@/lib/auth/session";
+import { mapsEmbedSrc } from "@/lib/site";
 import { ExpenseError, saveExpenseCategory } from "@/lib/expenses";
 import {
   generalSettingsSchema,
@@ -64,6 +65,7 @@ const FIELD_LABELS: Record<string, string> = {
   instagram: "إنستغرام",
   tiktok: "تيك توك",
   mapsUrl: "رابط الخرائط",
+  mapsEmbedUrl: "خريطة الموقع",
   footer: "نص الختام",
   showCashier: "اسم الكاشير",
   showCustomerPhone: "هاتف العميل",
@@ -131,6 +133,7 @@ export async function savePosSettingsAction(_prev: FormState, formData: FormData
 
 export async function saveReceiptSettingsAction(_prev: FormState, formData: FormData): Promise<FormState> {
   const session = await requirePermission({ settings: ["update"] });
+  const rawEmbed = String(formData.get("mapsEmbed") ?? "").trim();
   const parsed = receiptSettingsSchema.safeParse({
     showLogo: formData.get("showLogo") === "on",
     tagline: text(formData, "tagline"),
@@ -140,15 +143,19 @@ export async function saveReceiptSettingsAction(_prev: FormState, formData: Form
     instagram: text(formData, "instagram"),
     tiktok: text(formData, "tiktok"),
     mapsUrl: text(formData, "mapsUrl"),
+    // يُلصق كود «تضمين خريطة» كاملاً؛ نحفظ الرابط وحده بعد التحقق أنه من خرائط Google (D-161)
+    mapsEmbedUrl: rawEmbed ? (mapsEmbedSrc(rawEmbed) ?? "invalid") : "",
     footer: String(formData.get("footer") ?? "").trim(),
     showCashier: formData.get("showCashier") === "on",
     showCustomerPhone: formData.get("showCustomerPhone") === "on",
   });
   if (!parsed.success) {
     return {
-      error: parsed.error.issues.some((i) => i.path[0] === "mapsUrl")
-        ? "رابط الخرائط يجب أن يبدأ بـ https://"
-        : "نص أطول من المسموح.",
+      error: parsed.error.issues.some((i) => i.path[0] === "mapsEmbedUrl")
+        ? "كود الخريطة غير صحيح: من خرائط Google اختاري «مشاركة ← تضمين خريطة ← نسخ HTML» والصقيه كما هو."
+        : parsed.error.issues.some((i) => i.path[0] === "mapsUrl")
+          ? "رابط الخرائط يجب أن يبدأ بـ https://"
+          : "نص أطول من المسموح.",
     };
   }
   const before = await getReceiptSettings();

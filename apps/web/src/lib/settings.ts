@@ -36,6 +36,8 @@ export const receiptSettingsSchema = z.object({
   tiktok: z.string().max(80),
   /** رابط موقع المحل في الخرائط لصفحة «عن غصن» (D-160) — فارغ أو https */
   mapsUrl: z.union([z.literal(""), z.string().url().max(300).startsWith("https://")]),
+  /** خريطة مضمّنة في «عن غصن» (D-161): رابط «تضمين خريطة» من خرائط Google فقط */
+  mapsEmbedUrl: z.union([z.literal(""), z.string().max(2000).startsWith("https://www.google.com/maps/embed?")]),
   footer: z.string().max(300),
   showCashier: z.boolean(),
   showCustomerPhone: z.boolean(),
@@ -51,6 +53,7 @@ export const RECEIPT_DEFAULTS: ReceiptSettings = {
   instagram: "",
   tiktok: "",
   mapsUrl: "",
+  mapsEmbedUrl: "",
   footer: "شكراً لاختياركم غصن",
   showCashier: true,
   showCustomerPhone: false,

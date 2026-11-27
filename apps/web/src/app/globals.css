@@ -118,3 +118,13 @@ html[lang="en"] {
     transform: translateY(6px);
   }
 }
+
+/* شريط «عن غصن» المتحرك (D-161): نسختان متتاليتان تتحركان نصف عرضهما ثم تتكرران بلا قفزة */
+@keyframes about-marquee {
+  to {
+    transform: translateX(50%);
+  }
+}
+html[dir="ltr"] .about-marquee {
+  animation-direction: reverse;
+}
