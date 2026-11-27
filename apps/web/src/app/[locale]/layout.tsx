@@ -4,6 +4,8 @@ import { getTranslations, setRequestLocale } from "next-intl/server";
 import { notFound } from "next/navigation";
 import { Analytics } from "@/components/store/analytics";
 import { StoreFooter } from "@/components/store/footer";
+import { CheckoutAware } from "@/components/store/checkout-aware";
+import { CheckoutFooter, CheckoutHeader } from "@/components/store/checkout-chrome";
 import { StoreHeader } from "@/components/store/header";
 import { routing } from "@/i18n/routing";
 import { fontVariables } from "@/lib/fonts";
@@ -51,9 +53,13 @@ export default async function StoreLayout({
     <html lang={locale} dir={locale === "ar" ? "rtl" : "ltr"} className={fontVariables}>
       <body className="flex min-h-screen flex-col font-sans antialiased">
         <NextIntlClientProvider>
-          <StoreHeader />
+          <CheckoutAware checkout={<CheckoutHeader />}>
+            <StoreHeader />
+          </CheckoutAware>
           <main className="flex-1">{children}</main>
-          <StoreFooter />
+          <CheckoutAware checkout={<CheckoutFooter />}>
+            <StoreFooter />
+          </CheckoutAware>
         </NextIntlClientProvider>
         {analytics ? <Analytics src={analytics.src} websiteId={analytics.websiteId} /> : null}
       </body>

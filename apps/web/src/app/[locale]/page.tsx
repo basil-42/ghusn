@@ -1,5 +1,5 @@
 import { dec } from "@ghusn/core";
-import { ArrowLeft, ArrowRight, Gift, Truck, Wallet } from "lucide-react";
+import { ArrowLeft, ArrowRight, CalendarHeart, Gift, Truck, Wallet, type LucideIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import Image from "next/image";
 import { getTranslations, setRequestLocale } from "next-intl/server";
@@ -99,6 +99,7 @@ export default async function StoreHome({ params }: { params: Promise<{ locale: 
           {tile ? (
             <PhotoTile
               href={`/occasion/${tile.slug}`}
+              icon={CalendarHeart}
               image={tile.coverUrl}
               eyebrow={
                 tile.state === "live" ? t("season") : tile.state === "soon" ? t("seasonSoon") : t("occasionTile")
@@ -125,6 +126,7 @@ export default async function StoreHome({ params }: { params: Promise<{ locale: 
           ) : null}
           <PhotoTile
             href="/gift"
+            icon={Gift}
             image={store.giftTileImageKey ? imageUrl(store.giftTileImageKey, "medium") : null}
             eyebrow={t("giftTile")}
             title={t("giftTileTitle")}
@@ -272,7 +274,8 @@ function CircleRow({
 
 /**
  * بطاقة جانبية بجانب البانرات (D-102): صورة عريضة 2:1 كاملة وتدرج من جهة النص؛ بلا صورة بطاقة بيضاء
- * بالنص. ثابتة بلا تبديل.
+ * بالنص. ثابتة بلا تبديل. بلا صورة على الجوال والشاشات المتوسطة (D-159): صف قصير بأيقونة وسهم بدل
+ * بطاقة 2:1 فارغة الأعلى؛ على الحاسوب (بجانب البانر) كما هي.
  */
 function PhotoTile({
   href,
@@ -283,9 +286,11 @@ function PhotoTile({
   meta,
   cta,
   Arrow,
+  icon: Icon,
   wide = false,
 }: {
   href: string;
+  icon: LucideIcon;
   image: string | null;
   eyebrow: string;
   title: string;
@@ -295,6 +300,36 @@ function PhotoTile({
   Arrow: typeof ArrowLeft;
   wide?: boolean;
 }) {
+  if (!image) {
+    return (
+      <Link
+        href={href}
+        className={`flex items-center gap-3 rounded-[14px] border border-line bg-card px-4 py-3.5 transition-colors active:bg-muted lg:min-h-[172px] lg:flex-col lg:items-start lg:justify-end lg:gap-0.5 lg:p-5 ${
+          wide ? "sm:col-span-2 lg:col-span-1" : ""
+        }`}
+      >
+        <span aria-hidden className="flex size-11 shrink-0 items-center justify-center rounded-full bg-muted lg:hidden">
+          <Icon className="size-5 text-gold" strokeWidth={1.8} />
+        </span>
+        <span className="flex min-w-0 flex-1 flex-col gap-0.5 lg:flex-none">
+          <span className="flex flex-wrap items-center gap-2 text-[13px] text-muted-foreground">
+            {eyebrow}
+            {badge ? (
+              <span className="rounded-full border border-line bg-muted px-2 py-px text-[11px] font-semibold text-foreground">
+                {badge}
+              </span>
+            ) : null}
+          </span>
+          <b className="font-display text-lg leading-snug lg:text-xl">{title}</b>
+          {meta ? <span className="text-xs text-muted-foreground">{meta}</span> : null}
+          <span className="mt-0.5 hidden items-center gap-1 text-[13px] font-semibold lg:flex">
+            {cta} <Arrow aria-hidden className="size-3.5" />
+          </span>
+        </span>
+        <Arrow aria-hidden className="size-4 shrink-0 text-muted-foreground lg:hidden" />
+      </Link>
+    );
+  }
   return (
     <Link
       href={href}
