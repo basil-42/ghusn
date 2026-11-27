@@ -2,11 +2,10 @@ import type { Metadata } from "next";
 import { ArrowLeft, ArrowRight, Clock, Gift, MapPin, Phone, Sparkles, Truck } from "lucide-react";
 import Image from "next/image";
 import { getTranslations, setRequestLocale } from "next-intl/server";
-import { SocialLinks } from "@/components/store/social-links";
 import { Link } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
 import { getMessageSettings, getReceiptSettings } from "@/lib/settings";
-import { alternates, socialLink, whatsappLink } from "@/lib/site";
+import { alternates, whatsappLink } from "@/lib/site";
 import { listStoreCategories } from "@/lib/storefront";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
@@ -50,8 +49,7 @@ export default async function AboutPage({ params }: { params: Promise<{ locale: 
   const heroBg = "bg-forest bg-[url('/brand/pattern-forest.svg')] bg-[length:340px] bg-center";
 
   return (
-    // -mb-16: الخاتمة الخضراء تلاصق التذييل (له mt-16) بلا شريط فاتح بينهما
-    <div className="-mb-16 bg-background text-forest">
+    <div className="bg-background text-forest">
       {/* الافتتاحية */}
       <section
         className={`relative isolate overflow-hidden px-5 pt-[72px] pb-[132px] text-center text-ivory md:pt-28 md:pb-[168px] ${heroBg}`}
@@ -68,8 +66,7 @@ export default async function AboutPage({ params }: { params: Promise<{ locale: 
           className="mx-auto mb-5 h-auto w-14 md:w-16"
           priority
         />
-        <p className="text-[13px] font-semibold tracking-[.14em] text-sand">{t("about.kicker")}</p>
-        <h1 className="mx-auto mt-3.5 max-w-[12ch] font-display text-[46px] leading-[1.1] font-bold md:text-[76px]">
+        <h1 className="mx-auto max-w-[12ch] font-display text-[46px] leading-[1.1] font-bold md:text-[76px]">
           {t("home.tagline")}
         </h1>
         <p className="mx-auto mt-4 max-w-[46ch] text-base leading-loose text-ivory/80 md:text-[19px]">
@@ -281,31 +278,25 @@ export default async function AboutPage({ params }: { params: Promise<{ locale: 
         </section>
       ) : null}
 
-      {/* الخاتمة */}
-      <section
-        className={`relative isolate border-b border-ivory/10 px-5 py-16 text-center text-ivory md:py-24 ${heroBg}`}
-      >
-        <span aria-hidden className="absolute inset-0 -z-10 bg-forest/90" />
-        <h2 className="font-display text-[34px] leading-tight font-bold md:text-5xl">{t("about.closeTitle")}</h2>
-        <p className="mx-auto mt-3.5 max-w-[44ch] leading-loose text-ivory/80">{t("about.closeText")}</p>
-        <div className="mt-8 flex flex-wrap justify-center gap-3">
-          <Link href="/products" className={`${btn} bg-gold text-forest hover:bg-sand`}>
-            {t("about.shop")}
-          </Link>
-          <Link href="/gift" className={`${btn} border border-ivory/50 text-ivory hover:bg-ivory/10`}>
-            {t("about.giftCta")}
-          </Link>
+      {/* الخاتمة: بطاقة فاتحة داخل العرض الموحّد — لا شريط أخضر ثانٍ فوق التذييل، والحسابات في التذييل */}
+      <section className="pb-4 md:pb-8">
+        <div className={wrap}>
+          <div className="rounded-[24px] border border-line bg-card px-6 py-12 text-center md:px-12 md:py-16">
+            <Image src="/brand/mark-sage.svg" alt="" width={40} height={51} className="mx-auto mb-4 h-auto w-9" />
+            <h2 className="font-display text-[32px] leading-tight font-bold text-balance text-forest md:text-[44px]">
+              {t("about.closeTitle")}
+            </h2>
+            <p className="mx-auto mt-3 max-w-[44ch] leading-loose text-muted-foreground">{t("about.closeText")}</p>
+            <div className="mt-7 flex flex-wrap justify-center gap-3">
+              <Link href="/products" className={`${btn} bg-forest text-ivory hover:bg-forest/90`}>
+                {t("about.shop")}
+              </Link>
+              <Link href="/gift" className={`${btn} border border-forest text-forest hover:bg-forest hover:text-ivory`}>
+                {t("about.giftCta")}
+              </Link>
+            </div>
+          </div>
         </div>
-        <SocialLinks
-          hrefs={{
-            instagram: socialLink("instagram", receipt.instagram),
-            tiktok: socialLink("tiktok", receipt.tiktok),
-            whatsapp,
-          }}
-          labels={{ instagram: t("footer.instagram"), tiktok: t("footer.tiktok"), whatsapp: t("footer.whatsapp") }}
-          className="mt-7 justify-center"
-          itemClassName="border border-ivory/35 text-ivory transition-colors hover:border-sand hover:text-sand"
-        />
       </section>
     </div>
   );
