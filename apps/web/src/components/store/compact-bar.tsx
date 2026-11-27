@@ -2,7 +2,7 @@
 
 import { Search } from "lucide-react";
 import Image from "next/image";
-import { useEffect, useState } from "react";
+import { useCallback, useSyncExternalStore } from "react";
 import { Link } from "@/i18n/navigation";
 import { CartLink } from "./cart-link";
 
@@ -22,15 +22,24 @@ export function CompactBar({
   logo: { src: string; width: number; alt: string };
   labels: { home: string; search: string };
 }) {
-  const [shown, setShown] = useState(false);
-
-  useEffect(() => {
-    const header = document.getElementById(headerId);
-    if (!header) return;
-    const io = new IntersectionObserver(([e]) => setShown(!!e && !e.isIntersecting));
-    io.observe(header);
-    return () => io.disconnect();
-  }, [headerId]);
+  // موضع الرأس يُقرأ مباشرة عند التمرير وتغيير المقاس (لا IntersectionObserver): في Safari قد يأتي أول
+  // إشعار منه خاطئاً فيبقى الشريط ظاهراً فوق الرأس في أعلى الصفحة حتى يتحرك الزبون.
+  const subscribe = useCallback((onChange: () => void) => {
+    window.addEventListener("scroll", onChange, { passive: true });
+    window.addEventListener("resize", onChange);
+    return () => {
+      window.removeEventListener("scroll", onChange);
+      window.removeEventListener("resize", onChange);
+    };
+  }, []);
+  const shown = useSyncExternalStore(
+    subscribe,
+    () => {
+      const header = document.getElementById(headerId);
+      return !!header && header.getBoundingClientRect().bottom <= 0;
+    },
+    () => false,
+  );
 
   return (
     <div
