@@ -6,6 +6,7 @@ import { useCallback, useSyncExternalStore } from "react";
 import { Link } from "@/i18n/navigation";
 import { CartLink } from "./cart-link";
 import { MenuButton } from "./mobile-menu";
+import { PRESS } from "./press";
 
 /**
  * شريط الجوال المختصر (D-157): الرأس الكامل (~165px) يذهب مع الصفحة، فحين يخرج من الشاشة يظهر في
@@ -60,7 +61,7 @@ export function CompactBar({
             window.scrollTo({ top: 0 });
             document.getElementById(searchId)?.focus();
           }}
-          className="flex min-h-11 min-w-11 items-center justify-center rounded-lg hover:bg-muted"
+          className={`flex min-h-11 min-w-11 items-center justify-center rounded-lg hover:bg-muted ${PRESS}`}
         >
           <Search aria-hidden className="size-5" strokeWidth={1.8} />
         </button>

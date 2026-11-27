@@ -4,6 +4,7 @@ import { ShoppingBag } from "lucide-react";
 import { useTranslations } from "next-intl";
 import { Link } from "@/i18n/navigation";
 import { useCart } from "./cart-store";
+import { PRESS } from "./press";
 
 /** زر السلة في الرأس مع العدّاد (ذهبي — brand-identity §2). */
 export function CartLink() {
@@ -13,7 +14,7 @@ export function CartLink() {
     <Link
       href="/cart"
       aria-label={count ? `${t("cart")} (${count})` : t("cart")}
-      className="relative flex min-h-11 min-w-11 items-center justify-center gap-1.5 rounded-lg px-2 hover:bg-muted"
+      className={`relative flex min-h-11 min-w-11 items-center justify-center gap-1.5 rounded-lg px-2 hover:bg-muted ${PRESS}`}
     >
       <ShoppingBag aria-hidden className="size-5" strokeWidth={1.8} />
       {count ? (

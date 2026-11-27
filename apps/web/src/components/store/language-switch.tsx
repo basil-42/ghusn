@@ -3,6 +3,7 @@
 import { useLocale, useTranslations } from "next-intl";
 import { useSearchParams } from "next/navigation";
 import { Link, usePathname } from "@/i18n/navigation";
+import { PRESS } from "./press";
 
 /** زر تبديل اللغة (brand-identity §7: `EN` / `ع`) — نفس الصفحة باللغة الأخرى. */
 export function LanguageSwitch() {
@@ -15,7 +16,7 @@ export function LanguageSwitch() {
       href={{ pathname, query }}
       locale={locale === "ar" ? "en" : "ar"}
       aria-label={t("switchLanguage")}
-      className="flex min-h-11 min-w-11 items-center justify-center rounded-lg px-2 text-sm font-semibold hover:bg-muted"
+      className={`flex min-h-11 min-w-11 items-center justify-center rounded-lg px-2 text-sm font-semibold hover:bg-muted ${PRESS}`}
     >
       {t("switchLanguageShort")}
     </Link>

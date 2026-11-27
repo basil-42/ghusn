@@ -11,6 +11,7 @@ import { CartLink } from "./cart-link";
 import { CompactBar } from "./compact-bar";
 import { LanguageSwitch } from "./language-switch";
 import { MenuButton, MobileMenu } from "./mobile-menu";
+import { PRESS } from "./press";
 import { SearchBox } from "./search-box";
 
 // «غصن + الرمز» بالعربي و«GHUSN + الرمز» بالإنجليزي (D-52، brand-identity §7)
@@ -58,7 +59,7 @@ export async function StoreHeader() {
             <div className="ms-auto flex shrink-0 items-center gap-0.5 md:ms-0">
               <Link
                 href="/track"
-                className="flex min-h-11 items-center gap-1.5 rounded-lg px-2 text-sm font-semibold hover:bg-muted"
+                className={`flex min-h-11 items-center gap-1.5 rounded-lg px-2 text-sm font-semibold hover:bg-muted ${PRESS}`}
               >
                 <Truck aria-hidden className="size-[18px]" strokeWidth={1.8} />
                 <span className="hidden sm:inline">{t("track")}</span>
