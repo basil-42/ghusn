@@ -45,7 +45,7 @@ export function CartView() {
               )}
             </Link>
             <div className="flex min-w-0 flex-1 flex-col gap-1">
-              <Link href={`/p/${l.productId}`} className="font-semibold hover:underline">
+              <Link href={`/p/${l.productId}`} className="font-semibold transition-colors hover:text-gold">
                 {l.name}
               </Link>
               {l.option ? <span className="text-sm text-muted-foreground">{l.option}</span> : null}

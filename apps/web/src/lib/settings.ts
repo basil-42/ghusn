@@ -32,6 +32,10 @@ export const receiptSettingsSchema = z.object({
   phone: z.string().max(40),
   whatsapp: z.string().max(40),
   instagram: z.string().max(60),
+  /** حساب تيك توك للمتجر (D-160) — اسم الحساب أو رابطه */
+  tiktok: z.string().max(80),
+  /** رابط موقع المحل في الخرائط لصفحة «عن غصن» (D-160) — فارغ أو https */
+  mapsUrl: z.union([z.literal(""), z.string().url().max(300).startsWith("https://")]),
   footer: z.string().max(300),
   showCashier: z.boolean(),
   showCustomerPhone: z.boolean(),
@@ -45,6 +49,8 @@ export const RECEIPT_DEFAULTS: ReceiptSettings = {
   phone: "",
   whatsapp: "",
   instagram: "",
+  tiktok: "",
+  mapsUrl: "",
   footer: "شكراً لاختياركم غصن",
   showCashier: true,
   showCustomerPhone: false,

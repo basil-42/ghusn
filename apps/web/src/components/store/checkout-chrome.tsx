@@ -34,7 +34,7 @@ export async function CheckoutFooter() {
   const t = await getTranslations();
   const receipt = await getReceiptSettings();
   const whatsapp = whatsappLink(receipt.whatsapp, t("footer.whatsappText"));
-  const link = "inline-flex min-h-11 items-center font-semibold text-foreground hover:underline";
+  const link = "inline-flex min-h-11 items-center font-semibold text-foreground transition-colors hover:text-gold";
   return (
     <footer className="mt-6 border-t border-line px-4 pt-2 pb-[calc(1.5rem+env(safe-area-inset-bottom,0px))] text-center text-[13px] text-muted-foreground">
       <p className="flex flex-wrap items-center justify-center gap-x-2">

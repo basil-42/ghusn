@@ -173,9 +173,28 @@ export function ReceiptSettingsForm({ initial }: { initial: ReceiptSettings }) {
         </label>
         <label className={field}>
           <span className="font-semibold">إنستغرام</span>
-          <Input name="instagram" defaultValue={initial.instagram} maxLength={60} dir="ltr" />
+          <Input name="instagram" defaultValue={initial.instagram} maxLength={60} dir="ltr" placeholder="@ghusn" />
+        </label>
+        <label className={field}>
+          <span className="font-semibold">تيك توك</span>
+          <Input name="tiktok" defaultValue={initial.tiktok} maxLength={80} dir="ltr" placeholder="@ghusn" />
+        </label>
+        <label className={field}>
+          <span className="font-semibold">رابط موقع المحل في الخرائط</span>
+          <Input
+            name="mapsUrl"
+            type="url"
+            defaultValue={initial.mapsUrl}
+            maxLength={300}
+            dir="ltr"
+            placeholder="https://maps.app.goo.gl/…"
+          />
         </label>
       </div>
+      <p className="text-xs text-muted-foreground">
+        إنستغرام وتيك توك يظهران في تذييل المتجر وقائمة الجوال حين تكتبينهما، والعنوان والهاتف ورابط الخرائط في صفحة «عن
+        غصن». ساعات العمل من «رسائل الطلبات».
+      </p>
       <label className={field}>
         <span className="font-semibold">نص أسفل الإيصال (سياسة الاسترجاع، شكر…)</span>
         <textarea

@@ -20,6 +20,16 @@ export function alternates(locale: string, path: string) {
   };
 }
 
+/** رابط حساب إنستغرام أو تيك توك من اسم الحساب («@ghusn» أو «ghusn») أو رابط كامل (D-160). */
+export function socialLink(kind: "instagram" | "tiktok", value: string): string | null {
+  const v = value.trim();
+  if (!v) return null;
+  if (/^https:\/\//i.test(v)) return v;
+  const handle = v.replace(/^@/, "").replace(/[^\w.]/g, "");
+  if (!handle) return null;
+  return kind === "instagram" ? `https://www.instagram.com/${handle}` : `https://www.tiktok.com/@${handle}`;
+}
+
 /** رقم واتساب المحل (من «الضبط» ← الإيصال) كرابط wa.me برسالة جاهزة، أو null. */
 export function whatsappLink(number: string, text: string): string | null {
   const digits = number.replace(/\D/g, "");
