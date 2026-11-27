@@ -42,6 +42,8 @@ export interface StoreCategory {
   name: string;
   count: number;
   imageUrl: string | null;
+  /** الصورة بمقاسها الكبير (1200px) — لصور «عن غصن» الكبيرة (D-162) */
+  photoUrl: string | null;
 }
 
 /** الأقسام التي فيها منتج متاح واحد على الأقل، بترتيبها في الإدارة. */
@@ -73,6 +75,7 @@ export async function listStoreCategories(locale: Locale): Promise<StoreCategory
         name: locale === "en" ? c.nameEn : c.nameAr,
         count: c.products.length,
         imageUrl: key ? imageUrl(key, "thumb") : null,
+        photoUrl: key ? imageUrl(key, "full") : null,
       };
     });
 }
