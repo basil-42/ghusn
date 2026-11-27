@@ -14,8 +14,8 @@ export async function generateMetadata({ params }: { params: Promise<{ locale: s
 const UPDATED = "2026-11-28";
 
 /**
- * سياسة الخصوصية (D-160): من البيانات التي يجمعها النظام فعلاً (الطلب، المستلم، إشعار بنكك، صورة الهدية،
- * ملاحظات الخدمة). مسودة اعتمدها باسل — ليست استشارة قانونية. الروابط داخل النص بخط تحتها (تُميَّز عن الكلام).
+ * سياسة الخصوصية (D-160): من البيانات التي يجمعها النظام فعلاً (الطلب، المستلم، إشعار بنكك، ملاحظات
+ * الخدمة). صورة الهدية للموافقة أُلغيت (D-99) فلا تُذكر. مسودة اعتمدها باسل — ليست استشارة قانونية. الروابط داخل النص بخط تحتها (تُميَّز عن الكلام).
  */
 export default async function PrivacyPage({ params }: { params: Promise<{ locale: string }> }) {
   const { locale } = await params;
@@ -34,7 +34,7 @@ export default async function PrivacyPage({ params }: { params: Promise<{ locale
       title: t("collectTitle"),
       body: (
         <ul className="flex list-disc flex-col gap-2 ps-5">
-          {(["collect1", "collect2", "collect3", "collect4", "collect5"] as const).map((k) => (
+          {(["collect1", "collect2", "collect3", "collect4"] as const).map((k) => (
             <li key={k}>{t.rich(k, { b })}</li>
           ))}
         </ul>
