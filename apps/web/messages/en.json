@@ -181,7 +181,9 @@
     "hide": "Hide",
     "trustConfirm": "We call you to confirm before preparing",
     "wrapCard": "Wrapping and gift card",
-    "giftHint": "We deliver in their name and contact them for delivery."
+    "giftHint": "We deliver in their name and contact them for delivery.",
+    "needHelp": "Need help?",
+    "whatsapp": "WhatsApp"
   },
   "errors": {
     "NAME": "Please enter your name.",
