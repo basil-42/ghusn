@@ -86,6 +86,9 @@ export function MobileMenu({
     if (isOpen && !d.open) {
       delete d.dataset.closing;
       d.showModal();
+      // المتصفح يضع المؤشر على أول رابط (الشعار) فيظهر حوله إطار أزرق؛ نضعه على القائمة نفسها بلا إطار —
+      // ومن يتنقّل بلوحة المفاتيح يرى إطار التركيز من أول Tab
+      d.querySelector<HTMLElement>("[data-menu-start]")?.focus({ preventScroll: true });
       document.documentElement.style.overflow = "hidden";
       return;
     }
@@ -110,7 +113,7 @@ export function MobileMenu({
     if (rtl() ? dx > 60 : dx < -60) close();
   };
 
-  const link = `flex min-h-11 items-center gap-3 px-4 text-[15px] hover:bg-muted ${PRESS_ROW}`;
+  const link = `flex min-h-11 items-center gap-3 px-4 text-[15px] outline-none hover:bg-muted focus-visible:bg-muted focus-visible:ring-2 focus-visible:ring-inset focus-visible:ring-sage ${PRESS_ROW}`;
   const sorted = seasonSlug
     ? [...occasions].sort((a, b) => Number(b.slug === seasonSlug) - Number(a.slug === seasonSlug))
     : occasions;
@@ -141,7 +144,11 @@ export function MobileMenu({
     >
       <div className="flex h-full flex-col pb-[env(safe-area-inset-bottom)]">
         <div className="flex h-14 shrink-0 items-center justify-between border-b border-line px-4 pt-[env(safe-area-inset-top)]">
-          <Link href="/" aria-label={t("nav.home")}>
+          <Link
+            href="/"
+            aria-label={t("nav.home")}
+            className="rounded-md outline-none focus-visible:ring-2 focus-visible:ring-sage"
+          >
             <Image src={logo.src} alt={logo.alt} width={Math.round(logo.width * 0.85)} height={31} />
           </Link>
           <button
@@ -154,7 +161,12 @@ export function MobileMenu({
           </button>
         </div>
 
-        <nav aria-label={t("nav.categories")} className="flex-1 overflow-y-auto overscroll-contain py-2">
+        <nav
+          aria-label={t("nav.categories")}
+          data-menu-start
+          tabIndex={-1}
+          className="flex-1 overflow-y-auto overscroll-contain py-2 outline-none"
+        >
           <p className="px-4 pt-2 pb-1 text-xs font-semibold text-muted-foreground">{t("nav.categories")}</p>
           <ul>
             {categories.map((c, i) => (
