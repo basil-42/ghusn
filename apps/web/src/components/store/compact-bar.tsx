@@ -5,6 +5,7 @@ import Image from "next/image";
 import { useCallback, useSyncExternalStore } from "react";
 import { Link } from "@/i18n/navigation";
 import { CartLink } from "./cart-link";
+import { MenuButton } from "./mobile-menu";
 
 /**
  * شريط الجوال المختصر (D-157): الرأس الكامل (~165px) يذهب مع الصفحة، فحين يخرج من الشاشة يظهر في
@@ -48,6 +49,7 @@ export function CompactBar({
       className={`fixed inset-x-0 top-0 z-40 border-b border-line bg-card/95 pt-[env(safe-area-inset-top)] backdrop-blur-sm transition-transform duration-200 motion-reduce:transition-none md:hidden ${shown ? "translate-y-0" : "-translate-y-full"}`}
     >
       <div className="flex h-[52px] items-center gap-1 px-4">
+        <MenuButton className="-ms-2" />
         <Link href="/" aria-label={labels.home} className="me-auto shrink-0">
           <Image src={logo.src} alt={logo.alt} width={Math.round(logo.width * 0.8)} height={29} />
         </Link>
