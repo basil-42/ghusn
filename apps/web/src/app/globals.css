@@ -100,3 +100,13 @@ html[lang="en"] {
     -webkit-print-color-adjust: exact;
   }
 }
+
+/* أجهزة اللمس (D-157): Safari على iPhone وiPad يكبّر الصفحة عند الضغط على حقل خطه أقل من 16px، ولا
+   يرجعها بعد الكتابة. حقول الكتابة 16px على اللمس في المتجر والإدارة ونقطة البيع؛ الحاسوب كما هو. */
+@media (pointer: coarse) {
+  input:not([type="checkbox"], [type="radio"], [type="range"], [type="file"], [type="color"]),
+  textarea,
+  select {
+    font-size: 16px;
+  }
+}
