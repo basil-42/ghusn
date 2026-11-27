@@ -41,12 +41,19 @@ export async function ProductCard({ product }: { product: StoreProductCard }) {
         >
           {product.name}
         </Link>
-        <div className="mt-auto flex items-center justify-between gap-2 pt-1.5">
-          <span className="text-[15px] font-bold">
-            {product.hasOptions ? (
-              <span className="me-1 text-xs font-normal text-muted-foreground">{t("from")}</span>
-            ) : null}
-            <Price value={product.priceSdg} locale={locale} />
+        <div className="@container mt-auto flex items-end justify-between gap-2 pt-1.5">
+          {/* السعر سطر واحد دائماً (D-157): «من» فوقه، والعملة أصغر، والخط يصغر مع عرض البطاقة على الشاشات
+              الضيقة (360px) — فلا تنزل «ج.س» لسطر ثانٍ ولا يصل السعر لزر «+» حتى بسبعة أرقام */}
+          <span className="flex min-w-0 flex-col pb-0.5 leading-tight">
+            {product.hasOptions ? <span className="text-xs text-muted-foreground">{t("from")}</span> : null}
+            <Price
+              value={product.priceSdg}
+              locale={locale}
+              className={`whitespace-nowrap font-bold ${
+                product.priceSdg.split(".")[0]!.length > 6 ? "text-[min(15px,9cqi)]" : "text-[min(15px,10.3cqi)]"
+              }`}
+              unitClassName="text-[0.78em] font-semibold"
+            />
           </span>
           {product.hasOptions ? (
             <span
