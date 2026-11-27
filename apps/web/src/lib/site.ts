@@ -30,6 +30,25 @@ export function socialLink(kind: "instagram" | "tiktok", value: string): string 
   return kind === "instagram" ? `https://www.instagram.com/${handle}` : `https://www.tiktok.com/@${handle}`;
 }
 
+/**
+ * رابط خريطة Google المضمّنة من كود «مشاركة ← تضمين خريطة» الملصوق كاملاً (‎<iframe src="…">‎) أو من الرابط
+ * وحده (D-161). يُقبل فقط ما يبدأ بـ https://www.google.com/maps/embed? — أي شيء آخر يُرفض (null).
+ */
+export function mapsEmbedSrc(input: string): string | null {
+  const v = input.trim();
+  if (!v) return null;
+  const src = (/src\s*=\s*["']([^"']+)["']/i.exec(v)?.[1] ?? v).replace(/&amp;/g, "&").trim();
+  try {
+    const url = new URL(src);
+    if (url.protocol !== "https:" || url.hostname !== "www.google.com" || !url.pathname.startsWith("/maps/embed")) {
+      return null;
+    }
+    return url.toString();
+  } catch {
+    return null;
+  }
+}
+
 /** رقم واتساب المحل (من «الضبط» ← الإيصال) كرابط wa.me برسالة جاهزة، أو null. */
 export function whatsappLink(number: string, text: string): string | null {
   const digits = number.replace(/\D/g, "");

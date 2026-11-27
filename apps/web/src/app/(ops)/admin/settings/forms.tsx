@@ -190,6 +190,21 @@ export function ReceiptSettingsForm({ initial }: { initial: ReceiptSettings }) {
             placeholder="https://maps.app.goo.gl/…"
           />
         </label>
+        <label className={`${field} sm:col-span-2`}>
+          <span className="font-semibold">خريطة الموقع في «عن غصن» (كود التضمين)</span>
+          <textarea
+            name="mapsEmbed"
+            defaultValue={initial.mapsEmbedUrl}
+            maxLength={3000}
+            rows={2}
+            dir="ltr"
+            placeholder='<iframe src="https://www.google.com/maps/embed?pb=…"></iframe>'
+            className="rounded-xl border border-input bg-card p-3 text-sm"
+          />
+          <span className="text-xs text-muted-foreground">
+            من خرائط Google على الكمبيوتر: موقع المحل ← مشاركة ← تضمين خريطة ← نسخ HTML، والصقيه هنا. فارغ = بلا خريطة.
+          </span>
+        </label>
       </div>
       <p className="text-xs text-muted-foreground">
         إنستغرام وتيك توك يظهران في تذييل المتجر وقائمة الجوال حين تكتبينهما، والعنوان والهاتف ورابط الخرائط في صفحة «عن
