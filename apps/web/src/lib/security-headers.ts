@@ -16,6 +16,8 @@ export interface CspOptions {
  *   كل الصفحات ديناميكية ويلغي التخزين المؤقت).
  * - لا تضمين للموقع داخل إطار (clickjacking)، ولا إرسال نماذج لموقع آخر، ولا plugins.
  * - الصور: الموقع، و data: (الباركود) و blob: (معاينة الصورة قبل رفعها).
+ * - الإطارات: خرائط Google المضمّنة فقط (خريطة المحل في «عن غصن»، D-161) — والرابط نفسه مقيّد في الضبط
+ *   بـ https://www.google.com/maps/embed.
  */
 export function contentSecurityPolicy({ dev, https, analyticsOrigin }: CspOptions): string {
   const extra = analyticsOrigin ? ` ${analyticsOrigin}` : "";
@@ -29,7 +31,7 @@ export function contentSecurityPolicy({ dev, https, analyticsOrigin }: CspOption
     "media-src 'self'",
     "worker-src 'self'",
     "manifest-src 'self'",
-    "frame-src 'none'",
+    "frame-src https://www.google.com",
     "frame-ancestors 'none'",
     "object-src 'none'",
     "base-uri 'self'",
