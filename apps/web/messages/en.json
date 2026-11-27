@@ -336,13 +336,19 @@
     "allProducts": "All products",
     "journeyLabel": "The gift journey",
     "journeyTitle": "From your choice to their hands",
-    "journeyIntro": "Just three steps; we take care of the rest.",
     "step1Title": "Choose",
     "step2Title": "Wrap it your way",
     "step3Title": "Arrives as you imagined",
     "visitLead": "We'd love to see you",
     "mapTitle": "Ghusn on the map",
-    "closeTitle": "Your next gift starts here"
+    "closeTitle": "Your next gift starts here",
+    "value1Title": "Chosen with care",
+    "value1": "Flowers, perfumes, watches and more, piece by piece.",
+    "value2Title": "Wrapped by hand",
+    "value2": "Wrapping styles and a gift card in your own words.",
+    "value3Title": "Delivered in the capital",
+    "value3": "Khartoum, Bahri and Omdurman, or collect it from the shop.",
+    "closeText": "Browse the categories, or design your gift with its wrapping and card; we take care of the rest."
   },
   "privacy": {
     "title": "Privacy policy",
