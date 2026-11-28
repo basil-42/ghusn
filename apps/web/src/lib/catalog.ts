@@ -37,7 +37,7 @@ export async function listCategoryOptions(includeId?: string) {
   return prisma.category.findMany({
     where: { OR: [{ isActive: true }, ...(includeId ? [{ id: includeId }] : [])] },
     orderBy: { sortOrder: "asc" },
-    select: { id: true, nameAr: true },
+    select: { id: true, nameAr: true, defaultWrapSize: true },
   });
 }
 
@@ -195,6 +195,8 @@ export const productInput = z.object({
     .regex(/^\d{1,6}(\.\d{1,3})?$/)
     .nullable()
     .optional(),
+  /** حجم التغليف (D-165) — غير موجود = لا تغيير، null = حجم القسم. */
+  wrapSize: z.enum(["SMALL", "MEDIUM", "LARGE", "NONE"]).nullable().optional(),
   variants: z.array(variantInput),
 });
 export type ProductInput = z.infer<typeof productInput>;
@@ -279,6 +281,7 @@ function productData(input: ProductInput) {
     // مواد التغليف داخلية ولا تظهر في المتجر
     isWebVisible: input.type === "STOCK" && input.isWebVisible,
     ...(input.lowStockQty !== undefined ? { lowStockQty: input.lowStockQty } : {}),
+    ...(input.wrapSize !== undefined ? { wrapSize: input.wrapSize } : {}),
   };
 }
 
@@ -452,11 +455,14 @@ export async function productAuditSnapshot(id: string): Promise<Record<string, u
     isWebVisible: p.isWebVisible,
     trackExpiry: p.trackExpiry,
     lowStockQty: p.lowStockQty?.toString() ?? null,
+    wrapSize: p.wrapSize ? WRAP_LABELS[p.wrapSize] : "حسب القسم",
     variants: p.variants
       .map((v) => [variantLabel(v) || "أساسي", v.barcode, v.isActive ? "" : "موقوف"].filter(Boolean).join(" "))
       .join("، "),
   };
 }
+
+const WRAP_LABELS = { SMALL: "صغير", MEDIUM: "وسط", LARGE: "كبير", NONE: "لا يُغلّف" } as const;
 
 export const PRODUCT_FIELD_LABELS: Record<string, string> = {
   nameAr: "الاسم",
@@ -468,6 +474,7 @@ export const PRODUCT_FIELD_LABELS: Record<string, string> = {
   isWebVisible: "يظهر في المتجر",
   trackExpiry: "يتتبع الصلاحية",
   lowStockQty: "حد النفاد",
+  wrapSize: "حجم التغليف",
   variants: "المتغيّرات والباركود",
 };
 

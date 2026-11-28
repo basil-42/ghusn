@@ -481,8 +481,10 @@ async function orders(
         recipientPhone: null,
         note: i === 0 ? "أرجو تغليفها كهدية" : null,
         payment: "ON_RECEIPT",
-        wrapStyleId: null,
+        wrapTier: null,
         cardMessage: null,
+        cardDesignId: null,
+        cardFrom: null,
         items,
         expectedTotalSdg: quote.totalSdg,
       });

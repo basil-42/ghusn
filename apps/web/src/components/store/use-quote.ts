@@ -7,21 +7,21 @@ import { keepOnly, type CartItem } from "./cart-store";
 
 export type Quote = Awaited<ReturnType<typeof quoteCartAction>>;
 
-const EMPTY: Quote = { lines: [], subtotalSdg: "0", wrap: null, totalSdg: "0", allAvailable: false };
+const EMPTY: Quote = { lines: [], subtotalSdg: "0", wrapOptions: [], wrap: null, totalSdg: "0", allAvailable: false };
 
 /**
  * أسعار وتوفر السلة من الخادم، تُحدَّث عند تغيّر السلة أو اللغة. الأصناف التي لم تعد معروضة تُسقط.
  * أثناء التحديث يبقى العرض السابق و`loading` صحيحة (زر الإتمام معطّل).
  */
-export function useQuote(items: CartItem[], wrapStyleId: string | null = null) {
+export function useQuote(items: CartItem[], wrapTier: "REGULAR" | "PREMIUM" | null = null) {
   const locale = useLocale();
-  const key = `${locale}|${wrapStyleId ?? ""}|${JSON.stringify(items)}`;
+  const key = `${locale}|${wrapTier ?? ""}|${JSON.stringify(items)}`;
   const [state, setState] = useState<{ key: string; quote: Quote } | null>(null);
 
   useEffect(() => {
     if (items.length === 0) return;
     let cancelled = false;
-    quoteCartAction(locale, items, wrapStyleId)
+    quoteCartAction(locale, items, wrapTier)
       .then((quote) => {
         if (cancelled) return;
         setState({ key, quote });

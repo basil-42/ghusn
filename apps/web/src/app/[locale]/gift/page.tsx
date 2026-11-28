@@ -7,7 +7,7 @@ import { ShareButton } from "@/components/store/share-button";
 import { Link } from "@/i18n/navigation";
 import type { Locale } from "@/i18n/routing";
 import { alternates, localePath, siteUrl } from "@/lib/site";
-import { listStoreWrapStyles } from "@/lib/wrapping";
+import { listStoreWrapTiers } from "@/lib/wrapping";
 
 export async function generateMetadata({ params }: { params: Promise<{ locale: string }> }): Promise<Metadata> {
   const { locale } = await params;
@@ -22,7 +22,7 @@ export default async function GiftPage({ params }: { params: Promise<{ locale: s
   const locale = (await params).locale as Locale;
   setRequestLocale(locale);
   const [t, ts] = await Promise.all([getTranslations("gift"), getTranslations("share")]);
-  const styles = await listStoreWrapStyles(locale);
+  const styles = await listStoreWrapTiers(locale);
   const Arrow = locale === "ar" ? ArrowLeft : ArrowRight;
   const steps = [t("step1"), t("step2"), t("step3")];
   return (
@@ -60,7 +60,7 @@ export default async function GiftPage({ params }: { params: Promise<{ locale: s
           <h2 className="text-[22px] font-bold">{t("styles")}</h2>
           <ul className="grid gap-3 sm:grid-cols-2 lg:grid-cols-3">
             {styles.map((w) => (
-              <li key={w.id} className="flex flex-col overflow-hidden rounded-xl border border-line bg-card">
+              <li key={w.tier} className="flex flex-col overflow-hidden rounded-xl border border-line bg-card">
                 {w.imageUrl ? (
                   <span className="relative aspect-[4/3] bg-muted">
                     <Image
@@ -77,7 +77,8 @@ export default async function GiftPage({ params }: { params: Promise<{ locale: s
                   <b className="font-display text-2xl">{w.name}</b>
                   {w.description ? <span className="text-sm text-muted-foreground">{w.description}</span> : null}
                   <span className="mt-2 font-bold">
-                    <Price value={w.priceSdg} locale={locale} />
+                    {t("fromPrice")} <Price value={w.fromPriceSdg} locale={locale} />{" "}
+                    <span className="text-sm font-normal text-muted-foreground">{t("perPiece")}</span>
                   </span>
                 </span>
               </li>

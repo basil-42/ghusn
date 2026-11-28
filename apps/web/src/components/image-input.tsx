@@ -4,13 +4,14 @@ import { useEffect, useState, type ChangeEvent, type InputHTMLAttributes } from 
 import { MAX_UPLOAD_BYTES, shrinkImage } from "@/lib/client-image";
 
 /** شكل مكان الصورة في المتجر — المعاينة تقصّها بنفس الشكل (D-102). */
-export type PreviewShape = "circle" | "wide" | "photo" | "tall";
+export type PreviewShape = "circle" | "wide" | "photo" | "tall" | "card";
 
 const SHAPES: Record<PreviewShape, string> = {
   circle: "size-20 rounded-full",
   wide: "aspect-[2/1] w-40 rounded-lg",
   photo: "aspect-[4/3] w-32 rounded-lg",
   tall: "aspect-[4/5] w-20 rounded-lg",
+  card: "aspect-[2/3] w-20 rounded-md",
 };
 
 type ImageInputProps = Omit<InputHTMLAttributes<HTMLInputElement>, "type" | "onChange" | "multiple"> & {

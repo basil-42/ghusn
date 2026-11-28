@@ -54,6 +54,7 @@ export default async function CategoriesPage() {
               isActive: c.isActive,
               targetMarginPct: pct(c.targetMargin),
               minMarginPct: pct(c.minMargin),
+              defaultWrapSize: c.defaultWrapSize,
               productCount: c._count.products,
               imageUrl: c.imageKey ? imageUrl(c.imageKey, "thumb") : null,
               fallbackUrl: autoCovers.get(c.id) ?? null,

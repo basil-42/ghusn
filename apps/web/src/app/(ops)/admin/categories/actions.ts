@@ -27,13 +27,14 @@ const updateSchema = z.object({
   isActive: z.literal("on").optional(),
   targetMargin: percent.optional(),
   minMargin: percent.optional(),
+  defaultWrapSize: z.enum(["SMALL", "MEDIUM", "LARGE", "NONE"]).optional(),
 });
 
 export async function updateCategory(_prev: CategoryState, formData: FormData): Promise<CategoryState> {
   const session = await requirePermission({ category: ["update"] });
   const parsed = updateSchema.safeParse(Object.fromEntries(formData));
   if (!parsed.success) return { error: parsed.error.issues[0]?.message };
-  const { id, nameAr, nameEn, isActive, targetMargin, minMargin } = parsed.data;
+  const { id, nameAr, nameEn, isActive, targetMargin, minMargin, defaultWrapSize } = parsed.data;
 
   const margins: { targetMargin?: string; minMargin?: string } = {};
   if (targetMargin !== undefined || minMargin !== undefined) {
@@ -61,7 +62,14 @@ export async function updateCategory(_prev: CategoryState, formData: FormData): 
   const before = await prisma.category.findUnique({ where: { id } });
   const after = await prisma.category.update({
     where: { id },
-    data: { nameAr, nameEn, isActive: isActive === "on", ...margins, ...(imageKey !== undefined ? { imageKey } : {}) },
+    data: {
+      nameAr,
+      nameEn,
+      isActive: isActive === "on",
+      ...margins,
+      ...(defaultWrapSize ? { defaultWrapSize } : {}),
+      ...(imageKey !== undefined ? { imageKey } : {}),
+    },
   });
   if (before) {
     const pct = (v: { toString(): string }) => `${dec(v.toString()).mul(100).toDecimalPlaces(2).toFixed()}%`;

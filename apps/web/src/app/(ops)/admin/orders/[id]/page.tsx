@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { WRAP_SIZE_LABELS } from "@/lib/wrapping";
 import { notFound } from "next/navigation";
 import { Badge } from "@/components/ui/badge";
 import { Card, CardHeader, CardTitle } from "@/components/ui/card";
@@ -54,6 +55,11 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
                     <span dir="ltr" className="text-xs text-muted-foreground">
                       {l.sku}
                     </span>
+                    {o.wrapName && l.wrapSize && l.wrapSize !== "NONE" ? (
+                      <span className="block text-xs font-semibold text-gold">
+                        🎁 تُغلّف — {WRAP_SIZE_LABELS[l.wrapSize]}
+                      </span>
+                    ) : null}
                   </span>
                   <span className="shrink-0 text-end tabular-nums">
                     <bdi dir="ltr">
@@ -186,7 +192,11 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
               </CardHeader>
               {o.cardMessage ? (
                 <div className="flex flex-col gap-2">
-                  <p className="whitespace-pre-line rounded-xl bg-muted p-3 font-display text-lg">{o.cardMessage}</p>
+                  <p className="whitespace-pre-line rounded-xl bg-muted p-3 font-display text-lg">
+                    {o.cardMessage}
+                    {o.cardFrom ? <span className="mt-1 block text-base">— {o.cardFrom}</span> : null}
+                  </p>
+                  <p className="text-sm text-muted-foreground">الشكل: {o.cardDesign?.name ?? "قالب غصن"}</p>
                   <a
                     href={`/print/card/${o.id}`}
                     target="_blank"

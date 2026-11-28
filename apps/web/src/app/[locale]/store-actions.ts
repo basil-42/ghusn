@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { CARD_MESSAGE_MAX, normalizeLocation } from "@ghusn/core";
+import { CARD_FROM_MAX, CARD_MESSAGE_MAX, normalizeLocation } from "@ghusn/core";
 import { z } from "zod";
 import { formatAmount } from "@/lib/format";
 import {
@@ -22,13 +22,15 @@ const items = z
   .array(z.object({ variantId: z.string().min(1).max(40), qty: z.number().int().min(1).max(MAX_LINE_QTY) }))
   .max(MAX_ORDER_LINES);
 
-const wrapId = z.string().min(1).max(40).nullable();
+const wrapTier = z.enum(["REGULAR", "PREMIUM"]).nullable();
 
-/** أسعار وتوفر السلة الآن (لا تكلفة ولا كميات)، مع سعر التغليف المختار إن وُجد. */
-export async function quoteCartAction(locale: string, input: unknown, wrapStyleId: unknown = null) {
+/** أسعار وتوفر السلة الآن (لا تكلفة ولا كميات)، مع أسعار التغليف لهذه السلة والمختار منها (D-165). */
+export async function quoteCartAction(locale: string, input: unknown, tier: unknown = null) {
   const parsed = items.safeParse(input);
-  const wrap = wrapId.safeParse(wrapStyleId);
-  if (!parsed.success) return { lines: [], subtotalSdg: "0", wrap: null, totalSdg: "0", allAvailable: false };
+  const wrap = wrapTier.safeParse(tier);
+  if (!parsed.success) {
+    return { lines: [], subtotalSdg: "0", wrapOptions: [], wrap: null, totalSdg: "0", allAvailable: false };
+  }
   const q = await quoteCart(locale, parsed.data, wrap.success ? wrap.data : null);
   return {
     ...q,
@@ -51,8 +53,10 @@ const orderSchema = z
     recipientPhone: z.string().trim().max(20).nullable(),
     note: z.string().trim().max(300).nullable(),
     payment: z.enum(["ON_RECEIPT", "BANKAK"]),
-    wrapStyleId: wrapId,
+    wrapTier,
     cardMessage: z.string().trim().max(CARD_MESSAGE_MAX).nullable(),
+    cardDesignId: z.string().min(1).max(40).nullable(),
+    cardFrom: z.string().trim().max(CARD_FROM_MAX).nullable(),
     items,
     expectedTotalSdg: z.string().regex(/^\d{1,12}$/),
   })
@@ -76,7 +80,7 @@ export async function createOrderAction(input: unknown): Promise<OrderResult> {
           ? "LOCATION"
           : path === "customerName"
             ? "NAME"
-            : path === "cardMessage"
+            : path === "cardMessage" || path === "cardFrom"
               ? "CARD_TOO_LONG"
               : "INVALID";
     return { ok: false, code };
@@ -93,6 +97,7 @@ export async function createOrderAction(input: unknown): Promise<OrderResult> {
       recipientPhone: blank(parsed.data.recipientPhone),
       note: blank(parsed.data.note),
       cardMessage: blank(parsed.data.cardMessage),
+      cardFrom: blank(parsed.data.cardFrom),
     });
     limiter.hit(ip);
     return { ok: true, ...r };

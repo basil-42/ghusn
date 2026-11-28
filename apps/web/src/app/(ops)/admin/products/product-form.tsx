@@ -9,11 +9,14 @@ import { Label } from "@/components/ui/label";
 import type { ProductInput } from "@/lib/catalog";
 import { saveProduct, type ProductFormState } from "./actions";
 
+type WrapSize = "SMALL" | "MEDIUM" | "LARGE" | "NONE";
+const WRAP_LABELS: Record<WrapSize, string> = { SMALL: "صغير", MEDIUM: "وسط", LARGE: "كبير", NONE: "لا يُغلّف" };
+
 type Variant = ProductInput["variants"][number] & { key: string; sku?: string; currentBarcode?: string };
 
 export interface ProductFormProps {
   productId: string | null;
-  categories: { id: string; nameAr: string }[];
+  categories: { id: string; nameAr: string; defaultWrapSize: WrapSize }[];
   /** المناسبات (D-92) — المتوقفة تظهر فقط إن كان المنتج مربوطاً بها. */
   occasions: { id: string; nameAr: string; isActive: boolean }[];
   typeLabels: Record<ProductInput["type"], string>;
@@ -65,6 +68,7 @@ export function ProductForm({
       : [newVariant()],
   );
   const [lowStock, setLowStock] = useState(initial?.lowStockQty ?? "");
+  const [wrapSize, setWrapSize] = useState<WrapSize | "">(initial?.wrapSize ?? "");
   const [occasionIds, setOccasionIds] = useState<string[]>(() => initial?.occasionIds ?? []);
   const [multi, setMulti] = useState(variants.length > 1 || variants.some((v) => v.size || v.color || v.volume));
 
@@ -82,6 +86,7 @@ export function ProductForm({
       descriptionEn: fields.descriptionEn || null,
       occasionIds,
       lowStockQty: lowStock.trim() ? lowStock.trim() : null,
+      wrapSize: wrapSize || null,
       variants: list.map(({ id, size, color, volume, barcode, isActive }) => ({
         id,
         size,
@@ -95,6 +100,7 @@ export function ProductForm({
   }
 
   const isMaterial = fields.type === "MATERIAL";
+  const categoryWrap = categories.find((c) => c.id === fields.categoryId)?.defaultWrapSize ?? null;
 
   return (
     <form onSubmit={submit} className="flex flex-col gap-6">
@@ -205,6 +211,27 @@ export function ProductForm({
               placeholder="الحد العام من الضبط"
             />
           </div>
+          {!isMaterial ? (
+            <div className="flex min-w-0 flex-col gap-1.5">
+              <Label htmlFor="wrapSize">حجم التغليف</Label>
+              <NativeSelect
+                id="wrapSize"
+                value={wrapSize}
+                onChange={(e) => setWrapSize(e.target.value as WrapSize | "")}
+              >
+                <option value="">
+                  حسب القسم
+                  {categoryWrap ? ` (${WRAP_LABELS[categoryWrap]})` : ""}
+                </option>
+                {(Object.keys(WRAP_LABELS) as WrapSize[]).map((k) => (
+                  <option key={k} value={k}>
+                    {WRAP_LABELS[k]}
+                  </option>
+                ))}
+              </NativeSelect>
+              <span className="text-xs text-muted-foreground">يحدد سعر تغليف القطعة في المتجر.</span>
+            </div>
+          ) : null}
           {!isMaterial && occasions.length ? (
             <fieldset className="flex flex-col gap-2 sm:col-span-2">
               <legend className="mb-1 text-sm font-semibold">المناسبات (يظهر المنتج في صفحاتها بالمتجر)</legend>

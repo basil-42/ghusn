@@ -107,6 +107,7 @@ export default async function ProductPage({
           isWebVisible: product.isWebVisible,
           occasionIds: product.occasions.map((o) => o.occasionId),
           lowStockQty: product.lowStockQty ? plainNumber(product.lowStockQty.toString()) : null,
+          wrapSize: product.wrapSize,
           variants: product.variants.map((v) => ({
             key: v.id,
             id: v.id,
