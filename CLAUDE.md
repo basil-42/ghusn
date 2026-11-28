@@ -28,6 +28,7 @@ We are building, in one codebase:
 | `docs/glossary.md` | Arabic ↔ English domain terms and code names |
 | `docs/backlog.md` | Approved ideas for later (do not build unless asked) |
 | `docs/trial-run.md` | Trial-run checklist from an empty system (after `pnpm db:fresh`) |
+| `docs/deployment.md` | Deploy to the VPS (Coolify + `Dockerfile`), update, rollback, backups |
 
 If something is ambiguous or not covered, **ask Basil before inventing business rules**. Never silently change an approved decision; propose it and wait.
 
