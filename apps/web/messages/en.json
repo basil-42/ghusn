@@ -142,13 +142,13 @@
     "phoneHint": "We'll contact you on it to confirm the order.",
     "receive": "Receiving",
     "delivery": "Delivery",
-    "deliveryHint": "By a courier company — they set the time and contact you. Pay by Bankak before dispatch; the delivery fee goes to the courier on receipt.",
+    "deliveryHint": "By a courier company within the capital. The order is paid by Bankak before dispatch.",
     "pickup": "Pick up from the shop",
     "pickupHint": "We'll tell you when it's ready; pay at the shop.",
     "city": "City",
     "chooseCity": "Choose city",
-    "address": "Full address",
-    "addressHint": "Neighbourhood, street, nearest landmark.",
+    "address": "Extra directions (optional)",
+    "addressHint": "e.g. White house next to Al-Noor mosque, second floor.",
     "gift": "A gift for someone else? (optional)",
     "recipientName": "Recipient's name",
     "recipientPhone": "Recipient's phone",
@@ -190,13 +190,23 @@
     "giftHint": "We deliver in their name and contact them for delivery.",
     "needHelp": "Need help?",
     "whatsapp": "WhatsApp",
-    "consent": "By placing your order you agree to our <link>privacy policy</link>."
+    "consent": "By placing your order you agree to our <link>privacy policy</link>.",
+    "deliveryNote": "The courier will contact you with the delivery fee before setting out, as it varies by area; you pay it to them on delivery.",
+    "location": "Delivery location",
+    "locateMe": "Use my current location",
+    "locating": "Finding your location…",
+    "locationSet": "Location set",
+    "locationChange": "Change",
+    "locationOrPaste": "or paste a location link from Maps or WhatsApp",
+    "locationPaste": "Location link",
+    "locationDenied": "We couldn't get your location. Paste a location link, or choose pickup from the shop.",
+    "locationInvalid": "That isn't a map location link."
   },
   "errors": {
     "NAME": "Please enter your name.",
     "INVALID_PHONE": "The phone number isn't valid.",
     "INVALID_RECIPIENT_PHONE": "The recipient's phone isn't valid.",
-    "ADDRESS": "Choose the city and enter the full address.",
+    "ADDRESS": "Choose the delivery city.",
     "UNAVAILABLE": "Some items are no longer available in that quantity — please review your cart.",
     "PRICE_CHANGED": "The price changed — the total is now SDG {total}. Review the summary, then place the order.",
     "DELIVERY_NEEDS_BANKAK": "Delivery needs Bankak payment first — choose Bankak, or pick up at the shop.",
@@ -215,7 +225,8 @@
     "IMAGE_UNREADABLE": "We couldn't read the image. Please use a JPG or PNG.",
     "WRAP_UNAVAILABLE": "The selected wrapping is no longer available. Please choose another.",
     "CARD_TOO_LONG": "The card message is longer than 150 characters.",
-    "TRACK_NOT_FOUND": "We couldn't find an order with this number and phone. Check the details or contact us."
+    "TRACK_NOT_FOUND": "We couldn't find an order with this number and phone. Check the details or contact us.",
+    "LOCATION": "Set the delivery location: tap “Use my current location” or paste a location link."
   },
   "order": {
     "title": "Order {number}",
@@ -269,7 +280,8 @@
     "thanksGift": "We received your order and will prepare {name}’s gift with care.",
     "thanksPay": "One last step: transfer the amount with Bankak below to confirm your order.",
     "thanksNumber": "Your order number",
-    "thanksLink": "Order tracking link"
+    "thanksLink": "Order tracking link",
+    "deliveryNote": "Once your order is ready, the courier will contact you with the delivery fee before setting out; you pay it to them on delivery."
   },
   "occasion": {
     "empty": "No products are available for this occasion right now."

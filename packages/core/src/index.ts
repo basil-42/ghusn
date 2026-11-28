@@ -31,3 +31,4 @@ export * from "./insights";
 export * from "./trend";
 export * from "./purchasing";
 export * from "./discounts";
+export * from "./location";

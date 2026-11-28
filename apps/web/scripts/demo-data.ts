@@ -476,6 +476,7 @@ async function orders(
         fulfillment: "PICKUP",
         city: null,
         address: null,
+        locationUrl: null,
         recipientName: null,
         recipientPhone: null,
         note: i === 0 ? "أرجو تغليفها كهدية" : null,
