@@ -190,6 +190,7 @@ export default async function OrderStatusPage({ params, searchParams }: Props) {
           <p className="whitespace-pre-line rounded-xl bg-muted p-3 font-display text-lg">
             <span className="block text-xs text-muted-foreground">{t("card")}</span>
             {o.cardMessage}
+            {o.cardFrom ? <span className="mt-1 block text-base">— {o.cardFrom}</span> : null}
           </p>
         ) : null}
         <p className="flex justify-between border-t border-line pt-2 text-lg font-bold">

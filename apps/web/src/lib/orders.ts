@@ -8,8 +8,12 @@ import {
   isStockOut,
   normalizePhone,
   resolveCustomerName,
+  CARD_FROM_MAX,
   CARD_MESSAGE_MAX,
+  effectiveWrapSize,
   orderTotals,
+  quoteWrap,
+  wrapMaterialNeeds,
   PAYMENT_WINDOW_HOURS,
   paymentDueAfterRejection,
   RESERVING_STATUSES,
@@ -19,14 +23,16 @@ import {
   weightedAverageCost,
   type Decimal,
   type OrderStatus,
+  type WrapQuote,
+  type WrappableSize,
 } from "@ghusn/core";
-import { Prisma, prisma, type DeliveryCity, type Fulfillment } from "@ghusn/db";
+import { Prisma, prisma, type DeliveryCity, type Fulfillment, type WrapTier } from "@ghusn/db";
 import { nextDocumentNumber } from "./documents";
 import { notifyNewOrder, notifyPaymentProof } from "./notifications";
 import { kickPushDelivery } from "./push";
 import { currentSellingRate } from "./pricing";
 import { PrivateImageError, savePrivateImage } from "./private-images";
-import { activeWrapStyle } from "./wrapping";
+import { activeCardDesign, activeWrapTiers } from "./wrapping";
 import { bankakAccount, posWallets } from "./settings";
 
 /**
@@ -57,6 +63,7 @@ export class OrderError extends Error {
       | "IMAGE_TOO_LARGE"
       | "IMAGE_UNREADABLE"
       | "WRAP_UNAVAILABLE"
+      | "CARD_DESIGN_UNAVAILABLE"
       | "CARD_TOO_LONG",
     readonly params: Record<string, string> = {},
   ) {
@@ -144,23 +151,42 @@ export interface CartQuoteLine {
   available: boolean;
 }
 
+/** مستوى تغليف لهذه السلة (D-165): السعر من أحجام القطع، أو غير متاح. */
+export interface CartWrapOption {
+  tier: WrapTier;
+  name: string;
+  available: boolean;
+  priceSdg: string;
+  /** تفصيل السعر: «عطر 5,000 + دبدوب 15,000». */
+  parts: { name: string; qty: number; priceSdg: string }[];
+  /** قطع لا تُغلّف (مثل الورود). */
+  skipped: string[];
+}
+
 /** عرض السلة من أسعار وتوفر الخادم الآن. الأصناف غير المعروضة تُسقط. */
 export interface CartQuote {
   lines: CartQuoteLine[];
   subtotalSdg: string;
-  /** التغليف المختار إن كان متاحاً (D-91). */
-  wrap: { id: string; name: string; priceSdg: string } | null;
+  /** مستويات التغليف المفعّلة بأسعارها لهذه السلة. */
+  wrapOptions: CartWrapOption[];
+  /** التغليف المختار إن كان متاحاً. */
+  wrap: { tier: WrapTier; name: string; priceSdg: string } | null;
   totalSdg: string;
   allAvailable: boolean;
 }
 
+/** الحقول اللازمة من المنتج لحجم التغليف. */
+const wrapSizeSelect = { wrapSize: true, category: { select: { defaultWrapSize: true } } } as const;
+
 export async function quoteCart(
   locale: string,
   items: CartItemInput[],
-  wrapStyleId: string | null = null,
+  wrapTier: WrapTier | null = null,
 ): Promise<CartQuote> {
   const clean = items.filter((i) => Number.isInteger(i.qty) && i.qty >= 1).slice(0, MAX_ORDER_LINES);
-  if (clean.length === 0) return { lines: [], subtotalSdg: "0", wrap: null, totalSdg: "0", allAvailable: false };
+  if (clean.length === 0) {
+    return { lines: [], subtotalSdg: "0", wrapOptions: [], wrap: null, totalSdg: "0", allAvailable: false };
+  }
   const ids = clean.map((i) => i.variantId);
   const [variants, reserved] = await Promise.all([
     prisma.productVariant.findMany({
@@ -173,6 +199,7 @@ export async function quoteCart(
             nameAr: true,
             nameEn: true,
             images: { orderBy: { sortOrder: "asc" }, take: 1, select: { key: true, fullBleed: true } },
+            ...wrapSizeSelect,
           },
         },
       },
@@ -200,15 +227,36 @@ export async function quoteCart(
       available: avail.gte(qty),
     });
   }
-  const style = wrapStyleId ? await activeWrapStyle(wrapStyleId) : null;
   const subtotal = sum(lines.map((l) => l.lineTotalSdg));
+  const nameOf = new Map(lines.map((l) => [l.variantId, l.name]));
+  const wrapLines = lines.map((l) => {
+    const p = byId.get(l.variantId)!.product;
+    return { key: l.variantId, qty: l.qty, size: effectiveWrapSize(p.wrapSize, p.category.defaultWrapSize) };
+  });
+  const wrapOptions: CartWrapOption[] = (await activeWrapTiers()).map((t) => {
+    const q = quoteWrap(wrapLines, t.prices);
+    return {
+      tier: t.tier,
+      name: locale === "en" ? t.nameEn : t.nameAr,
+      available: q.available,
+      priceSdg: q.available ? q.totalSdg.toFixed(0) : "0",
+      parts: q.available
+        ? q.lines.map((l) => ({
+            name: nameOf.get(l.key) ?? "",
+            qty: l.qty.toNumber(),
+            priceSdg: l.lineTotalSdg.toFixed(0),
+          }))
+        : [],
+      skipped: q.skipped.map((k) => nameOf.get(k) ?? ""),
+    };
+  });
+  const chosen = wrapOptions.find((o) => o.tier === wrapTier && o.available);
   return {
     lines,
     subtotalSdg: subtotal.toFixed(0),
-    wrap: style
-      ? { id: style.id, name: locale === "en" ? style.nameEn : style.nameAr, priceSdg: dec(style.priceSdg).toFixed(0) }
-      : null,
-    totalSdg: subtotal.plus(style?.priceSdg ?? 0).toFixed(0),
+    wrapOptions,
+    wrap: chosen ? { tier: chosen.tier, name: chosen.name, priceSdg: chosen.priceSdg } : null,
+    totalSdg: subtotal.plus(chosen?.priceSdg ?? 0).toFixed(0),
     allAvailable: lines.length > 0 && lines.every((l) => l.available),
   };
 }
@@ -229,9 +277,11 @@ export interface CreateOrderInput {
   note: string | null;
   /** عند الاستلام (نقداً للمندوب أو في المحل) أو تحويل بنكك مسبقاً. */
   payment: "ON_RECEIPT" | "BANKAK";
-  /** «صمّم هديتك» (D-91): نمط التغليف ونص البطاقة (اختياريان). */
-  wrapStyleId: string | null;
+  /** التغليف (D-165): «عادي» أو «فاخر» أو بدون، وبطاقة الإهداء (الشكل، الرسالة، «من»). */
+  wrapTier: WrapTier | null;
   cardMessage: string | null;
+  cardDesignId: string | null;
+  cardFrom: string | null;
   items: CartItemInput[];
   /** الإجمالي الذي رآه العميل — إن تغيّر السعر يُطلب منه التأكيد من جديد. */
   expectedTotalSdg: string;
@@ -256,7 +306,7 @@ export async function createWebOrder(input: CreateOrderInput): Promise<{ number:
   const ids = input.items.map((i) => i.variantId);
   const variants = await prisma.productVariant.findMany({
     where: { ...webVisible, id: { in: ids } },
-    include: { product: { select: { nameAr: true } } },
+    include: { product: { select: { nameAr: true, ...wrapSizeSelect } } },
   });
   const byId = new Map(variants.map((v) => [v.id, v]));
   const missing = input.items.filter((i) => !byId.has(i.variantId));
@@ -264,8 +314,29 @@ export async function createWebOrder(input: CreateOrderInput): Promise<{ number:
 
   const cardMessage = input.cardMessage?.trim() || null;
   if (cardMessage && cardMessage.length > CARD_MESSAGE_MAX) throw new OrderError("CARD_TOO_LONG");
-  const wrap = input.wrapStyleId ? await activeWrapStyle(input.wrapStyleId) : null;
-  if (input.wrapStyleId && !wrap) throw new OrderError("WRAP_UNAVAILABLE");
+  // البطاقة: «من» والشكل لا معنى لهما بلا رسالة
+  const cardFrom = cardMessage ? input.cardFrom?.trim() || null : null;
+  if (cardFrom && cardFrom.length > CARD_FROM_MAX) throw new OrderError("CARD_TOO_LONG");
+  const cardDesign = cardMessage && input.cardDesignId ? await activeCardDesign(input.cardDesignId) : null;
+  if (cardMessage && input.cardDesignId && !cardDesign) throw new OrderError("CARD_DESIGN_UNAVAILABLE");
+
+  // التغليف يُحسب هنا من أحجام القطع وأسعار الآن — لا يُوثق بسعر المتصفح
+  let wrap: { id: string; nameAr: string; quote: Extract<WrapQuote, { available: true }> } | null = null;
+  if (input.wrapTier) {
+    const tier = (await activeWrapTiers()).find((t) => t.tier === input.wrapTier);
+    const quote = tier
+      ? quoteWrap(
+          input.items.map((i) => {
+            const p = byId.get(i.variantId)!.product;
+            return { key: i.variantId, qty: i.qty, size: effectiveWrapSize(p.wrapSize, p.category.defaultWrapSize) };
+          }),
+          tier.prices,
+        )
+      : null;
+    if (!tier || !quote?.available) throw new OrderError("WRAP_UNAVAILABLE");
+    wrap = { id: tier.id, nameAr: tier.nameAr, quote };
+  }
+  const wrapByKey = new Map(wrap?.quote.lines.map((l) => [l.key, l]) ?? []);
 
   let totals;
   try {
@@ -275,7 +346,7 @@ export async function createWebOrder(input: CreateOrderInput): Promise<{ number:
         qty: i.qty,
         unitPriceSdg: byId.get(i.variantId)?.priceSdg?.toString() ?? "0",
       })),
-      wrap?.priceSdg ?? 0,
+      wrap?.quote.totalSdg ?? 0,
     );
   } catch (e) {
     if (e instanceof CoreError) throw new OrderError("INVALID_QTY");
@@ -350,6 +421,8 @@ export async function createWebOrder(input: CreateOrderInput): Promise<{ number:
           wrapName: wrap?.nameAr ?? null,
           wrapPriceSdg: wrap ? totals.wrapPriceSdg.toFixed(2) : null,
           cardMessage,
+          cardDesignId: cardDesign?.id ?? null,
+          cardFrom,
           createdAt: now,
           lines: {
             create: totals.lines.map((l, i) => {
@@ -361,6 +434,8 @@ export async function createWebOrder(input: CreateOrderInput): Promise<{ number:
                 unitPriceSdg: l.unitPriceSdg.toFixed(2),
                 lineTotalSdg: l.lineTotalSdg.toFixed(2),
                 sortOrder: i,
+                wrapSize: wrapByKey.get(l.key)?.size ?? null,
+                wrapUnitPriceSdg: wrapByKey.get(l.key)?.unitPriceSdg.toFixed(2) ?? null,
               };
             }),
           },
@@ -646,20 +721,30 @@ async function applyTransition(
       costs.push(exact);
       await tx.orderLine.update({ where: { id: line.id }, data: { unitCostUsd: unitCost.toFixed(6) } });
     }
-    // مواد التغليف حسب وصفة النمط وقت التجهيز (D-91)
+    // مواد التغليف وقت التجهيز: لكل قطعة مغلّفة وصفة حجمها × الكمية (D-165)؛ والطلبات القديمة
+    // (قبل D-165، بلا حجم على السطور) بوصفة النمط لكل هدية كما كانت (D-91)
     const wrapCosts: Decimal[] = [];
     if (order.wrapStyleId) {
+      const wrapped = order.lines.flatMap((l) =>
+        l.wrapSize && l.wrapSize !== "NONE" ? [{ size: l.wrapSize as WrappableSize, qty: l.qty.toString() }] : [],
+      );
       const materials = await tx.wrapStyleMaterial.findMany({
-        where: { wrapStyleId: order.wrapStyleId },
+        where: { wrapStyleId: order.wrapStyleId, size: wrapped.length ? { not: null } : null },
         include: { variant: { include: { product: { select: { nameAr: true } } } } },
-        orderBy: { variantId: "asc" },
       });
-      for (const m of materials) {
+      const names = new Map(materials.map((m) => [m.variantId, m.variant.product.nameAr]));
+      const needs = wrapped.length
+        ? wrapMaterialNeeds(
+            wrapped,
+            materials.map((m) => ({ size: m.size as WrappableSize, variantId: m.variantId, qty: m.qty.toString() })),
+          )
+        : new Map(materials.map((m) => [m.variantId, dec(m.qty.toString())]));
+      for (const [variantId, qty] of [...needs].sort(([a], [b]) => a.localeCompare(b))) {
         const { exact } = await deductStock(tx, {
-          variantId: m.variantId,
-          qty: dec(m.qty.toString()),
+          variantId,
+          qty,
           kind: "CONSUMPTION",
-          label: `مادة تغليف: ${m.variant.product.nameAr}`,
+          label: `مادة تغليف: ${names.get(variantId) ?? ""}`,
           order,
           actorId,
         });
@@ -954,6 +1039,7 @@ export async function getOrderForStaff(id: string) {
     include: {
       customer: { select: { phone: true } },
       lines: { orderBy: { sortOrder: "asc" }, include: { variant: { select: { sku: true, barcode: true } } } },
+      cardDesign: { select: { nameAr: true, imageKey: true, textColor: true } },
       history: { orderBy: { createdAt: "asc" }, include: { actor: { select: { name: true } } } },
       payments: { orderBy: { receivedAt: "asc" }, include: { wallet: { select: { name: true } } } },
       paymentProofs: { orderBy: { createdAt: "desc" }, include: { reviewedBy: { select: { name: true } } } },
@@ -983,6 +1069,11 @@ export async function getOrderForStaff(id: string) {
     wrapPriceSdg: o.wrapPriceSdg?.toString() ?? null,
     subtotalSdg: o.subtotalSdg.toString(),
     cardMessage: o.cardMessage,
+    cardFrom: o.cardFrom,
+    /** شكل البطاقة (فارغ = قالب غصن). */
+    cardDesign: o.cardDesign
+      ? { name: o.cardDesign.nameAr, imageKey: o.cardDesign.imageKey, textColor: o.cardDesign.textColor }
+      : null,
     proofs: o.paymentProofs.map((p) => ({
       id: p.id,
       reference: p.reference,
@@ -999,6 +1090,8 @@ export async function getOrderForStaff(id: string) {
       qty: l.qty.toString(),
       unitPriceSdg: l.unitPriceSdg.toString(),
       lineTotalSdg: l.lineTotalSdg.toString(),
+      /** حجم تغليف القطعة إن غُلّفت (D-165). */
+      wrapSize: l.wrapSize,
     })),
     history: o.history.map((h) => ({
       id: h.id,
@@ -1060,6 +1153,7 @@ export async function getOrderByToken(token: string, locale: string) {
         }
       : null,
     cardMessage: o.cardMessage,
+    cardFrom: o.cardFrom,
     /** الخط الزمني للعميل: كل مرحلة ووقتها (بلا أسباب ولا أسماء الموظفين). */
     timeline: o.history.map((h) => ({ id: h.id, status: h.toStatus as OrderStatus, at: h.createdAt })),
     lines: o.lines.map((l) => ({

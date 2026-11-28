@@ -1,5 +1,5 @@
 // بيانات أولية: العملات، أسعار الدولار والريال الثابتة، المحافظ، الأقسام، ومستخدم المالك
-import { PrismaClient, RateSource, Role } from "@prisma/client";
+import { PrismaClient, RateSource, Role, type WrapSize } from "@prisma/client";
 
 const prisma = new PrismaClient();
 
@@ -45,11 +45,21 @@ async function main() {
     ["shilas", "شيلات", "Shilas"],
     ["wrapping", "تغليف", "Wrapping"],
   ];
+  // حجم التغليف الافتراضي لكل قسم (D-165) — عند الإنشاء فقط؛ بعدها تعدّله المديرة من «الأقسام»
+  const wrapSizes: Record<string, WrapSize> = {
+    flowers: "NONE",
+    wrapping: "NONE",
+    "womens-perfumes": "SMALL",
+    "mens-perfumes": "SMALL",
+    watches: "SMALL",
+    beauty: "SMALL",
+    "teddy-bears": "LARGE",
+  };
   for (const [i, [slug, nameAr, nameEn]] of categories.entries()) {
     await prisma.category.upsert({
       where: { slug },
       update: { nameAr, nameEn, sortOrder: i },
-      create: { slug, nameAr, nameEn, sortOrder: i },
+      create: { slug, nameAr, nameEn, sortOrder: i, defaultWrapSize: wrapSizes[slug] ?? "MEDIUM" },
     });
   }
 

@@ -5,6 +5,7 @@ import { Field } from "@/components/form-field";
 import { Alert } from "@/components/ui/alert";
 import { ImageInput } from "@/components/image-input";
 import { Button } from "@/components/ui/button";
+import { NativeSelect } from "@/components/ui/input";
 import { createCategory, updateCategory, type CategoryState } from "./actions";
 
 export interface CategoryRow {
@@ -14,6 +15,8 @@ export interface CategoryRow {
   isActive: boolean;
   targetMarginPct: string;
   minMarginPct: string;
+  /** حجم التغليف الافتراضي لمنتجات القسم (D-165). */
+  defaultWrapSize: "SMALL" | "MEDIUM" | "LARGE" | "NONE";
   productCount: number;
   /** الصورة المرفوعة، أو null (تُستخدم صورة أحدث منتج). */
   imageUrl: string | null;
@@ -64,6 +67,18 @@ export function CategoryForm({ category, canEditMargin }: { category: CategoryRo
           />
         </>
       ) : null}
+      <label className="flex flex-col gap-1.5 sm:col-span-2">
+        <span className="text-sm font-semibold">حجم التغليف لمنتجات القسم</span>
+        <NativeSelect name="defaultWrapSize" defaultValue={category.defaultWrapSize}>
+          <option value="SMALL">صغير</option>
+          <option value="MEDIUM">وسط</option>
+          <option value="LARGE">كبير</option>
+          <option value="NONE">لا يُغلّف</option>
+        </NativeSelect>
+        <span className="text-xs text-muted-foreground">
+          يحدد سعر تغليف القطعة. المنتج يمكن أن يختلف عن قسمه من صفحة المنتج.
+        </span>
+      </label>
       <div className="flex flex-col gap-1.5 sm:col-span-2">
         <span className="text-sm font-semibold">صورة القسم في المتجر (دائرية، اختيارية)</span>
         <span className="flex flex-wrap items-center gap-3">

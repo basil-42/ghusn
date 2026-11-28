@@ -11,7 +11,7 @@ import type { Locale } from "@/i18n/routing";
 import { listStoreBanners } from "@/lib/banners";
 import { imageUrl } from "@/lib/product-images";
 import { getStoreSettings } from "@/lib/settings";
-import { listStoreWrapStyles } from "@/lib/wrapping";
+import { listStoreWrapTiers } from "@/lib/wrapping";
 import {
   getSeasonBanner,
   getSeasonTile,
@@ -39,7 +39,7 @@ export default async function StoreHome({ params }: { params: Promise<{ locale: 
     getSeasonBanner(locale),
     listStoreBanners(locale),
     getSeasonTile(locale),
-    listStoreWrapStyles(locale),
+    listStoreWrapTiers(locale),
     getStoreSettings(),
   ]);
   // صف منتجات المناسبة أسفل الصفحة: الموسم الفعّال، وإلا أول مناسبة فيها منتجات
@@ -50,7 +50,10 @@ export default async function StoreHome({ params }: { params: Promise<{ locale: 
       month: "long",
       timeZone: "UTC",
     }).format(new Date(`${day}T00:00:00Z`));
-  const wrapMin = wraps.reduce<string | null>((m, w) => (m === null || dec(w.priceSdg).lt(m) ? w.priceSdg : m), null);
+  const wrapMin = wraps.reduce<string | null>(
+    (m, w) => (m === null || dec(w.fromPriceSdg).lt(m) ? w.fromPriceSdg : m),
+    null,
+  );
   const featuredProducts = featured ? await listStoreProducts(locale, { occasionSlug: featured.slug, take: 5 }) : [];
   const Arrow = locale === "ar" ? ArrowLeft : ArrowRight;
   const trust = [
@@ -133,8 +136,7 @@ export default async function StoreHome({ params }: { params: Promise<{ locale: 
             meta={
               wraps.length && wrapMin ? (
                 <>
-                  {t("wrapStylesCount", { count: wraps.length })} {t("fromPrice")}{" "}
-                  <Price value={wrapMin} locale={locale} />
+                  {wraps.map((w) => w.name).join(" · ")} {t("fromPrice")} <Price value={wrapMin} locale={locale} />
                 </>
               ) : null
             }

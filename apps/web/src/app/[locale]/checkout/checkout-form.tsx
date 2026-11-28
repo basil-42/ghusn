@@ -1,6 +1,5 @@
 "use client";
 
-import { CARD_MESSAGE_MAX } from "@ghusn/core";
 import { createId } from "@paralleldrive/cuid2";
 import { Check, ChevronDown, Info, Plus } from "lucide-react";
 import Image from "next/image";
@@ -11,9 +10,10 @@ import { track } from "@/components/store/analytics";
 import { Price } from "@/components/store/price";
 import { useQuote, type Quote } from "@/components/store/use-quote";
 import { Link, useRouter } from "@/i18n/navigation";
-import type { StoreWrapStyle } from "@/lib/wrapping";
+import type { StoreCardDesign, StoreWrapTier } from "@/lib/wrapping";
 import { createOrderAction } from "../store-actions";
 import { LocationField } from "./location-field";
+import { WrapCard, type CardState, type Tier } from "./wrap-card";
 
 const CITIES = ["KHARTOUM", "BAHRI", "OMDURMAN"] as const;
 const input =
@@ -35,11 +35,13 @@ const dot =
  */
 export function CheckoutForm({
   bankakEnabled,
-  wrapStyles,
+  wrapTiers,
+  cardDesigns,
   satelliteKey,
 }: {
   bankakEnabled: boolean;
-  wrapStyles: StoreWrapStyle[];
+  wrapTiers: StoreWrapTier[];
+  cardDesigns: StoreCardDesign[];
   /** مفتاح MapTiler العام لطبقة القمر الصناعي في منتقي الموقع (D-164)، أو null. */
   satelliteKey: string | null;
 }) {
@@ -51,9 +53,9 @@ export function CheckoutForm({
   const router = useRouter();
   const items = useCart();
   const hydrated = useHydrated();
-  const [wrapStyleId, setWrapStyleId] = useState<string | null>(null);
-  const [card, setCard] = useState("");
-  const { quote, loading } = useQuote(items, wrapStyleId);
+  const [wrapTier, setWrapTier] = useState<Tier | null>(null);
+  const [card, setCard] = useState<CardState>({ on: false, designId: null, message: "", from: "" });
+  const { quote, loading } = useQuote(items, wrapTier);
   // معرّف ثابت لهذه المحاولة: الإرسال مرتين (شبكة ضعيفة) لا ينشئ طلبين
   const [orderId] = useState(() => createId());
   // التوصيل ببنكك مسبقاً فقط (D-143): بلا بنكك يبقى الاستلام من المحل
@@ -103,8 +105,11 @@ export function CheckoutForm({
           recipientPhone: gift ? s("recipientPhone") : null,
           note: s("note"),
           payment: effectivePayment,
-          wrapStyleId,
-          cardMessage: card.trim() || null,
+          // المستوى المختار إن بقي متاحاً لهذه السلة (الإجمالي المرسل محسوب على هذا الأساس)
+          wrapTier: quote.wrap?.tier ?? null,
+          cardMessage: card.on ? card.message.trim() || null : null,
+          cardDesignId: card.on ? card.designId : null,
+          cardFrom: card.on ? card.from.trim() || null : null,
           items,
           expectedTotalSdg: quote.totalSdg,
         });
@@ -266,62 +271,17 @@ export function CheckoutForm({
         </Section>
 
         <Section n={3} title={t("wrapCard")}>
-          {wrapStyles.length ? (
-            <fieldset className="grid grid-cols-2 gap-2.5 sm:grid-cols-4">
-              <legend className="sr-only">{t("giftTitle")}</legend>
-              {[null, ...wrapStyles].map((w) => (
-                <label
-                  key={w?.id ?? "none"}
-                  className="relative flex cursor-pointer flex-col overflow-hidden rounded-xl border border-line bg-card has-checked:border-forest has-checked:shadow-[inset_0_0_0_1px_var(--color-forest)] has-focus-visible:outline-2 has-focus-visible:outline-sage"
-                >
-                  <input
-                    type="radio"
-                    name="wrapStyle"
-                    checked={wrapStyleId === (w?.id ?? null)}
-                    onChange={() => setWrapStyleId(w?.id ?? null)}
-                    className="peer sr-only"
-                  />
-                  <span className="relative aspect-[4/3] bg-muted">
-                    {w?.imageUrl ? (
-                      <Image src={w.imageUrl} alt="" fill sizes="200px" className="object-cover" unoptimized />
-                    ) : w ? (
-                      <span
-                        aria-hidden
-                        className="absolute inset-0 bg-sage/30 bg-[url('/brand/pattern-sage.svg')] bg-[length:120px]"
-                      />
-                    ) : null}
-                  </span>
-                  <span
-                    aria-hidden
-                    className="absolute start-1.5 top-1.5 hidden size-[22px] items-center justify-center rounded-full bg-forest text-ivory peer-checked:flex"
-                  >
-                    <Check className="size-3.5" strokeWidth={3} />
-                  </span>
-                  <span className="flex flex-col gap-0.5 px-2.5 py-2">
-                    <b className="text-[13px]">{w ? w.name : t("noWrap")}</b>
-                    <span className="text-xs text-muted-foreground tabular-nums">
-                      {w ? <Price value={w.priceSdg} locale={locale} /> : t("wrapFree")}
-                    </span>
-                  </span>
-                </label>
-              ))}
-            </fieldset>
-          ) : null}
-          <label className={field}>
-            <span className={label}>{t("card")}</span>
-            <textarea
-              name="cardMessage"
-              maxLength={CARD_MESSAGE_MAX}
-              rows={3}
-              value={card}
-              onChange={(e) => setCard(e.target.value)}
-              placeholder={t("cardPlaceholder")}
-              className={area}
-            />
-            <span dir="ltr" className={`${hint} text-start tabular-nums rtl:text-end`}>
-              {t("cardCount", { used: card.length, max: CARD_MESSAGE_MAX })}
-            </span>
-          </label>
+          <WrapCard
+            quote={quote}
+            tiers={wrapTiers}
+            designs={cardDesigns}
+            tier={wrapTier}
+            onTier={setWrapTier}
+            card={card}
+            onCard={setCard}
+            locale={locale}
+            inputClass={input}
+          />
           {noteOpen ? (
             <label className={field}>
               <span className={label}>{t("note")}</span>

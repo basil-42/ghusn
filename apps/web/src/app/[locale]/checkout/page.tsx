@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { getTranslations, setRequestLocale } from "next-intl/server";
 import { bankakAccount } from "@/lib/settings";
-import { listStoreWrapStyles } from "@/lib/wrapping";
+import { listStoreCardDesigns, listStoreWrapTiers } from "@/lib/wrapping";
 import { CheckoutForm } from "./checkout-form";
 
 // خيار بنكك يتبع الضبط الحالي (رقم الحساب) — لا يُبنى مسبقاً
@@ -23,7 +23,8 @@ export default async function CheckoutPage({ params }: { params: Promise<{ local
       <h1 className="text-2xl font-bold md:text-[26px]">{t("title")}</h1>
       <CheckoutForm
         bankakEnabled={!!(await bankakAccount())}
-        wrapStyles={await listStoreWrapStyles(locale)}
+        wrapTiers={await listStoreWrapTiers(locale)}
+        cardDesigns={await listStoreCardDesigns(locale)}
         satelliteKey={process.env.MAPTILER_KEY || null}
       />
     </div>

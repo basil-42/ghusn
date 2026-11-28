@@ -48,8 +48,7 @@
     "seasonFrom": "From {date}",
     "seasonSoonCta": "Get your gift ready",
     "fromPrice": "from",
-    "giftsCount": "{count, plural, one {# gift} other {# gifts}}",
-    "wrapStylesCount": "{count, plural, one {# style} other {# styles}}"
+    "giftsCount": "{count, plural, one {# gift} other {# gifts}}"
   },
   "category": {
     "products": "{count, plural, =0 {No products} one {1 product} other {# products}}",
@@ -212,7 +211,20 @@
     "locationOrPaste": "or paste a location link from Maps or WhatsApp",
     "locationPaste": "Location link",
     "locationDenied": "We couldn't get your location. Paste a location link, or choose pickup from the shop.",
-    "locationInvalid": "That isn't a map location link."
+    "locationInvalid": "That isn't a map location link.",
+    "wrapHow": "Wrapping",
+    "noWrapHint": "Your pieces arrive as they are",
+    "wrapUnavailable": "Not available for the pieces in your order",
+    "wrapSkipped": "{items} not wrapped",
+    "cardAdd": "Add a gift card",
+    "cardFree": "Free",
+    "cardDesign": "Card design",
+    "cardDesignDefault": "Ghusn",
+    "cardMessage": "Your message",
+    "cardFrom": "From (optional)",
+    "cardFromPlaceholder": "e.g. Your son Ahmed",
+    "cardPreview": "Preview — printed at 10×15 cm",
+    "cardPreviewEmpty": "Your message here"
   },
   "errors": {
     "NAME": "Please enter your name.",
@@ -238,7 +250,8 @@
     "WRAP_UNAVAILABLE": "The selected wrapping is no longer available. Please choose another.",
     "CARD_TOO_LONG": "The card message is longer than 150 characters.",
     "TRACK_NOT_FOUND": "We couldn't find an order with this number and phone. Check the details or contact us.",
-    "LOCATION": "Set the delivery location: tap “Use my current location” or “Pick on the map”, or paste a location link."
+    "LOCATION": "Set the delivery location: tap “Use my current location” or “Pick on the map”, or paste a location link.",
+    "CARD_DESIGN_UNAVAILABLE": "That card design is no longer available. Choose another."
   },
   "order": {
     "title": "Order {number}",
@@ -320,12 +333,14 @@
   },
   "gift": {
     "title": "Design your gift",
-    "intro": "Pick your gifts, then at checkout choose a wrapping style and write your card — we prepare it with care.",
+    "intro": "Pick your gifts, then at checkout choose your wrapping and write your card — we prepare it with care.",
     "step1": "Add the gifts you want to your cart.",
-    "step2": "At checkout, choose a wrapping style and write your card (up to 150 characters).",
-    "step3": "We wrap your gift in the style you chose and print your card, then deliver it or you collect it from the shop.",
-    "styles": "Wrapping styles",
-    "cta": "Start shopping"
+    "step2": "At checkout, choose regular or premium wrapping and add a free card with your message.",
+    "step3": "We wrap each piece and print your card, then deliver it or you collect it from the shop.",
+    "styles": "Wrapping",
+    "cta": "Start shopping",
+    "perPiece": "per piece, by size",
+    "fromPrice": "from"
   },
   "share": {
     "share": "Share",
