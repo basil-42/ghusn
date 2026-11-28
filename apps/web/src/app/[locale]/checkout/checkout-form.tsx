@@ -33,7 +33,16 @@ const dot =
  * بالصور يبقى ظاهراً على الكمبيوتر؛ على الجوال الملخص سطر قابل للفتح وشريط ثابت بالإجمالي وزر التأكيد.
  * الخادم يعيد حساب كل شيء؛ الإجمالي المعروض يُرسل للتأكد أن السعر لم يتغيّر.
  */
-export function CheckoutForm({ bankakEnabled, wrapStyles }: { bankakEnabled: boolean; wrapStyles: StoreWrapStyle[] }) {
+export function CheckoutForm({
+  bankakEnabled,
+  wrapStyles,
+  satelliteKey,
+}: {
+  bankakEnabled: boolean;
+  wrapStyles: StoreWrapStyle[];
+  /** مفتاح MapTiler العام لطبقة القمر الصناعي في منتقي الموقع (D-164)، أو null. */
+  satelliteKey: string | null;
+}) {
   const t = useTranslations("checkout");
   const cityLabel = useId();
   const te = useTranslations("errors");
@@ -219,7 +228,7 @@ export function CheckoutForm({ bankakEnabled, wrapStyles }: { bankakEnabled: boo
                   ))}
                 </div>
               </div>
-              <LocationField inputClass={input} />
+              <LocationField inputClass={input} satelliteKey={satelliteKey} />
               <label className={field}>
                 <span className={label}>{t("address")}</span>
                 <textarea name="address" maxLength={300} rows={2} className={area} placeholder={t("addressHint")} />

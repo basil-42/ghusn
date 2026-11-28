@@ -194,6 +194,18 @@
     "deliveryNote": "The courier will contact you with the delivery fee before setting out, as it varies by area; you pay it to them on delivery.",
     "location": "Delivery location",
     "locateMe": "Use my current location",
+    "pickOnMap": "Pick on the map",
+    "mapTitle": "Delivery location",
+    "mapClose": "Close map",
+    "mapSearch": "Search an area or landmark… e.g. Al-Manshiya",
+    "mapSearchGo": "Search",
+    "mapSearchError": "Search isn't available right now. Move the map to your location.",
+    "mapNoResults": "No results. Try the area name or a nearby landmark.",
+    "mapHint": "Move the map so the pin is on the house",
+    "mapLayer": "Map type",
+    "mapStreets": "Map",
+    "mapSatellite": "Satellite",
+    "mapConfirm": "Confirm this location",
     "locating": "Finding your location…",
     "locationSet": "Location set",
     "locationChange": "Change",
@@ -226,7 +238,7 @@
     "WRAP_UNAVAILABLE": "The selected wrapping is no longer available. Please choose another.",
     "CARD_TOO_LONG": "The card message is longer than 150 characters.",
     "TRACK_NOT_FOUND": "We couldn't find an order with this number and phone. Check the details or contact us.",
-    "LOCATION": "Set the delivery location: tap “Use my current location” or paste a location link."
+    "LOCATION": "Set the delivery location: tap “Use my current location” or “Pick on the map”, or paste a location link."
   },
   "order": {
     "title": "Order {number}",
