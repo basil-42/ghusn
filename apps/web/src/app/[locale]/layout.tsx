@@ -13,6 +13,10 @@ import { analyticsConfig } from "@/lib/analytics";
 import { alternates, siteUrl } from "@/lib/site";
 import "../globals.css";
 
+// كل صفحات المتجر تُعرض عند الطلب (D-166): الرأس والتذييل يقرآن الضبط والمواسم من القاعدة، فالبناء الثابت
+// كان يجمّدها على قيم وقت البناء، والبناء على الخادم (Docker) لا يصل إلى القاعدة أصلاً
+export const dynamic = "force-dynamic";
+
 export function generateStaticParams() {
   return routing.locales.map((locale) => ({ locale }));
 }

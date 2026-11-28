@@ -1,0 +1,11 @@
+**/node_modules
+**/.next
+**/.turbo
+**/tsconfig.tsbuildinfo
+apps/web/uploads
+.env
+.env.*
+!.env.example
+.git
+backups
+*.log
