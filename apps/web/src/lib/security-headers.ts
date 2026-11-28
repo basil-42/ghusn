@@ -16,6 +16,7 @@ export interface CspOptions {
  *   كل الصفحات ديناميكية ويلغي التخزين المؤقت).
  * - لا تضمين للموقع داخل إطار (clickjacking)، ولا إرسال نماذج لموقع آخر، ولا plugins.
  * - الصور: الموقع، و data: (الباركود) و blob: (معاينة الصورة قبل رفعها).
+ * - صور الخريطة في منتقي موقع التوصيل (D-164): OpenStreetMap، وMapTiler لطبقة القمر الصناعي. البحث يمر بخادمنا.
  * - الإطارات: خرائط Google المضمّنة فقط (خريطة المحل في «عن غصن»، D-161) — والرابط نفسه مقيّد في الضبط
  *   بـ https://www.google.com/maps/embed.
  */
@@ -25,7 +26,7 @@ export function contentSecurityPolicy({ dev, https, analyticsOrigin }: CspOption
     "default-src 'self'",
     `script-src 'self' 'unsafe-inline'${dev ? " 'unsafe-eval'" : ""}${extra}`,
     "style-src 'self' 'unsafe-inline'",
-    "img-src 'self' data: blob:",
+    "img-src 'self' data: blob: https://tile.openstreetmap.org https://api.maptiler.com",
     "font-src 'self' data:",
     `connect-src 'self'${extra}${dev ? " ws: wss:" : ""}`,
     "media-src 'self'",

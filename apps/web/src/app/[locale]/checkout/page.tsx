@@ -21,7 +21,11 @@ export default async function CheckoutPage({ params }: { params: Promise<{ local
     <div className="mx-auto flex max-w-[1240px] flex-col gap-4 px-4 pt-6 pb-10 md:px-6">
       {/* «العودة للسلة» في رأس الصفحة المختصر (D-159) */}
       <h1 className="text-2xl font-bold md:text-[26px]">{t("title")}</h1>
-      <CheckoutForm bankakEnabled={!!(await bankakAccount())} wrapStyles={await listStoreWrapStyles(locale)} />
+      <CheckoutForm
+        bankakEnabled={!!(await bankakAccount())}
+        wrapStyles={await listStoreWrapStyles(locale)}
+        satelliteKey={process.env.MAPTILER_KEY || null}
+      />
     </div>
   );
 }
