@@ -203,12 +203,16 @@ export default async function OrderStatusPage({ params, searchParams }: Props) {
 
       <section className="rounded-2xl border border-line bg-card p-4 text-sm">
         {o.fulfillment === "DELIVERY" ? (
-          <p>
-            <span className="font-semibold">{t("deliveryTo")}: </span>
-            {o.recipientName ? `${o.recipientName} — ` : ""}
-            {o.city ? tc(`cities.${o.city}`) : ""}
-            {o.address ? `، ${o.address}` : ""}
-          </p>
+          <div className="flex flex-col gap-2">
+            <p>
+              <span className="font-semibold">{t("deliveryTo")}: </span>
+              {o.recipientName ? `${o.recipientName} — ` : ""}
+              {o.city ? tc(`cities.${o.city}`) : ""}
+              {o.address ? `، ${o.address}` : ""}
+            </p>
+            {/* D-163: رسوم التوصيل يبلغ بها المندوب قبل الانطلاق وتُدفع له */}
+            <p className="text-muted-foreground">{t("deliveryNote")}</p>
+          </div>
         ) : (
           <p className="font-semibold">{t("pickup")}</p>
         )}

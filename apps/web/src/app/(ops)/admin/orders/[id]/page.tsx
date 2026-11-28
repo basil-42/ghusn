@@ -8,6 +8,7 @@ import { formatAmount, formatDateTime } from "@/lib/format";
 import { CITY_LABELS, ORDER_STATUS_LABELS, getOrderForStaff, statusVariant } from "@/lib/orders";
 import { OrderActions } from "../order-actions";
 import { orderMessages } from "@/lib/order-messages";
+import { CourierCopy } from "./courier-copy";
 import { MarkOrderOpened } from "./mark-opened";
 import { OrderMessages } from "./order-messages";
 import { PageHeader } from "@/components/admin/page-header";
@@ -96,9 +97,41 @@ export default async function OrderPage({ params }: { params: Promise<{ id: stri
                   {o.fulfillment === "PICKUP" ? "من المحل" : `توصيل — ${o.city ? CITY_LABELS[o.city] : ""}`}
                 </dd>
               </div>
+              {o.fulfillment === "DELIVERY" ? (
+                <div className="sm:col-span-2">
+                  <dt className="text-muted-foreground">الموقع</dt>
+                  <dd className="mt-1 flex flex-wrap gap-2">
+                    {o.locationUrl ? (
+                      <a
+                        href={o.locationUrl}
+                        target="_blank"
+                        rel="noreferrer"
+                        className="inline-flex min-h-11 items-center gap-2 rounded-xl bg-primary px-4 font-semibold text-primary-foreground hover:bg-primary/90"
+                      >
+                        📍 افتح الموقع في الخرائط
+                      </a>
+                    ) : (
+                      <span className="text-muted-foreground">لم يُحدَّد موقع (طلب قبل إضافة الموقع)</span>
+                    )}
+                    <CourierCopy
+                      text={[
+                        `طلب ${o.number}`,
+                        `المستلم: ${o.recipientName || o.customerName} · ${o.recipientPhone || o.phone}`,
+                        o.city ? `المدينة: ${CITY_LABELS[o.city]}` : null,
+                        o.locationUrl ? `الموقع: ${o.locationUrl}` : null,
+                        o.address ? `وصف: ${o.address}` : null,
+                        o.note ? `ملاحظة: ${o.note}` : null,
+                        "قيمة الطلب مدفوعة. رسوم التوصيل يدفعها المستلم للمندوب.",
+                      ]
+                        .filter(Boolean)
+                        .join("\n")}
+                    />
+                  </dd>
+                </div>
+              ) : null}
               {o.address ? (
                 <div className="sm:col-span-2">
-                  <dt className="text-muted-foreground">العنوان</dt>
+                  <dt className="text-muted-foreground">وصف العنوان</dt>
                   <dd className="whitespace-pre-line font-semibold">{o.address}</dd>
                 </div>
               ) : null}

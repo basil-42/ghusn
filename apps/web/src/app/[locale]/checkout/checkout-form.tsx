@@ -2,7 +2,7 @@
 
 import { CARD_MESSAGE_MAX } from "@ghusn/core";
 import { createId } from "@paralleldrive/cuid2";
-import { Check, ChevronDown, Plus } from "lucide-react";
+import { Check, ChevronDown, Info, Plus } from "lucide-react";
 import Image from "next/image";
 import { useLocale, useTranslations } from "next-intl";
 import { useId, useState, useTransition, type ReactNode } from "react";
@@ -13,6 +13,7 @@ import { useQuote, type Quote } from "@/components/store/use-quote";
 import { Link, useRouter } from "@/i18n/navigation";
 import type { StoreWrapStyle } from "@/lib/wrapping";
 import { createOrderAction } from "../store-actions";
+import { LocationField } from "./location-field";
 
 const CITIES = ["KHARTOUM", "BAHRI", "OMDURMAN"] as const;
 const input =
@@ -88,6 +89,7 @@ export function CheckoutForm({ bankakEnabled, wrapStyles }: { bankakEnabled: boo
           fulfillment,
           city: fulfillment === "DELIVERY" ? s("city") : null,
           address: fulfillment === "DELIVERY" ? s("address") : null,
+          location: fulfillment === "DELIVERY" ? s("location") : null,
           recipientName: gift ? s("recipientName") : null,
           recipientPhone: gift ? s("recipientPhone") : null,
           note: s("note"),
@@ -195,6 +197,11 @@ export function CheckoutForm({ bankakEnabled, wrapStyles }: { bankakEnabled: boo
           </fieldset>
           {fulfillment === "DELIVERY" ? (
             <>
+              {/* تنويه رسوم التوصيل (D-163): المندوب يبلغ بالمبلغ قبل الانطلاق ويُدفع له عند الاستلام */}
+              <p className="flex gap-2 rounded-xl border border-gold/40 bg-gold/10 px-3 py-2.5 text-[13px] leading-relaxed text-forest">
+                <Info aria-hidden className="mt-0.5 size-4 shrink-0 text-gold" strokeWidth={2} />
+                {t("deliveryNote")}
+              </p>
               {/* مجموعة اختيار بعناصر عادية — <fieldset> بعنوان ظاهر داخل flex يُحسب خطأً في Safari */}
               <div role="radiogroup" aria-labelledby={cityLabel} className={field}>
                 <p id={cityLabel} className={label}>
@@ -212,10 +219,10 @@ export function CheckoutForm({ bankakEnabled, wrapStyles }: { bankakEnabled: boo
                   ))}
                 </div>
               </div>
+              <LocationField inputClass={input} />
               <label className={field}>
                 <span className={label}>{t("address")}</span>
-                <textarea name="address" required minLength={5} maxLength={300} rows={2} className={area} />
-                <span className={hint}>{t("addressHint")}</span>
+                <textarea name="address" maxLength={300} rows={2} className={area} placeholder={t("addressHint")} />
               </label>
             </>
           ) : null}

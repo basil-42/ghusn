@@ -222,6 +222,8 @@ export interface CreateOrderInput {
   fulfillment: Fulfillment;
   city: DeliveryCity | null;
   address: string | null;
+  /** رابط موقع التوصيل بعد normalizeLocation (D-163) — مطلوب للتوصيل */
+  locationUrl: string | null;
   recipientName: string | null;
   recipientPhone: string | null;
   note: string | null;
@@ -337,6 +339,7 @@ export async function createWebOrder(input: CreateOrderInput): Promise<{ number:
           fulfillment: input.fulfillment,
           city: input.fulfillment === "DELIVERY" ? input.city : null,
           address: input.fulfillment === "DELIVERY" ? input.address : null,
+          locationUrl: input.fulfillment === "DELIVERY" ? input.locationUrl : null,
           recipientName: input.recipientName,
           recipientPhone,
           note: input.note,
@@ -967,6 +970,7 @@ export async function getOrderForStaff(id: string) {
     phone: o.customer.phone,
     city: o.city,
     address: o.address,
+    locationUrl: o.locationUrl,
     recipientName: o.recipientName,
     recipientPhone: o.recipientPhone,
     note: o.note,
@@ -1041,6 +1045,7 @@ export async function getOrderByToken(token: string, locale: string) {
     customerName: o.customerName,
     city: o.city,
     address: o.address,
+    locationUrl: o.locationUrl,
     recipientName: o.recipientName,
     totalSdg: o.totalSdg.toFixed(0),
     createdAt: o.createdAt,

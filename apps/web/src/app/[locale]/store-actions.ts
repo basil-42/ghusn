@@ -3,7 +3,7 @@
 import { revalidatePath } from "next/cache";
 import { headers } from "next/headers";
 import { redirect } from "next/navigation";
-import { CARD_MESSAGE_MAX } from "@ghusn/core";
+import { CARD_MESSAGE_MAX, normalizeLocation } from "@ghusn/core";
 import { z } from "zod";
 import { formatAmount } from "@/lib/format";
 import {
@@ -45,6 +45,8 @@ const orderSchema = z
     fulfillment: z.enum(["DELIVERY", "PICKUP"]),
     city: z.enum(["KHARTOUM", "BAHRI", "OMDURMAN"]).nullable(),
     address: z.string().trim().max(300).nullable(),
+    /** إحداثيات من «حدّد موقعي» أو رابط خرائط ملصوق (D-163) — يُتحقق منه بـ normalizeLocation */
+    location: z.string().trim().max(1000).nullable(),
     recipientName: z.string().trim().max(80).nullable(),
     recipientPhone: z.string().trim().max(20).nullable(),
     note: z.string().trim().max(300).nullable(),
@@ -54,7 +56,8 @@ const orderSchema = z
     items,
     expectedTotalSdg: z.string().regex(/^\d{1,12}$/),
   })
-  .refine((o) => o.fulfillment === "PICKUP" || (o.city && (o.address?.length ?? 0) >= 5), { path: ["address"] });
+  .refine((o) => o.fulfillment === "PICKUP" || !!o.city, { path: ["address"] })
+  .refine((o) => o.fulfillment === "PICKUP" || !!normalizeLocation(o.location), { path: ["location"] });
 
 export type OrderResult =
   { ok: true; number: string; trackingToken: string } | { ok: false; code: string; params?: Record<string, string> };
@@ -69,11 +72,13 @@ export async function createOrderAction(input: unknown): Promise<OrderResult> {
     const code =
       path === "address"
         ? "ADDRESS"
-        : path === "customerName"
-          ? "NAME"
-          : path === "cardMessage"
-            ? "CARD_TOO_LONG"
-            : "INVALID";
+        : path === "location"
+          ? "LOCATION"
+          : path === "customerName"
+            ? "NAME"
+            : path === "cardMessage"
+              ? "CARD_TOO_LONG"
+              : "INVALID";
     return { ok: false, code };
   }
   const ip = clientIp(await headers());
@@ -83,6 +88,7 @@ export async function createOrderAction(input: unknown): Promise<OrderResult> {
     const r = await createWebOrder({
       ...parsed.data,
       address: blank(parsed.data.address),
+      locationUrl: parsed.data.fulfillment === "DELIVERY" ? normalizeLocation(parsed.data.location) : null,
       recipientName: blank(parsed.data.recipientName),
       recipientPhone: blank(parsed.data.recipientPhone),
       note: blank(parsed.data.note),

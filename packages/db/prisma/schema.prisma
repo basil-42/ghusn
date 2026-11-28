@@ -1197,6 +1197,8 @@ model Order {
   fulfillment    Fulfillment
   city           DeliveryCity?
   address        String?
+  /// موقع التوصيل (D-163): رابط خرائط مُتحقق منه — من «حدّد موقعي» أو رابط يلصقه العميل
+  locationUrl    String?
   // المستلم إن كانت هدية لشخص آخر
   recipientName  String?
   recipientPhone String?
